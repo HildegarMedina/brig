@@ -15,6 +15,7 @@ from contextlib import contextmanager
 from brig.compose import project_prefix, render_compose, service_environment
 from brig.dockerfile import render_dockerfile
 from brig.engine import Environment
+from brig.agents import AGENTS, validate_agent
 from brig.errors import BrigError
 from brig.models import Project
 
@@ -28,6 +29,12 @@ class DockerEngine:
         self.uid = os.getuid() if uid is None else uid
         self.gid = os.getgid() if gid is None else gid
         self._checked = False
+        self.agent_scope = hashlib.sha256(
+            str(directory.resolve()).encode()
+        ).hexdigest()[:12]
+
+    def agent_volume_name(self, agent: str) -> str:
+        return f"brig-{agent}-{self.uid}-{self.agent_scope}"
 
     def describe(self, project: Project) -> Environment:
         prefix = project_prefix(project)
@@ -36,6 +43,17 @@ class DockerEngine:
             {name: f"{prefix}-{name}" for name in project.configuration.services},
             f"{prefix}-network",
             (f"{prefix}-home",)
+            + tuple(
+                volume
+                for agent in project.configuration.selected_agents
+                if AGENTS[agent].config_directory
+                for volume in (self.agent_volume_name(agent),)
+                + (
+                    (f"{prefix}-{agent}-history",)
+                    if AGENTS[agent].history_directory
+                    else ()
+                )
+            )
             + tuple(f"{prefix}-{name}-data" for name in project.configuration.services)
             + (
                 (f"{prefix}-mongodb-config",)
@@ -254,7 +272,16 @@ class DockerEngine:
             f"{self.uid}:{self.gid}\n{dockerfile}".encode()
         ).hexdigest()[:24]
         image = f"brig-dev-{project_prefix(project)}:{digest}"
-        compose = render_compose(project, image, self.uid, self.gid)
+        compose = render_compose(
+            project,
+            image,
+            self.uid,
+            self.gid,
+            agent_volumes={
+                agent: self.agent_volume_name(agent)
+                for agent in project.configuration.selected_agents
+            },
+        )
         self._check()
         self._check_data_versions(project)
         credentials = self._credentials(project)
@@ -295,6 +322,7 @@ class DockerEngine:
     def _start(self, project: Project) -> str:
         self._inspect(project)  # Verify ownership before making changes.
         directory, image = self.prepare(project)
+        self._ensure_agent_volumes(project)
         command = self._compose(project, directory)
         found = self._run(["image", "inspect", image], check=False)
         if found.returncode:
@@ -323,6 +351,47 @@ class DockerEngine:
                 "Docker reported success but the development container is not running."
             )
         return f"Started {project.name}. Use 'brig run {project.name}' to enter its terminal."
+
+    def _ensure_agent_volumes(self, project: Project) -> None:
+        for agent in project.configuration.selected_agents:
+            if not AGENTS[agent].config_directory:
+                continue
+            name = self.agent_volume_name(agent)
+            labels = {
+                "org.brig.agent": agent,
+                "org.brig.agent-scope": self.agent_scope,
+                "org.brig.uid": str(self.uid),
+            }
+            found = self._run(["volume", "inspect", name], check=False)
+            if found.returncode:
+                if "no such" not in (found.stderr or "").lower():
+                    raise BrigError(
+                        "Cannot inspect shared agent storage: "
+                        + (found.stderr or "").strip()
+                    )
+                self._run(
+                    [
+                        "volume",
+                        "create",
+                        *[
+                            argument
+                            for key, value in labels.items()
+                            for argument in ("--label", f"{key}={value}")
+                        ],
+                        name,
+                    ]
+                )
+                found = self._run(["volume", "inspect", name])
+            try:
+                actual = json.loads(found.stdout)[0].get("Labels") or {}
+            except (ValueError, KeyError, IndexError, TypeError) as error:
+                raise BrigError(
+                    "Docker returned invalid shared agent storage information."
+                ) from error
+            if any(actual.get(key) != value for key, value in labels.items()):
+                raise BrigError(
+                    f"Shared agent volume '{name}' is not owned by this Brig installation."
+                )
 
     def stop(self, project: Project) -> str:
         with self._lock(project):
@@ -361,20 +430,23 @@ class DockerEngine:
 
     def shell(self, project: Project, command=None) -> str:
         self.validate_shell(command)
+        return self._execute(project, command or ["/bin/bash"], interactive=not command)
+
+    def _execute(self, project: Project, command, *, interactive: bool) -> str:
         container = self._inspect(project)
         if not container or not container["State"]["Running"]:
             raise BrigError(
                 "Project container is stopped. Run 'brig run' to start it and enter."
             )
         args = ["docker", "exec"]
-        if not command:
+        if interactive:
             args.append("-it")
         args.extend(
             [
                 "--workdir",
                 "/workspace",
                 self.describe(project).development,
-                *(command or ["/bin/bash"]),
+                *command,
             ]
         )
         try:
@@ -386,6 +458,10 @@ class DockerEngine:
         return ""
 
     def run_agent(self, project: Project, agent: str) -> str:
-        raise BrigError(
-            f"Agent '{agent}' is not installed by Brig yet. Use 'brig run {project.name}' to enter the project terminal."
-        )
+        validate_agent(agent)
+        if agent not in project.configuration.selected_agents:
+            raise BrigError(
+                f"Agent '{agent}' is not selected in this project's profile."
+            )
+        self.validate_shell()
+        return self._execute(project, list(AGENTS[agent].command), interactive=True)

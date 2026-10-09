@@ -39,7 +39,10 @@ class DockerfileTests(unittest.TestCase):
         self.assertNotIn("latest", contents)
         self.assertEqual(
             [line for line in contents.splitlines() if line.startswith("COPY")],
-            ["COPY --from=composer_binary /usr/bin/composer /usr/local/bin/composer"],
+            [
+                "COPY --from=composer_binary /usr/bin/composer /usr/local/bin/composer",
+                "COPY --from=claude_binary /usr/local/bin/claude /usr/local/bin/claude",
+            ],
         )
         self.assertNotIn("composer install", contents)
 
@@ -63,7 +66,7 @@ class DockerfileTests(unittest.TestCase):
         project.configuration.tools = {}
         contents = render_dockerfile(project)
         self.assertNotIn("FROM composer:", contents)
-        self.assertNotIn("COPY --from=", contents)
+        self.assertNotIn("COPY --from=composer_binary", contents)
         self.assertNotIn("redis-server", contents)
         self.assertNotIn("mysql-server", contents)
 
@@ -92,6 +95,13 @@ class DockerfileTests(unittest.TestCase):
             project.configuration.tools = tools
             with self.subTest(runtimes=runtimes):
                 contents = render_dockerfile(project)
+                self.assertIn("bash /tmp/install-claude.sh stable", contents)
+                self.assertIn("cp -L /root/.local/bin/claude", contents)
+                self.assertIn(
+                    "COPY --from=claude_binary /usr/local/bin/claude /usr/local/bin/claude",
+                    contents,
+                )
+                self.assertIn("ENV DISABLE_AUTOUPDATER=1", contents)
                 for runtime, version in runtimes.items():
                     self.assertIn(f"{runtime}:{version}", contents)
                 for tool in ("composer", "uv", "pnpm", "yarn", "npm", "pip"):

@@ -81,9 +81,21 @@ with a shell; specify one as the program if needed.
 brig agent [AGENT] [--project NAME]
 ```
 
-Agent installation and authentication are pending. This command reports that
-status. The former simulation command `brig run AGENT` has been replaced with
-`brig run PROJECT`; `run` now executes a project.
+Builds a missing image, starts the selected project, and launches Claude Code
+inside its development container at `/workspace`. An interactive terminal is
+required. Omitting `AGENT` uses the profile's default agent. Codex and OpenCode
+remain future integrations.
+
+You can also enter with `brig run PROJECT` and type `claude`. On first use,
+follow Claude's sign-in prompts. Its configuration and credentials stay in the
+shared agent volume. Projects registered under the same Brig data directory and
+host user reuse that login on this machine. Conversation files under Claude's
+`projects/` directory have a separate volume per project. Brig does not copy host
+credentials. Signing out of Claude affects the shared login.
+
+Profiles select a list of agents and a default from that list. The command can
+only launch agents selected in the project's pinned revision. Claude Code is the
+first available integration.
 
 ## Terminal interface
 

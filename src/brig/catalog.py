@@ -5,6 +5,7 @@ import re
 from typing import Protocol
 
 from brig.errors import BrigError
+from brig.agents import AGENTS as AGENTS, validate_agent
 
 
 @dataclass(frozen=True)
@@ -68,19 +69,6 @@ class VersionCatalog(Protocol):
     ) -> str | None: ...
 
 
-@dataclass(frozen=True)
-class Agent:
-    name: str
-    available: bool
-
-
-AGENTS = {
-    "claude": Agent("Claude Code", True),
-    "codex": Agent("Codex", False),
-    "opencode": Agent("OpenCode", False),
-}
-
-
 def validate_selection(
     runtimes: dict[str, str],
     tools: dict[str, str],
@@ -111,10 +99,7 @@ def validate_selection(
         required = TOOLS[name].runtime
         if required not in runtimes:
             raise BrigError(f"{name} requires the {required} runtime.")
-    if agent not in AGENTS or not AGENTS[agent].available:
-        raise BrigError(
-            "Only Claude Code can currently be selected as the profile's default agent."
-        )
+    validate_agent(agent)
     if versions is not None:
         for selections in (runtimes, tools, services):
             for name, version in selections.items():

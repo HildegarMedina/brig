@@ -103,6 +103,13 @@ class ComposeTests(unittest.TestCase):
         second = compose_definition(self.project, "image:test", 1000, 1000)
         self.assertNotEqual(first["networks"], second["networks"])
         self.assertNotEqual(first["volumes"], second["volumes"])
+        self.assertEqual(
+            first["volumes"]["claude_config"], second["volumes"]["claude_config"]
+        )
+        self.assertTrue(first["volumes"]["claude_config"]["external"])
+        self.assertNotEqual(
+            first["volumes"]["claude_history"], second["volumes"]["claude_history"]
+        )
         self.project.path = str(Path(self.folder.name) / "missing")
         with self.assertRaisesRegex(BrigError, "folder is missing"):
             compose_definition(self.project, "image:test", 1000, 1000)

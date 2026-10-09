@@ -92,9 +92,18 @@ major version does not trigger an automatic migration.
 ## What isolation means
 
 Each project has resource names derived from its internal ID, a Docker network,
-and separate volumes. The development container mounts only the project's
-registered folder and its home volume. It does not mount the Docker socket or use
+and separate data, home, and conversation volumes. The development container mounts
+the project's registered folder, its private volumes, and a shared volume for the
+agent's login and global configuration. It does not mount the Docker socket or use
 privileged mode.
+
+Claude is installed as a native executable during the image build. Agent adapters
+in `agents.py` define installation, command, dependencies, and configuration
+location. The profile selects which adapters to include and which one is the
+default. A shared external volume keeps one Claude login per host user and Brig
+data directory; nested per-project storage keeps conversation files separate.
+`brig agent` prepares the environment and launches the selected executable with
+an interactive terminal. The user follows Claude's normal authentication prompts.
 
 The development container uses a user whose UID/GID matches the host user. Service
 containers retain the users and permissions required by their official images.

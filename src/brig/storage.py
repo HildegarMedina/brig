@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 from brig.catalog import validate_selection
+from brig.agents import validate_agents
 from brig.errors import BrigError
 from brig.models import Profile, ProfileRevision, Project, State
 from brig.profile_yaml import profile_path, render_profile
@@ -40,6 +41,10 @@ def _revision(raw: dict) -> ProfileRevision:
             raise ValueError("Invalid version mapping")
     validate_selection(
         revision.runtimes, revision.tools, revision.services, revision.agent
+    )
+    validate_agents(
+        [revision.agent] if revision.agents is None else revision.agents,
+        revision.agent,
     )
     return revision
 

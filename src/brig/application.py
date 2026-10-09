@@ -9,6 +9,7 @@ from uuid import uuid4
 from brig.catalog import VersionCatalog, validate_selection
 from brig.versions import LiveVersionCatalog
 from brig.engine import EnvironmentEngine
+from brig.agents import validate_agent, validate_agents
 from brig.dockerfile import render_dockerfile, write_dockerfile
 from brig.errors import BrigError
 from brig.models import Profile, ProfileRevision, Project, State
@@ -87,8 +88,11 @@ class Application:
         *,
         editing: bool = False,
         catalog: VersionCatalog | None = None,
+        agents: list[str] | None = None,
     ) -> Profile:
         name = self.validate_profile_name(name, editing=editing)
+        selected_agents = [agent] if agents is None else agents
+        validate_agents(selected_agents, agent)
         validate_selection(
             runtimes,
             tools,
@@ -110,6 +114,7 @@ class Application:
                 dict(tools),
                 dict(services),
                 agent,
+                list(selected_agents),
             )
         )
         self._commit(candidate)
@@ -207,6 +212,14 @@ class Application:
         return self._set_running(name, False)
 
     def run_agent(self, name: str, agent: str) -> str:
+        validate_agent(agent)
+        project = self.project(name)
+        if agent not in project.configuration.selected_agents:
+            raise BrigError(
+                f"Agent '{agent}' is not selected in this project's profile."
+            )
+        self.engine.validate_shell()
+        self.start(name)
         return self.engine.run_agent(self.project(name), agent)
 
     def shell(self, name: str, command=None) -> str:

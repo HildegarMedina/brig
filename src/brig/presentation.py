@@ -13,7 +13,8 @@ def configuration_lines(configuration: ProfileRevision) -> list[str]:
     ):
         values = ", ".join(f"{name} {version}" for name, version in selections.items())
         lines.append(f"{label:<10} {values or 'none'}")
-    lines.append(f"Agent      {configuration.agent}")
+    lines.append(f"Agents     {', '.join(configuration.selected_agents)}")
+    lines.append(f"Default    {configuration.agent}")
     return lines
 
 

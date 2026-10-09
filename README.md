@@ -51,7 +51,8 @@ brig down --project my-project
 ```
 
 `down` removes containers and the network while preserving source files and
-volumes. Agent installation, application dependency installation, HTTP server
+volumes. Claude Code is installed in selected project images and uses a shared
+login on this machine. Application dependency installation, HTTP server
 startup, and application port publishing are not implemented yet.
 
 ## Documentation

@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from typing import Protocol
 
-from brig.catalog import AGENTS
+from brig.agents import AGENTS, validate_agent
 from brig.errors import BrigError
 from brig.models import Project
 
@@ -69,10 +69,7 @@ class DemoEngine:
         return f"Stopped {project.name} (simulated). Project data is preserved."
 
     def run_agent(self, project: Project, agent: str) -> str:
-        if agent not in AGENTS:
-            raise BrigError(f"Unknown agent: {agent}.")
-        if not AGENTS[agent].available:
-            raise BrigError(f"{AGENTS[agent].name} is a future integration.")
+        validate_agent(agent)
         self._require_running(project)
         return (
             f"Would launch {AGENTS[agent].name} inside {self.describe(project).development}.\n"

@@ -81,7 +81,7 @@ def parser() -> argparse.ArgumentParser:
         ("down", "stop a project's environment, keeping its data"),
         ("run", "prepare one project and enter its isolated terminal"),
         ("shell", "prepare the current project and enter its isolated terminal"),
-        ("agent", "launch a project agent (not implemented yet)"),
+        ("agent", "prepare a project and launch its agent"),
     ):
         command = commands.add_parser(name, help=description)
         command.add_argument(

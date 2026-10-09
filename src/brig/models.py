@@ -10,6 +10,12 @@ class ProfileRevision:
     tools: dict[str, str]
     services: dict[str, str]
     agent: str = "claude"
+    agents: list[str] | None = None
+
+    @property
+    def selected_agents(self) -> list[str]:
+        # Legacy revisions keep their YAML unchanged and select their one agent.
+        return [self.agent] if self.agents is None else list(self.agents)
 
 
 @dataclass

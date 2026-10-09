@@ -15,9 +15,20 @@
 Only tools for selected runtimes appear. At least one runtime is required; tools
 and services are optional. A profile can select several runtimes and services.
 
-Claude Code can be saved as the default agent, although installation and
-authentication are not implemented. Codex and OpenCode are listed as future
-integrations.
+Profiles select an `agents` list and a default `agent` from that list. Existing
+revisions containing only `agent` select that one agent automatically. Claude Code
+is the first available integration; selecting future integrations is blocked until
+their installation adapter is implemented.
+
+Selected Claude Code is installed using Anthropic's native
+installer and its stable channel. It works without adding Node.js to a PHP or
+Python profile. The installer resolves the agent version when its build stage
+runs; unlike runtime and tool versions, that version is not pinned in the profile
+YAML. Docker reuses the installed binary when reusing an image or cached stage.
+Background updates are disabled so the executable stays with the image.
+Codex and OpenCode are listed as future integrations.
+
+See [Anthropic's installation documentation](https://code.claude.com/docs/en/setup).
 
 ## Version sources
 
@@ -111,6 +122,8 @@ databases:
   postgresql: "17.2"
 caches:
   redis: "7.4.2"
+agents:
+  - "claude"
 agent: "claude"
 ```
 

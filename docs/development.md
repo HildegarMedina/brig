@@ -44,22 +44,30 @@ preservation when engine operations fail.
 BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle -v
 ```
 
-The three enabled tests verify:
+The four enabled tests verify:
 
 - Entering Bash through a real pseudo-terminal and returning to the host.
 - Building a missing image, reusing the container, mounting the correct folder,
   writing files with the user's UID, and preserving Redis data. Starting another
   project and verifying that stopping the first does not affect it.
+  Checking that Claude executes before and after recreation, its shared storage
+  is visible to both projects, and their conversation files remain separate.
 - Starting PostgreSQL, MySQL, MariaDB, MongoDB, and Redis with a PHP project;
   checking health, PDO connections, and MongoDB authentication.
+- Running Node.js and Claude in a Node-only profile without optional package
+  managers, and checking agent storage permissions.
 
 Tests use temporary profiles and folders. Cleanup selects only resources labeled
 with their IDs and image tags belonging to those projects. First startups download
 images and build the development image. The default suite explicitly skips these
 tests; unit tests do not replace these checks.
 
+Shared agent volumes in these tests are scoped to the temporary data directory and
+removed during cleanup. Tests never mount the regular Brig login or authenticate
+with a live account; shared storage checks use fixture data.
+
 Fixtures pin concrete releases for repeatability. `BRIG_TEST_PYTHON`,
-`BRIG_TEST_PHP`, and `BRIG_TEST_REDIS` override runtimes and Redis to test other
+`BRIG_TEST_PHP`, `BRIG_TEST_NODE`, and `BRIG_TEST_REDIS` override runtimes and Redis to test other
 versions; fixtures do not feed the production catalog.
 
 ## Add a component
@@ -97,6 +105,19 @@ Check the image's mount point and differences between releases. Data must stay i
 a project-specific volume without ports published by default. Add initialization,
 connection, persistence, and data compatibility tests before offering the service
 in profiles.
+
+### An agent
+
+Add an `AgentIntegration` in [`agents.py`](../src/brig/agents.py) with its command,
+build stage, final-image instructions, runtime packages, and configuration path
+and environment variable, and optional history subdirectory. An adapter without installation instructions stays
+unavailable. The wizard, profile validation, image generator, and launcher use
+this registry, so adding an adapter does not require a new CLI command.
+
+Profile revisions store `agents` and a default `agent`. Validate that the default
+is selected, preserve project snapshots, and keep old single-agent revisions and
+their immutable YAML readable. Verify actual execution and persistence across
+projects and container recreation before making a new integration selectable.
 
 ## Change the engine
 

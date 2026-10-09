@@ -28,6 +28,7 @@ class DockerRunner:
         self.config = None
         self.volumes = ""
         self.volume_labels = None
+        self.agent_volumes = {}
 
     def __call__(self, args, **options):
         self.calls.append((args, options))
@@ -53,6 +54,12 @@ class DockerRunner:
         if args[1:3] == ["container", "ls"]:
             return CompletedProcess(args, 0, "project-dev" if self.running else "", "")
         if args[1:3] == ["volume", "inspect"]:
+            if args[-1].startswith("brig-claude-"):
+                if args[-1] not in self.agent_volumes:
+                    return CompletedProcess(args, 1, "", "Error: no such volume")
+                return CompletedProcess(
+                    args, 0, json.dumps([{"Labels": self.agent_volumes[args[-1]]}]), ""
+                )
             if self.volume_labels is None:
                 return CompletedProcess(args, 1, "", "Error: no such volume")
             return CompletedProcess(
@@ -60,6 +67,12 @@ class DockerRunner:
             )
         if args[1:3] == ["volume", "ls"]:
             return CompletedProcess(args, 0, self.volumes, "")
+        if args[1:3] == ["volume", "create"]:
+            self.agent_volumes[args[-1]] = dict(
+                args[index + 1].split("=", 1)
+                for index, value in enumerate(args)
+                if value == "--label"
+            )
         if "build" in args:
             self.image = True
         if "up" in args:
@@ -152,6 +165,62 @@ class DockerEngineTests(unittest.TestCase):
         command = self.runner.calls[-1][0]
         self.assertIn("-it", command)
         self.assertEqual(command[-1], "/bin/bash")
+
+    def test_agent_prepares_project_and_launches_with_interactive_terminal(self):
+        with (
+            patch("brig.docker_engine.sys.stdin.isatty", return_value=True),
+            patch("brig.docker_engine.sys.stdout.isatty", return_value=True),
+            redirect_stderr(io.StringIO()),
+        ):
+            self.app.run_agent("api", "claude")
+        self.assertEqual(
+            self.runner.calls[-1][0],
+            [
+                "docker",
+                "exec",
+                "-it",
+                "--workdir",
+                "/workspace",
+                self.engine.describe(self.project).development,
+                "claude",
+            ],
+        )
+        self.assertTrue(self.app.project("api").running)
+
+    def test_shared_agent_storage_rejects_unowned_volume(self):
+        self.runner.agent_volumes[self.engine.agent_volume_name("claude")] = {}
+        with self.assertRaisesRegex(BrigError, "not owned"):
+            self.start()
+        self.assertFalse(self.app.project("api").running)
+        self.assertFalse(any("up" in args for args, _ in self.runner.calls))
+
+    def test_shared_agent_storage_is_scoped_to_user_and_data_directory(self):
+        self.start()
+        name = self.engine.agent_volume_name("claude")
+        self.assertEqual(self.runner.agent_volumes[name]["org.brig.uid"], "1234")
+        same = DockerEngine(self.engine.directory, uid=1234, gid=4321)
+        other = DockerEngine(
+            self.engine.directory.parent / "another", uid=1234, gid=4321
+        )
+        other_user = DockerEngine(self.engine.directory, uid=5678, gid=4321)
+        self.assertEqual(name, same.agent_volume_name("claude"))
+        self.assertNotEqual(name, other.agent_volume_name("claude"))
+        self.assertNotEqual(name, other_user.agent_volume_name("claude"))
+        self.assertNotIn("org.brig.project-id", self.runner.agent_volumes[name])
+
+    def test_invalid_agent_or_missing_terminal_does_not_start_containers(self):
+        for agent, error in (
+            ("unknown", "Unknown agent"),
+            ("codex", "future integration"),
+        ):
+            with self.subTest(agent=agent), self.assertRaisesRegex(BrigError, error):
+                self.app.run_agent("api", agent)
+        with (
+            patch("brig.docker_engine.sys.stdin.isatty", return_value=False),
+            self.assertRaisesRegex(BrigError, "interactive terminal"),
+        ):
+            self.app.run_agent("api", "claude")
+        self.assertEqual(self.runner.calls, [])
 
     def test_build_or_start_failure_never_marks_project_running(self):
         for failure in ("build", "up"):

@@ -65,11 +65,20 @@ class ScriptedTerminal:
                 (
                     option
                     for option in options
-                    if option == name or option.endswith(f" · {COMPONENTS[name].label}")
+                    if option == name
+                    or option.startswith(f"{name} · ")
+                    or (
+                        name in COMPONENTS
+                        and option.endswith(f" · {COMPONENTS[name].label}")
+                    )
                 ),
                 name,
             )
-            for name in next(self.multiples)
+            for name in (
+                next(self.multiples, ["claude"])
+                if "· agents" in title
+                else next(self.multiples)
+            )
         ]
 
     def loading(self, message):
@@ -301,7 +310,7 @@ class WizardTests(unittest.TestCase):
 
     def test_empty_runtime_selection_keeps_wizard_open_and_preserves_name(self):
         selector = TerminalTests().terminal(
-            ["\n", curses.KEY_DOWN, " ", "\n", "\n", "\n"]
+            ["\n", curses.KEY_DOWN, " ", "\n", "\n", "\n", "\n"]
         )
         terminal = ScriptedTerminal(inputs=["custom"], choices=[0, 0])
         terminal.multiple = selector.multiple

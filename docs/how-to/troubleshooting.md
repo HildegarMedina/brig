@@ -90,6 +90,17 @@ filtered according to their declared requirements for the selected runtime. See
 
 ## An agent does not start
 
-Profiles can save Claude Code as the default agent, but installation and
-authentication are pending. `brig agent` reports that status. Use
-`brig run my-api` to work in the project's terminal.
+Claude Code is installed in the development image. If an older container says
+`claude: command not found`, exit its terminal, update Brig, and run
+`brig run my-api` again. Brig builds the updated image and recreates the
+development container while preserving the source folder and named volumes.
+
+Use `claude --version` inside the container to check installation, or launch it
+directly with `brig agent --project my-api`. Follow its sign-in prompts on first
+use. Brig does not copy credentials from the host or automate sign-in. Codex and
+OpenCode are not implemented yet.
+
+Signing in once shares that session with other projects under the same Brig data
+directory and host user. `down`, recreating a container, or deleting a project
+registration preserves the shared login. An explicit logout affects all projects
+using it; an expired or revoked session may require signing in again.

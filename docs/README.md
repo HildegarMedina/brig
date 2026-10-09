@@ -22,11 +22,13 @@ terminal inside its development container.
 The engine generates Dockerfiles and Compose configurations for PHP, Python, and
 Node.js, individually or together. It can start PostgreSQL, MySQL, MariaDB,
 MongoDB, and Redis according to the profile, build a missing image, and open an
-unprivileged terminal.
+unprivileged terminal. Claude Code is installed in the development image and can
+be launched with `brig agent` or `claude` from that terminal. Sign in on first use;
+its login and global configuration persist in a shared agent volume on this
+machine, while conversation files have a separate volume per project.
 
 Installing Docker on the host, installing application dependencies, starting HTTP
-servers, and publishing application ports are not implemented. Agent installation
-and authentication are also pending. Profile YAML files can be read and shared;
+servers, and publishing application ports are not implemented. Profile YAML files can be read and shared;
 importing them is not implemented.
 
 ## Maintaining this documentation

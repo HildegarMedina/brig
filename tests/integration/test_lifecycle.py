@@ -10,6 +10,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from brig.models import Profile, ProfileRevision, Project, State
+from brig.docker_engine import DockerEngine
 from brig.storage import JsonStateStore
 
 
@@ -94,6 +95,8 @@ class DockerLifecycleTests(unittest.TestCase):
             )
             for image in set(result.stdout.split()):
                 subprocess.run(["docker", "image", "rm", image], capture_output=True)
+        volume = DockerEngine(self.data / "runtime").agent_volume_name("claude")
+        subprocess.run(["docker", "volume", "rm", volume], capture_output=True)
 
     def brig(self, *args, success=True, cwd=None):
         result = subprocess.run(
@@ -131,6 +134,18 @@ class DockerLifecycleTests(unittest.TestCase):
             "run", "integration-project", "--command", "python", "-c", program
         )
         self.assertIn("isolated-project-ok", result.stdout)
+        result = self.brig(
+            "run", "integration-project", "--command", "claude", "--version"
+        )
+        self.assertIn("Claude Code", result.stdout)
+        self.brig(
+            "run",
+            "integration-project",
+            "--command",
+            "sh",
+            "-ec",
+            "test -f /usr/local/bin/claude; test ! -L /usr/local/bin/claude; echo retained > /home/brig/agent-test-config",
+        )
         self.assertEqual(
             (self.source / "created_inside.txt").read_text(), "from container"
         )
@@ -158,7 +173,42 @@ class DockerLifecycleTests(unittest.TestCase):
             cwd=self.source,
         )
         self.assertIn("data-preserved", result.stdout)
+        self.assertIn(
+            "Claude Code",
+            self.brig(
+                "run", "integration-project", "--command", "claude", "--version"
+            ).stdout,
+        )
+        self.assertEqual(
+            self.brig(
+                "run",
+                "integration-project",
+                "--command",
+                "cat",
+                "/home/brig/agent-test-config",
+            ).stdout.strip(),
+            "retained",
+        )
         self.brig("up", "--project", "other-project")
+        self.brig(
+            "run",
+            "integration-project",
+            "--command",
+            "sh",
+            "-ec",
+            'printf session-fixture > "$CLAUDE_CONFIG_DIR/session-test"; printf private-history > "$CLAUDE_CONFIG_DIR/projects/history-test"',
+        )
+        self.assertEqual(
+            self.brig(
+                "run",
+                "other-project",
+                "--command",
+                "sh",
+                "-ec",
+                'cat "$CLAUDE_CONFIG_DIR/session-test"; test ! -e "$CLAUDE_CONFIG_DIR/projects/history-test"',
+            ).stdout,
+            "session-fixture",
+        )
         other = self.inspect("container", f"brig-{self.other_id}-dev")
         self.assertNotEqual(
             set(first["NetworkSettings"]["Networks"]),
@@ -168,6 +218,26 @@ class DockerLifecycleTests(unittest.TestCase):
         self.assertTrue(
             self.inspect("container", f"brig-{self.other_id}-dev")["State"]["Running"]
         )
+
+    def test_node_only_profile_includes_claude_without_optional_package_managers(self):
+        store = JsonStateStore(self.data)
+        state = store.load()
+        revision = ProfileRevision(
+            2, {"node": os.environ.get("BRIG_TEST_NODE", "22.13.1")}, {}, {}
+        )
+        state.profiles[0].revisions.append(revision)
+        state.projects[0].configuration = revision
+        store.save(state)
+        result = self.brig(
+            "run",
+            "integration-project",
+            "--command",
+            "sh",
+            "-ec",
+            'node --version; claude --version; test -w "$CLAUDE_CONFIG_DIR"; test "$(stat -c %a "$CLAUDE_CONFIG_DIR")" = 700',
+        )
+        self.assertIn("Claude Code", result.stdout)
+        self.assertIn("v" + revision.runtimes["node"], result.stdout)
 
     def test_interactive_terminal_entry(self):
         import pty
@@ -253,6 +323,12 @@ class DockerLifecycleTests(unittest.TestCase):
         """
         result = self.brig("run", "integration-project", "--command", "php", "-r", code)
         self.assertIn("all-service-connections-ok", result.stdout)
+        self.assertIn(
+            "Claude Code",
+            self.brig(
+                "run", "integration-project", "--command", "claude", "--version"
+            ).stdout,
+        )
         mongo = subprocess.run(
             [
                 "docker",

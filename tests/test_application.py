@@ -246,10 +246,10 @@ class ApplicationTests(unittest.TestCase):
             )
         self.assertEqual(self.app.state, before)
 
-    def test_demo_agent_and_shell_require_running_project(self):
+    def test_demo_agent_and_shell_start_project(self):
         self.create_project()
-        with self.assertRaisesRegex(BrigError, "stopped"):
-            self.app.run_agent("first", "claude")
+        self.assertIn("no agent was launched", self.app.run_agent("first", "claude"))
+        self.assertTrue(self.app.project("first").running)
         self.assertIn("no shell was opened", self.app.shell("first"))
         self.app.start("first")
         self.assertIn("no agent was launched", self.app.run_agent("first", "claude"))

@@ -75,6 +75,8 @@ Names use the `brig-PROJECT_ID` prefix:
 | Service container | `brig-ID-SERVICE` |
 | Network | `brig-ID-network` |
 | Home volume | `brig-ID-home` → `/home/brig` |
+| Shared Claude configuration | `brig-claude-UID-SCOPE` → `/home/brig/.config/claude` |
+| Claude conversation files | `brig-ID-claude-history` → `/home/brig/.config/claude/projects` |
 | Data volume | `brig-ID-SERVICE-data` |
 | MongoDB configuration volume | `brig-ID-mongodb-config` |
 | Development image | `brig-dev-brig-ID:HASH` |
@@ -83,6 +85,22 @@ Source files live in the registered host folder, mounted at `/workspace`. Named
 volumes are managed by Docker and are not inside Brig's data directory. They have
 ownership labels and, for a service's data, its major version. Existing development
 containers with conflicting names are not automatically adopted.
+
+`SCOPE` hashes the engine's absolute runtime directory. All projects in the same
+Brig data directory for the same host user share Claude's login, global settings,
+and configuration. `CLAUDE_CONFIG_DIR` points Claude at that shared storage. The
+volume is external to project Compose lifecycles and has agent, user, and scope
+ownership labels. It survives `down` and project deletion; another data directory
+or host user gets separate storage. Brig does not mount host agent credentials.
+
+Conversation files in the nested `projects/` directory have a separate volume per
+project, preventing histories from colliding at the common `/workspace` path.
+The shared directory and history directory are initialized with the unprivileged
+user as owner and permissions 0700. Claude manages credential files and refreshes
+the login; Brig does not perform authentication or guarantee a token never expires.
+
+The Claude executable lives at `/usr/local/bin/claude` in the image so existing
+home volumes do not hide it when containers are recreated.
 
 ## What each operation preserves
 

@@ -274,13 +274,13 @@ class InteractiveApp:
                     self.ui.notice(
                         "Agents",
                         [
-                            f"{agent.name}: installation pending"
+                            f"{agent.name}: {'installed in project images' if agent.available else 'future integration'}"
                             for agent in AGENTS.values()
                         ]
                         + [
                             "",
                             "Agents will run inside each project's development container.",
-                            "Agent installation and authentication are not available yet.",
+                            "Claude Code prompts you to sign in on first use.",
                         ],
                     )
                 elif choice == 3:
@@ -419,11 +419,47 @@ class InteractiveApp:
             existing.services if existing else {},
             live,
         )
-        self.ui.choose(
-            f"{title} · 5/6 · default agent", ["Claude Code (installation pending)"]
+        available_agents = {
+            name: integration
+            for name, integration in AGENTS.items()
+            if integration.available
+        }
+        agent_options = {
+            f"{name} · {integration.name}": name
+            for name, integration in available_agents.items()
+        }
+        selected_options = self.ui.multiple(
+            f"{title} · 5/6 · agents",
+            list(agent_options),
+            {
+                option
+                for option, agent in agent_options.items()
+                if agent in (existing.selected_agents if existing else ["claude"])
+            },
+            required_message="Select at least one agent with Space to continue.",
         )
+        agents = [agent_options[option] for option in selected_options]
+        agent = agents[0]
+        if len(agents) > 1:
+            default = (
+                agents.index(existing.agent)
+                if existing and existing.agent in agents
+                else 0
+            )
+            agent = agents[
+                self.ui.choose(
+                    f"{title} · default agent",
+                    [AGENTS[name].name for name in agents],
+                    default=default,
+                )
+            ]
         revision = ProfileRevision(
-            existing.number + 1 if existing else 1, runtimes, tools, services
+            existing.number + 1 if existing else 1,
+            runtimes,
+            tools,
+            services,
+            agent,
+            agents,
         )
         if not self.ui.confirm(
             f"{title} · 6/6 · review",
@@ -436,7 +472,14 @@ class InteractiveApp:
         ):
             return
         profile = self.app.save_profile(
-            name, runtimes, tools, services, editing=editing, catalog=live
+            name,
+            runtimes,
+            tools,
+            services,
+            agent,
+            agents=agents,
+            editing=editing,
+            catalog=live,
         )
         self.ui.notice(
             "Profile saved",
@@ -590,15 +633,14 @@ class InteractiveApp:
                         lambda: self.app.stop(name)
                     )
                 elif choice == 3:
-                    agents = list(AGENTS)
+                    agents = project.configuration.selected_agents
                     selected = self.ui.choose(
                         "Run agent",
-                        [
-                            f"{agent.name} · installation pending"
-                            for agent in AGENTS.values()
-                        ],
+                        [AGENTS[agent].name for agent in agents],
                     )
-                    message = self.app.run_agent(name, agents[selected])
+                    message = getattr(self.ui, "external", lambda action: action())(
+                        lambda: self.app.run_agent(name, agents[selected])
+                    )
                 elif choice == 4:
                     message = getattr(self.ui, "external", lambda action: action())(
                         lambda: self.app.shell(name)

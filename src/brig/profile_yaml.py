@@ -51,5 +51,8 @@ def render_profile(name: str, revision: ProfileRevision) -> str:
         lines.extend(
             f"  {key}: {scalar(value)}" for key, value in sorted(selections.items())
         )
+    if revision.agents is not None:
+        lines.append("agents:")
+        lines.extend(f"  - {scalar(agent)}" for agent in revision.selected_agents)
     lines.append(f"agent: {scalar(revision.agent)}")
     return "\n".join(lines) + "\n"
