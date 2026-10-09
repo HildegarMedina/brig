@@ -10,6 +10,9 @@ from brig.application import Application, demo_state
 from brig.engine import DemoEngine
 from brig.errors import BrigError
 from brig.storage import JsonStateStore, default_data_directory
+from brig.profile_yaml import profile_path, render_profile
+from brig.models import Profile, ProfileRevision
+from tests.fakes import FakeVersionCatalog
 
 
 class StorageTests(unittest.TestCase):
@@ -84,3 +87,64 @@ class StorageTests(unittest.TestCase):
     def test_xdg_data_directory(self):
         with patch.dict("os.environ", {"XDG_DATA_HOME": "/tmp/brig-unit-data"}):
             self.assertEqual(default_data_directory(), Path("/tmp/brig-unit-data/brig"))
+
+    def test_profile_creation_produces_readable_yaml_and_keeps_previous_revision(self):
+        app = Application(self.store, DemoEngine(), FakeVersionCatalog)
+        app.save_profile(
+            "custom",
+            {"node": "22.13.1"},
+            {"pnpm": "9.15.0"},
+            {"mysql": "8.4.3", "redis": "7.4.2"},
+        )
+        document = profile_path(self.store.path.parent, "custom", 1)
+        contents = document.read_text()
+        self.assertIn('runtimes:\n  node: "22.13.1"', contents)
+        self.assertIn('databases:\n  mysql: "8.4.3"', contents)
+        self.assertIn('caches:\n  redis: "7.4.2"', contents)
+        app.save_profile("custom", {"node": "20.18.2"}, {}, {}, editing=True)
+        self.assertEqual(document.read_text(), contents)
+        self.assertTrue(profile_path(self.store.path.parent, "custom", 2).exists())
+
+    def test_loading_pinned_release_does_not_contact_version_sources(self):
+        state = demo_state()
+        state.profiles.append(
+            Profile("future", [ProfileRevision(1, {"python": "3.99.1"}, {}, {})])
+        )
+        self.store.save(state)
+        with patch(
+            "brig.versions.urlopen", side_effect=AssertionError("network forbidden")
+        ):
+            self.assertEqual(self.store.load(), state)
+
+    def test_failed_state_commit_removes_new_yaml_revision(self):
+        state = demo_state()
+        self.store.save(state)
+        original = self.store.path.read_bytes()
+        state.profiles[0].revisions.append(
+            ProfileRevision(2, {"php": "8.3.15"}, {}, {})
+        )
+        import os
+
+        replace = os.replace
+
+        def fail_state(source, destination):
+            if destination == self.store.path:
+                raise OSError("state failed")
+            replace(source, destination)
+
+        with (
+            patch("brig.storage.os.replace", side_effect=fail_state),
+            self.assertRaises(BrigError),
+        ):
+            self.store.save(state)
+        self.assertEqual(self.store.path.read_bytes(), original)
+        self.assertFalse(profile_path(self.store.path.parent, "web-dev", 2).exists())
+        self.assertEqual(list(self.store.path.parent.rglob("*.tmp")), [])
+
+    def test_yaml_quotes_names_and_cannot_escape_profile_directory(self):
+        name = '../../bad: "name"'
+        path = profile_path(self.store.path.parent, name, 1)
+        self.assertTrue(path.is_relative_to(self.store.path.parent / "profiles"))
+        contents = render_profile(name, ProfileRevision(1, {"php": "8.3.15"}, {}, {}))
+        self.assertIn('name: "../../bad: \\"name\\""', contents)
+        self.assertIn("tools: {}", contents)

@@ -1,10 +1,12 @@
 """Use cases shared by command-line and interactive interfaces."""
 
 from copy import deepcopy
+from collections.abc import Callable
 from pathlib import Path
 from uuid import uuid4
 
-from brig.catalog import validate_selection
+from brig.catalog import VersionCatalog, validate_selection
+from brig.versions import LiveVersionCatalog
 from brig.engine import EnvironmentEngine
 from brig.errors import BrigError
 from brig.models import Profile, ProfileRevision, Project, State
@@ -32,9 +34,15 @@ def demo_state() -> State:
 
 
 class Application:
-    def __init__(self, store: StateStore, engine: EnvironmentEngine):
+    def __init__(
+        self,
+        store: StateStore,
+        engine: EnvironmentEngine,
+        catalog_factory: Callable[[], VersionCatalog] = LiveVersionCatalog,
+    ):
         self.store = store
         self.engine = engine
+        self.catalog_factory = catalog_factory
         loaded = store.load()
         self.state = loaded if loaded is not None else demo_state()
         if loaded is None:
@@ -76,9 +84,16 @@ class Application:
         agent: str = "claude",
         *,
         editing: bool = False,
+        catalog: VersionCatalog | None = None,
     ) -> Profile:
         name = self._validate_name(name)
-        validate_selection(runtimes, tools, services, agent)
+        validate_selection(
+            runtimes,
+            tools,
+            services,
+            agent,
+            versions=catalog if catalog is not None else self.catalog_factory(),
+        )
         candidate = deepcopy(self.state)
         if editing:
             original = self.profile(name)

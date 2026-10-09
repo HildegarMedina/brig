@@ -9,7 +9,7 @@ from brig.application import Application
 from brig.engine import DemoEngine
 from brig.errors import BrigError
 from brig.models import State
-from tests.fakes import MemoryStore
+from tests.fakes import MemoryStore, FakeVersionCatalog
 
 
 class ApplicationTests(unittest.TestCase):
@@ -18,7 +18,7 @@ class ApplicationTests(unittest.TestCase):
         self.addCleanup(self.directory.cleanup)
         self.root = Path(self.directory.name)
         self.store = MemoryStore(State())
-        self.app = Application(self.store, DemoEngine())
+        self.app = Application(self.store, DemoEngine(), FakeVersionCatalog)
         self.app.save_profile("python", {"python": "3.11.11"}, {"uv": "0.5.24"}, {})
 
     def create_project(self, name="first"):
@@ -125,6 +125,24 @@ class ApplicationTests(unittest.TestCase):
         self.store.fail = True
         with self.assertRaisesRegex(BrigError, "Disk is full"):
             self.app.start("first")
+        self.assertEqual(self.app.state, before)
+
+    def test_new_release_is_accepted_without_changing_catalog_definitions(self):
+        self.app.save_profile(
+            "future",
+            {"python": "3.99.1"},
+            {},
+            {},
+            catalog=FakeVersionCatalog({"python": ("3.99.1",)}),
+        )
+        self.assertEqual(
+            self.app.profile("future").latest.runtimes, {"python": "3.99.1"}
+        )
+
+    def test_nonexistent_release_is_rejected_before_persistence(self):
+        before = deepcopy(self.app.state)
+        with self.assertRaisesRegex(BrigError, "not available"):
+            self.app.save_profile("invalid", {"python": "3.99.1"}, {}, {})
         self.assertEqual(self.app.state, before)
 
     def test_demo_agent_and_shell_require_running_project(self):

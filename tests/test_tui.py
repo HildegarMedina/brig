@@ -7,10 +7,11 @@ from copy import deepcopy
 from pathlib import Path
 
 from brig.application import Application, demo_state
+from brig.catalog import COMPONENTS
 from brig.engine import DemoEngine
 from brig.errors import BrigError, Cancelled
 from brig.tui import InteractiveApp, Terminal
-from tests.fakes import MemoryStore
+from tests.fakes import MemoryStore, FakeVersionCatalog
 
 
 class ScriptedTerminal:
@@ -20,6 +21,7 @@ class ScriptedTerminal:
         self.choices = iter(choices)
         self.confirmed = confirmed
         self.messages = []
+        self.selections = []
 
     def input(self, *args, **kwargs):
         value = next(self.inputs)
@@ -27,8 +29,22 @@ class ScriptedTerminal:
             raise value
         return value
 
-    def multiple(self, *args, **kwargs):
-        return next(self.multiples)
+    def multiple(self, title, options, defaults, *, required_message=None):
+        self.selections.append((title, options, defaults))
+        return [
+            next(
+                (
+                    option
+                    for option in options
+                    if option == name or option.endswith(f" · {COMPONENTS[name].label}")
+                ),
+                name,
+            )
+            for name in next(self.multiples)
+        ]
+
+    def loading(self, message):
+        self.messages.append(("Loading", [message]))
 
     def choose(self, *args, **kwargs):
         return next(self.choices)
@@ -42,7 +58,9 @@ class ScriptedTerminal:
 
 class WizardTests(unittest.TestCase):
     def setUp(self):
-        self.app = Application(MemoryStore(demo_state()), DemoEngine())
+        self.app = Application(
+            MemoryStore(demo_state()), DemoEngine(), FakeVersionCatalog
+        )
 
     def test_profile_wizard_saves_selected_versions(self):
         terminal = ScriptedTerminal(
@@ -56,6 +74,49 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(profile.latest.tools, {"uv": "0.5.24", "composer": "2.8.5"})
         self.assertEqual(profile.latest.services, {"redis": "7.4.2"})
 
+    def test_empty_runtime_selection_keeps_wizard_open_and_preserves_name(self):
+        selector = TerminalTests().terminal(
+            ["\n", curses.KEY_DOWN, " ", "\n", "\n", "\n"]
+        )
+        terminal = ScriptedTerminal(inputs=["custom"], choices=[0, 0])
+        terminal.multiple = selector.multiple
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(
+            self.app.profile("custom").latest.runtimes, {"python": "3.12.8"}
+        )
+        self.assertEqual(self.app.profile("custom").latest.tools, {})
+        self.assertEqual(self.app.profile("custom").latest.services, {})
+        self.assertTrue(
+            any("Select a runtime" in value for value in selector.screen.written)
+        )
+
+    def test_empty_profile_name_stays_in_input_until_corrected(self):
+        name_input = TerminalTests().terminal(
+            ["\n", " ", "\n", "\x15", *"custom", "\n"]
+        )
+        terminal = ScriptedTerminal(multiples=[["python"], [], []], choices=[0, 0])
+        terminal.input = name_input.input
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(
+            self.app.profile("custom").latest.runtimes, {"python": "3.12.8"}
+        )
+        self.assertTrue(
+            any(
+                "Profile name is required" in value
+                for value in name_input.screen.written
+            )
+        )
+
+    def test_invalid_profile_name_can_cancel_without_reaching_selection(self):
+        before = deepcopy(self.app.state)
+        name_input = TerminalTests().terminal(["\n", "\x1b"])
+        terminal = ScriptedTerminal()
+        terminal.input = name_input.input
+        with self.assertRaises(Cancelled):
+            InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(terminal.selections, [])
+        self.assertEqual(self.app.state, before)
+
     def test_declined_profile_review_does_not_save(self):
         before = deepcopy(self.app.state)
         terminal = ScriptedTerminal(
@@ -66,6 +127,99 @@ class WizardTests(unittest.TestCase):
         )
         InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
         self.assertEqual(self.app.state, before)
+
+    def test_categories_and_runtime_dependencies_are_visible(self):
+        terminal = ScriptedTerminal(
+            inputs=["node-dev"],
+            multiples=[
+                ["node"],
+                ["pnpm"],
+                ["mysql", "mariadb", "mongodb", "redis", "postgresql"],
+            ],
+            choices=[0] * 8,
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        tool_options = terminal.selections[1][1]
+        self.assertTrue(
+            all("Node.js package managers" in option for option in tool_options)
+        )
+        self.assertEqual(len(tool_options), 3)
+        service_options = terminal.selections[2][1]
+        self.assertTrue(
+            any("Relational databases" in option for option in service_options)
+        )
+        self.assertTrue(
+            any("Document databases" in option for option in service_options)
+        )
+        self.assertTrue(
+            any("Caches / key-value stores" in option for option in service_options)
+        )
+        self.assertEqual(len(self.app.profile("node-dev").latest.services), 5)
+
+    def test_source_failure_cancel_preserves_state(self):
+        before = deepcopy(self.app.state)
+        self.app.catalog_factory = lambda: FakeVersionCatalog(
+            {"python": BrigError("offline")}
+        )
+        terminal = ScriptedTerminal(
+            inputs=["custom"], multiples=[["python"]], choices=[1]
+        )
+        with self.assertRaises(Cancelled):
+            InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(self.app.state, before)
+
+    def test_fetch_only_selected_components_and_reuse_snapshot_on_save(self):
+        from brig.versions import LiveVersionCatalog
+        from unittest.mock import Mock
+
+        fetch = Mock(return_value="Tags: 8.3.1\nArchitectures: amd64")
+        self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
+        terminal = ScriptedTerminal(
+            inputs=["php-only"], multiples=[["php"], [], []], choices=[0, 0]
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(fetch.call_count, 1)
+        self.assertTrue(fetch.call_args.args[0].endswith("/php"))
+
+    def test_retry_continues_same_wizard_without_saving_partial_profile(self):
+        from brig.versions import LiveVersionCatalog
+        from unittest.mock import Mock
+        from urllib.error import URLError
+
+        fetch = Mock(
+            side_effect=[URLError("offline"), "Tags: 8.3.1\nArchitectures: amd64"]
+        )
+        self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
+        terminal = ScriptedTerminal(
+            inputs=["retry"], multiples=[["php"], [], []], choices=[0, 0, 0]
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(self.app.profile("retry").latest.runtimes, {"php": "8.3.1"})
+        self.assertEqual(fetch.call_count, 2)
+
+    def test_edit_replaces_unlisted_versions_without_changing_project_snapshots(self):
+        original = deepcopy(self.app.profile("python-dev").latest)
+        projects = deepcopy(self.app.state.projects)
+        self.app.catalog_factory = lambda: FakeVersionCatalog(
+            {"python": ("3.14.0",), "uv": ("0.10.0",), "redis": ("8.0.1",)}
+        )
+        terminal = ScriptedTerminal(
+            multiples=[["python"], ["uv"], ["redis"]], choices=[0, 0, 0, 0]
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard("python-dev")
+        self.assertEqual(self.app.profile("python-dev").latest.number, 3)
+        self.assertEqual(self.app.profile("python-dev").revisions[1], original)
+        self.assertEqual(self.app.state.projects, projects)
+        self.assertEqual(
+            len(
+                [
+                    message
+                    for message in terminal.messages
+                    if message[0] == "Choose an available version"
+                ]
+            ),
+            3,
+        )
 
     def test_cancelled_wizard_does_not_save(self):
         before = deepcopy(self.app.state)
@@ -146,6 +300,22 @@ class TerminalTests(unittest.TestCase):
         )
         terminal = self.terminal(["\x15", "n", "o", "\x7f", "e", "w", "\n"])
         self.assertEqual(terminal.input("Name", "old"), "new")
+
+    def test_required_selection_shows_inline_error_and_can_still_cancel(self):
+        terminal = self.terminal(["\n", "\n", "\x1b"])
+        with self.assertRaises(Cancelled):
+            terminal.multiple(
+                "Runtimes",
+                ["python", "php"],
+                set(),
+                required_message="Select a runtime with Space.",
+            )
+        self.assertTrue(
+            any(
+                "Select a runtime with Space." in value
+                for value in terminal.screen.written
+            )
+        )
 
     def test_cancel_and_interrupt(self):
         terminal = self.terminal(["\x1b"])

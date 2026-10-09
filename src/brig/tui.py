@@ -4,7 +4,9 @@ import curses
 from pathlib import Path
 
 from brig.application import Application
-from brig.catalog import AGENTS, RUNTIMES, SERVICES, TOOLS
+from brig.catalog import AGENTS, RUNTIMES, SERVICES, TOOLS, Component, VersionCatalog
+from brig.profile_yaml import profile_path
+from brig.versions import source_label
 from brig.errors import BrigError, Cancelled
 from brig.models import ProfileRevision
 from brig.presentation import configuration_lines, project_lines
@@ -59,6 +61,11 @@ class Terminal:
         self._write(height - 2, 2, footer, curses.A_DIM)
         self.screen.refresh()
 
+    def loading(self, message: str) -> None:
+        self.render(
+            "Version catalog", [message], "Fetching published versions · Ctrl+C cancel"
+        )
+
     def key(self):
         key = self.screen.get_wch()
         if key in ("\x03", "\x04"):
@@ -107,9 +114,17 @@ class Terminal:
             elif key == "/" and searchable:
                 query = self.input("Search", query)
 
-    def multiple(self, title: str, options: list[str], defaults: set[str]) -> list[str]:
-        chosen = set(defaults)
+    def multiple(
+        self,
+        title: str,
+        options: list[str],
+        defaults: set[str],
+        *,
+        required_message: str | None = None,
+    ) -> list[str]:
+        chosen = set(defaults).intersection(options)
         selected = 0
+        error = None
         while True:
             rows = [
                 f"[{'x' if option in chosen else ' '}] {option}" for option in options
@@ -117,7 +132,7 @@ class Terminal:
             self.render(
                 title,
                 rows,
-                "↑↓ navigate · space toggle · enter continue · esc cancel",
+                error or "↑↓ navigate · space toggle · enter continue · esc cancel",
                 selected,
             )
             key = self.key()
@@ -130,21 +145,36 @@ class Terminal:
             elif key == " ":
                 option = options[selected]
                 chosen.symmetric_difference_update({option})
+                if chosen:
+                    error = None
             elif key in ("\n", "\r", curses.KEY_ENTER):
+                if required_message and not chosen:
+                    error = required_message
+                    continue
                 return [option for option in options if option in chosen]
 
-    def input(self, title: str, default: str = "") -> str:
+    def input(
+        self,
+        title: str,
+        default: str = "",
+        *,
+        required_message: str | None = None,
+    ) -> str:
         value = default
+        error = None
         while True:
             self.render(
                 title,
                 [value + "▏"],
-                "type to edit · ctrl+u clear · enter continue · esc cancel",
+                error or "type to edit · ctrl+u clear · enter continue · esc cancel",
             )
             key = self.key()
             if key == "\x1b":
                 raise Cancelled
             if key in ("\n", "\r", curses.KEY_ENTER):
+                if required_message and not value.strip():
+                    error = required_message
+                    continue
                 return value.strip()
             if key in (curses.KEY_BACKSPACE, "\x7f", "\b"):
                 value = value[:-1]
@@ -152,6 +182,8 @@ class Terminal:
                 value = ""
             elif isinstance(key, str) and key.isprintable():
                 value += key
+            if value.strip():
+                error = None
 
     def notice(self, title: str, lines: list[str]) -> None:
         offset = 0
@@ -210,7 +242,7 @@ class InteractiveApp:
                             "Language: English",
                             "Engine: Demo",
                             f"Data directory: {self.data_directory}",
-                            "Catalog: static demo versions; not a compatibility guarantee",
+                            "Catalog: live versions from Docker Official Images, PyPI and npm",
                             "Project updates: explicit; stop the project before applying",
                         ],
                     )
@@ -222,19 +254,60 @@ class InteractiveApp:
                 self.ui.notice("Could not complete action", [str(error)])
 
     def _select_versions(
-        self, title: str, catalog: dict, defaults: dict[str, str]
+        self,
+        title: str,
+        catalog: dict[str, Component],
+        defaults: dict[str, str],
+        live: VersionCatalog,
+        *,
+        required_message: str | None = None,
     ) -> dict[str, str]:
         if not catalog:
             return {}
-        names = self.ui.multiple(title, list(catalog), set(defaults))
+        options = {
+            f"{item.category} · {item.label}": name for name, item in catalog.items()
+        }
+        chosen = self.ui.multiple(
+            title,
+            list(options),
+            {label for label, name in options.items() if name in defaults},
+            required_message=required_message,
+        )
+        names = [options[label] for label in chosen]
         result = {}
         for name in names:
-            versions = list(catalog[name])
+            component = catalog[name]
+            while True:
+                self.ui.loading(
+                    f"Fetching {component.label} versions from {source_label(component)}…"
+                )
+                try:
+                    versions = list(live.versions(name))
+                    break
+                except BrigError as error:
+                    self.ui.notice("Version source unavailable", [str(error)])
+                    if (
+                        self.ui.choose(
+                            "Try fetching versions again?",
+                            ["Retry", "Cancel profile"],
+                            default=1,
+                        )
+                        == 1
+                    ):
+                        raise Cancelled
+            if name in defaults and defaults[name] not in versions:
+                self.ui.notice(
+                    "Choose an available version",
+                    [
+                        f"Previously selected {component.label} {defaults[name]} is no longer listed.",
+                        "Select a published version to continue. Existing revisions remain unchanged.",
+                    ],
+                )
             default = (
                 versions.index(defaults[name]) if defaults.get(name) in versions else 0
             )
             index = self.ui.choose(
-                f"{name} version · demonstration catalog",
+                f"{component.label} version · {source_label(component)}",
                 versions,
                 default,
                 searchable=True,
@@ -246,25 +319,33 @@ class InteractiveApp:
         editing = name is not None
         existing = self.app.profile(name).latest if editing else None
         title = "Edit profile" if editing else "Create profile"
+        live = self.app.catalog_factory()
         if not editing:
-            name = self.ui.input(f"{title} · 1/6 · name")
+            name = self.ui.input(
+                f"{title} · 1/6 · name",
+                required_message="Profile name is required · type a name · enter continue · esc cancel",
+            )
         runtimes = self._select_versions(
-            f"{title} · 2/6 · runtimes", RUNTIMES, existing.runtimes if existing else {}
+            f"{title} · 2/6 · runtimes",
+            RUNTIMES,
+            existing.runtimes if existing else {},
+            live,
+            required_message="Select a runtime · space toggle · enter continue · esc cancel",
         )
-        if not runtimes:
-            raise BrigError("Select at least one runtime. No changes were saved.")
-        compatible_tools = {
-            n: t.versions for n, t in TOOLS.items() if t.runtime in runtimes
-        }
+        compatible_tools = {n: t for n, t in TOOLS.items() if t.runtime in runtimes}
         tools = self._select_versions(
             f"{title} · 3/6 · tools",
             compatible_tools,
             {n: v for n, v in existing.tools.items() if n in compatible_tools}
             if existing
             else {},
+            live,
         )
         services = self._select_versions(
-            f"{title} · 4/6 · services", SERVICES, existing.services if existing else {}
+            f"{title} · 4/6 · databases and caches",
+            SERVICES,
+            existing.services if existing else {},
+            live,
         )
         self.ui.choose(f"{title} · 5/6 · default agent", ["Claude Code (simulated)"])
         revision = ProfileRevision(
@@ -281,10 +362,14 @@ class InteractiveApp:
         ):
             return
         profile = self.app.save_profile(
-            name, runtimes, tools, services, editing=editing
+            name, runtimes, tools, services, editing=editing, catalog=live
         )
         self.ui.notice(
-            "Profile saved", [f"{profile.name} · revision {profile.latest.number}"]
+            "Profile saved",
+            [
+                f"{profile.name} · revision {profile.latest.number}",
+                f"YAML: {profile_path(self.data_directory, profile.name, profile.latest.number)}",
+            ],
         )
 
     def project_wizard(self) -> None:

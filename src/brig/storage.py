@@ -10,6 +10,7 @@ from typing import Protocol
 from brig.catalog import validate_selection
 from brig.errors import BrigError
 from brig.models import Profile, ProfileRevision, Project, State
+from brig.profile_yaml import profile_path, render_profile
 
 SCHEMA_VERSION = 1
 
@@ -122,8 +123,39 @@ class JsonStateStore:
     def save(self, state: State) -> None:
         payload = {"schema_version": SCHEMA_VERSION, **asdict(state)}
         temporary = None
+        created_documents = []
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
+            # Immutable revision documents are prepared before committing state.
+            # Existing documents are never replaced during project operations.
+            for profile in state.profiles:
+                for revision in profile.revisions:
+                    document = profile_path(
+                        self.path.parent, profile.name, revision.number
+                    )
+                    contents = render_profile(profile.name, revision)
+                    if document.exists():
+                        if document.read_text(encoding="utf-8") != contents:
+                            raise OSError(
+                                f"Profile revision document was modified: {document}"
+                            )
+                        continue
+                    document.parent.mkdir(parents=True, exist_ok=True)
+                    with tempfile.NamedTemporaryFile(
+                        mode="w",
+                        encoding="utf-8",
+                        dir=document.parent,
+                        prefix=".profile-",
+                        suffix=".tmp",
+                        delete=False,
+                    ) as stream:
+                        temporary = Path(stream.name)
+                        stream.write(contents)
+                        stream.flush()
+                        os.fsync(stream.fileno())
+                    os.replace(temporary, document)
+                    created_documents.append(document)
+                    temporary = None
             with tempfile.NamedTemporaryFile(
                 mode="w",
                 encoding="utf-8",
@@ -139,6 +171,8 @@ class JsonStateStore:
                 os.fsync(stream.fileno())
             os.replace(temporary, self.path)
         except OSError as error:
+            for document in created_documents:
+                document.unlink(missing_ok=True)
             raise BrigError(f"Cannot save {self.path}: {error}") from error
         finally:
             if temporary is not None:

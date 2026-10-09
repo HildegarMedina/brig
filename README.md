@@ -4,8 +4,9 @@ A navigable terminal prototype for profile-based development environments.
 
 **Demo mode:** environment actions are simulations. Brig does not create Docker
 containers, launch agents, request credentials, or write into project folders.
-The version catalog is static example data, not a list of current releases or a
-guarantee of compatibility.
+Profile creation and editing query live version sources. The seeded sample
+profiles remain examples. Published versions do not guarantee compatibility
+between every runtime, package manager, and service combination.
 
 ## Install with uv
 
@@ -49,6 +50,68 @@ Use arrow keys to navigate, Enter to select, Space to toggle selections, Esc to
 go back, and Ctrl+C to exit. Version selectors support `/` to search. In text
 fields, Ctrl+U clears the field. Resize the terminal to at least 45 columns and
 12 rows; 90 × 28 or larger is recommended. Detail views scroll with arrow keys.
+
+## Create a profile
+
+Run `brig profile create`, name the profile, and select components by category:
+
+| Category | Components |
+| --- | --- |
+| Runtimes | PHP, Python, Node.js |
+| PHP package managers | Composer |
+| Python package managers | pip, uv |
+| Node.js package managers | npm, pnpm, Yarn Classic |
+| Relational databases | PostgreSQL, MySQL, MariaDB |
+| Document databases | MongoDB |
+| Caches / key-value stores | Redis |
+
+Only package managers for selected runtimes appear. Each chosen component's
+versions are fetched when its selector opens, sorted newest first, and searchable
+with `/`. There are no version lists to update in the application:
+
+- Runtimes, Composer, and services use the Linux tags in
+  [Docker Official Images](https://github.com/docker-library/official-images).
+  These lists cover currently maintained image definitions, not all historical
+  releases; moving aliases, image variants, and prereleases are excluded.
+- pip and uv use [PyPI's JSON API](https://docs.pypi.org/api/json/), excluding
+  empty and fully yanked releases.
+- npm, pnpm, and Yarn Classic use the
+  [npm registry](https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md),
+  excluding deprecated releases. Yarn Modern is not included in this version.
+
+Creation and editing require internet access for selected components. A failed
+request offers Retry or Cancel; no stale or fabricated fallback is offered.
+One wizard keeps a consistent snapshot through review and save; the next wizard
+fetches again. Existing profiles, projects, and their pinned versions load
+offline. Editing asks for an available replacement if an old version is no
+longer listed. Runtime dependencies are checked; detailed package-manager
+runtime version compatibility is not yet resolved automatically.
+
+On Save, each profile revision produces a readable YAML document under
+`<data-directory>/profiles/profile-<encoded-name>/revision-<number>.yaml`.
+The confirmation shows the full path. For example (illustrative pinned versions):
+
+```yaml
+schema_version: 1
+name: "web-dev"
+revision: 1
+runtimes:
+  php: "8.3.15"
+tools:
+  composer: "2.8.5"
+databases:
+  postgresql: "17.2"
+caches:
+  redis: "7.4.2"
+agent: "claude"
+```
+
+Versions are strings, never `latest` or floating ranges. Edits create a separate
+revision file; existing projects retain their snapshot. YAML files are portable
+snapshots for reading and sharing. Importing or applying hand-edited YAML is not
+implemented yet; use `brig profile edit` to change a profile. Keep stored revision
+files unchanged (edit copies if needed). `state.json` tracks the local history and
+projects; neither format is an executable Docker Compose file.
 
 ## Commands
 
@@ -96,7 +159,7 @@ virtual-machine isolation; containers would share the host kernel.
 
 Claude Code is available as a simulation. Codex and OpenCode are listed as future
 integrations; attempting to run them explains that status. Real agent adapters,
-authentication, Docker orchestration, a live version catalog, and `.deb`/`.rpm`
+authentication, Docker orchestration, and `.deb`/`.rpm`
 packages are outside this prototype.
 
 ## Local data
@@ -112,16 +175,20 @@ brig --data-dir /tmp/brig-demo
 brig --data-dir /tmp/brig-demo project list
 ```
 
-The store validates its schema and profile/project relationships before loading.
+The store validates its schema and profile/project relationships offline before loading.
 Malformed or unsupported data produces an error and is never silently replaced.
-Writes use a temporary file followed by atomic replacement. Back up `state.json`
-before resetting the demo; move it aside to seed fresh examples. Use one brig
+Writes use temporary files followed by atomic replacement. New YAML revisions
+are prepared before committing state; failed saves remove new documents.
+Back up `state.json` and the `profiles` directory before resetting the demo;
+move both aside to seed fresh examples. Use one brig
 session at a time: concurrent writers are not coordinated by this prototype.
 
 ## Code structure
 
 - `models`: application records.
-- `catalog`: demonstration versions and agent metadata.
+- `catalog`: categorized component definitions and agent metadata.
+- `versions`: live source adapters and operation-scoped release snapshots.
+- `profile_yaml`: readable YAML revision documents.
 - `storage`: storage interface, JSON validation, and atomic persistence.
 - `engine`: environment interface and simulation implementation.
 - `application`: use cases, validation, revision management, and project lookup.
