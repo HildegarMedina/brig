@@ -54,6 +54,16 @@ def parser() -> argparse.ArgumentParser:
     projects.add_parser(
         "update", help="apply the latest profile revision"
     ).add_argument("name")
+    project_deletion = projects.add_parser(
+        "delete",
+        help="unregister a stopped project while keeping its local folder and profile",
+    )
+    project_deletion.add_argument("name")
+    project_deletion.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm deletion without opening the interactive confirmation",
+    )
     for name, description in (
         ("up", "simulate starting a project"),
         ("down", "simulate stopping a project"),
@@ -82,6 +92,8 @@ def _interactive_action(args: argparse.Namespace) -> str | None:
         return "profile-delete"
     if args.command == "project" and args.action == "init":
         return "project-create"
+    if args.command == "project" and args.action == "delete" and not args.yes:
+        return "project-delete"
     return None
 
 
@@ -96,6 +108,8 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             or "No profiles. Use 'brig profile create'."
         )
     if args.command == "project":
+        if args.action == "delete":
+            return app.delete_project(args.name)
         if args.action == "list":
             return (
                 "\n".join(

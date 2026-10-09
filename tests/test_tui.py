@@ -103,6 +103,30 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(profile.latest.tools, {"uv": "0.5.24", "composer": "2.8.5"})
         self.assertEqual(profile.latest.services, {"redis": "7.4.2"})
 
+    def test_project_deletion_can_cancel_then_confirm(self):
+        before = deepcopy(self.app.state)
+        terminal = ScriptedTerminal(confirmed=False)
+        interactive = InteractiveApp(self.app, terminal, Path("/tmp"))
+        self.assertFalse(interactive.delete_project("website"))
+        self.assertEqual(self.app.state, before)
+        terminal.confirmed = True
+        self.assertTrue(interactive.delete_project("website"))
+        self.assertNotIn(
+            "website", [project.name for project in self.app.state.projects]
+        )
+        self.assertEqual(terminal.messages[-1][0], "Project deleted")
+
+    def test_project_detail_returns_after_deletion_and_blocks_running_projects(self):
+        terminal = ScriptedTerminal(choices=[6])
+        InteractiveApp(self.app, terminal, Path("/tmp")).project_detail("website")
+        self.assertNotIn(
+            "website", [project.name for project in self.app.state.projects]
+        )
+        with self.assertRaisesRegex(BrigError, "Cannot delete running project"):
+            InteractiveApp(self.app, ScriptedTerminal(), Path("/tmp")).delete_project(
+                "api"
+            )
+
     def test_profile_delete_requires_confirmation(self):
         self.app.save_profile("unused", {"php": "8.3.15"}, {}, {})
         before = deepcopy(self.app.state)

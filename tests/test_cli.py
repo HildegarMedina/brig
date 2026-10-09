@@ -74,6 +74,34 @@ class CliTests(unittest.TestCase):
         self.assertIn("Used by projects: website", errors)
         self.assertIn("web_dev", self.command("profile", "list")[1])
 
+    def test_project_delete_with_yes_keeps_folder_and_profile_yaml(self):
+        app = Application(JsonStateStore(self.data), DemoEngine(), FakeVersionCatalog)
+        app.save_profile("custom", {"php": "8.3.15"}, {}, {})
+        folder = Path(self.directory.name) / "source"
+        folder.mkdir()
+        source = folder / "index.php"
+        source.write_text("<?php echo 'hello';")
+        app.create_project("custom_project", folder, "custom")
+        before = {path: path.read_bytes() for path in self.data.rglob("*.yaml")}
+        status, output, errors = self.command(
+            "project", "delete", "custom_project", "--yes"
+        )
+        self.assertEqual(status, 0)
+        self.assertIn("Deleted project 'custom_project'", output)
+        self.assertEqual(errors, "")
+        self.assertTrue(source.exists())
+        self.assertEqual(
+            {path: path.read_bytes() for path in self.data.rglob("*.yaml")}, before
+        )
+        self.assertEqual(JsonStateStore(self.data).load().projects, [])
+
+    def test_project_delete_with_yes_cannot_delete_running_project(self):
+        JsonStateStore(self.data).save(demo_state())
+        status, _, errors = self.command("project", "delete", "api", "--yes")
+        self.assertEqual(status, 1)
+        self.assertIn("brig down --project api", errors)
+        self.assertIn("api", self.command("project", "list")[1])
+
     def test_first_run_lists_are_empty_and_remain_empty_on_reload(self):
         for _ in range(2):
             status, output, errors = self.command("profile", "list")
@@ -91,6 +119,7 @@ class CliTests(unittest.TestCase):
             ("profile", "edit", "web_dev"),
             ("profile", "delete", "web_dev"),
             ("project", "init"),
+            ("project", "delete", "website"),
         ):
             with (
                 self.subTest(arguments=arguments),

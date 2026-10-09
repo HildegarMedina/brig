@@ -164,6 +164,7 @@ brig project init
 brig project list
 brig project show website
 brig project update website
+brig project delete website
 brig up --project website
 brig run claude --project website
 brig shell --project website
@@ -194,6 +195,14 @@ used again for a new profile starting at revision 1.
 For scripts, `brig profile delete <name> --yes` explicitly confirms deletion
 without an interactive terminal. Project-reference checks still apply. A failed
 state save restores the YAML revisions and leaves the profile registered.
+
+To unregister a project, select **Projects → project → Delete project**, or run
+`brig project delete <name>`. The confirmation defaults to **Cancel**. Only the
+Brig registration is removed: the local folder, code, profile, and profile YAML
+revisions are kept. Stop a running project first with `brig down --project <name>`.
+For scripts, `brig project delete <name> --yes` confirms without a terminal;
+running-project checks still apply. The name and folder can then be registered
+again, and a profile no longer referenced by any project can be deleted.
 
 ## Profiles, projects, and agents
 

@@ -31,6 +31,44 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(app.state.projects, [])
         self.assertEqual(app.state.profiles, [])
 
+    def test_delete_project_keeps_local_files_and_profile(self):
+        project = self.create_project()
+        source = Path(project.path) / "app.py"
+        source.write_text("print('hello')\n")
+        profile = deepcopy(self.app.profile("python"))
+        self.assertIn("Deleted project 'first'", self.app.delete_project("first"))
+        self.assertEqual(self.app.state.projects, [])
+        self.assertEqual(self.store.load().projects, [])
+        self.assertEqual(source.read_text(), "print('hello')\n")
+        self.assertEqual(self.app.profile("python"), profile)
+        self.app.create_project("first", Path(project.path), "python")
+
+    def test_running_project_must_be_stopped_before_deletion(self):
+        self.create_project()
+        self.app.start("first")
+        before = deepcopy(self.app.state)
+        with self.assertRaisesRegex(BrigError, "brig down --project first"):
+            self.app.delete_project("first")
+        self.assertEqual(self.app.state, before)
+        self.app.stop("first")
+        self.app.delete_project("first")
+        self.assertEqual(self.app.state.projects, [])
+
+    def test_failed_project_deletion_preserves_state(self):
+        self.create_project()
+        before = deepcopy(self.app.state)
+        self.store.fail = True
+        with self.assertRaisesRegex(BrigError, "Disk is full"):
+            self.app.delete_project("first")
+        self.assertEqual(self.app.state, before)
+        self.assertEqual(self.store.load(), before)
+
+    def test_unknown_project_cannot_be_deleted(self):
+        before = deepcopy(self.app.state)
+        with self.assertRaisesRegex(BrigError, "Unknown project"):
+            self.app.delete_project("missing")
+        self.assertEqual(self.app.state, before)
+
     def test_delete_unused_profile_and_reuse_its_name(self):
         message = self.app.delete_profile("PYTHON")
         self.assertIn("Deleted profile 'python'", message)

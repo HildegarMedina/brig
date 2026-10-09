@@ -153,6 +153,23 @@ class Application:
         self._commit(candidate)
         return project
 
+    def project_for_deletion(self, name: str) -> Project:
+        project = self.project(name)
+        if project.running:
+            raise BrigError(
+                f"Cannot delete running project '{project.name}'. Stop it first with 'brig down --project {project.name}'."
+            )
+        return project
+
+    def delete_project(self, name: str) -> str:
+        project = self.project_for_deletion(name)
+        candidate = deepcopy(self.state)
+        candidate.projects = [
+            item for item in candidate.projects if item.id != project.id
+        ]
+        self._commit(candidate)
+        return f"Deleted project '{project.name}' from Brig. Its local folder and profile were kept."
+
     def update_project(self, name: str) -> str:
         project = self.project(name)
         latest = self.profile(project.profile).latest

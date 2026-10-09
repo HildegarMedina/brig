@@ -529,6 +529,23 @@ class InteractiveApp:
             except BrigError as error:
                 self.ui.notice("Could not complete action", [str(error)], error=True)
 
+    def delete_project(self, name: str) -> bool:
+        project = self.app.project_for_deletion(name)
+        if not self.ui.confirm(
+            f"Delete project '{project.name}'",
+            [
+                f"Name       {project.name}",
+                f"Folder     {project.path or '(none)'}",
+                f"Profile    {project.profile}",
+                "Only the Brig registration will be deleted.",
+                "Your local folder, code, and profile will be kept.",
+            ],
+            action="Delete project",
+        ):
+            return False
+        self.ui.notice("Project deleted", [self.app.delete_project(project.name)])
+        return True
+
     def project_detail(self, name: str) -> None:
         while True:
             try:
@@ -542,6 +559,7 @@ class InteractiveApp:
                         "Run agent",
                         "Shell",
                         "Apply profile update",
+                        "Delete project",
                     ],
                 )
                 if choice == 0:
@@ -563,7 +581,7 @@ class InteractiveApp:
                     message = self.app.run_agent(name, agents[selected])
                 elif choice == 4:
                     message = self.app.shell(name)
-                else:
+                elif choice == 5:
                     latest = self.app.profile(project.profile).latest
                     if not self.ui.confirm(
                         "Apply profile update",
@@ -575,6 +593,10 @@ class InteractiveApp:
                     ):
                         continue
                     message = self.app.update_project(name)
+                else:
+                    if self.delete_project(name):
+                        return
+                    continue
                 self.ui.notice("Demo result", message.splitlines())
             except Cancelled:
                 return
@@ -596,6 +618,8 @@ def launch(
                 interactive.delete_profile(name)
             elif action == "project-create":
                 interactive.project_wizard()
+            elif action == "project-delete":
+                interactive.delete_project(name)
             else:
                 interactive.home()
         except Cancelled:
