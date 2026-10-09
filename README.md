@@ -3,7 +3,8 @@
 A navigable terminal prototype for profile-based development environments.
 
 **Demo mode:** environment actions are simulations. Brig does not create Docker
-containers, launch agents, request credentials, or write into project folders.
+containers, launch agents, or request credentials. Dockerfiles can be previewed
+or explicitly exported to a new file.
 Profile creation and editing query live version sources. New installations
 start with empty profile and project lists. Published versions do not guarantee compatibility
 between every runtime, package manager, and service combination.
@@ -164,6 +165,7 @@ brig project init
 brig project list
 brig project show website
 brig project update website
+brig project dockerfile website
 brig project delete website
 brig up --project website
 brig run claude --project website
@@ -205,6 +207,54 @@ running-project checks still apply. The name and folder can then be registered
 again, and a profile no longer referenced by any project can be deleted.
 
 ## Profiles, projects, and agents
+
+### Generate a development Dockerfile
+
+Preview the Dockerfile from the project's pinned profile revision:
+
+```bash
+brig project dockerfile laravel_project
+```
+
+Inside a registered project folder, omit the name. Export explicitly with:
+
+```bash
+brig project dockerfile --output .brig/Dockerfile
+```
+
+Existing output files are never overwritten. Generation works offline and does
+not change the project's revision or running status. The project detail screen
+also offers **View Dockerfile**.
+
+Generation follows the runtime and tool selections in the project's snapshot:
+
+| Runtime | Optional tools |
+| --- | --- |
+| PHP | Composer |
+| Python | pip, uv |
+| Node.js | npm, pnpm, Yarn Classic |
+
+One or several runtimes can share the development image. All runtime images
+use exact version tags and Debian Bookworm variants. PHP uses the CLI variant
+and installs `bcmath`, `intl`, `pcntl`, and `zip`, plus `pdo_mysql` for
+MySQL/MariaDB or `pdo_pgsql` for PostgreSQL. Composer is copied from its matching
+official image. Selected Python and Node.js tools are installed at their exact
+versions. If pip or npm is not selected, the runtime's bundled version remains;
+unselected Composer, uv, pnpm, and Yarn are not added.
+
+Mixed profiles keep Python and Node.js under separate `/opt` prefixes to avoid
+replacing PHP binaries or libraries. Python shared-library dependencies are
+discovered from its selected source image and installed in the final image.
+Runtime image definitions live in `RUNTIME_IMAGES` in `dockerfile.py`, with tool
+installation and service driver rules kept separately.
+
+The development image runs as the `brig` user in `/workspace`; `BRIG_UID` and
+`BRIG_GID` build arguments default to 1000 and can match the project folder's
+owner. It keeps the container available with `sleep infinity`. Mounting the
+project, HTTP serving, database/cache containers, MongoDB/Redis PHP extensions,
+and agents require subsequent orchestration work. Brig does not build or start
+the image yet. Exact version tags pin the selected runtime/tool releases;
+image digests and Debian package versions are not locked.
 
 A **profile** defines runtimes, tools, services, and a default agent. Each edit
 creates a revision. A **project** references a profile and stores an independent
@@ -250,6 +300,7 @@ session at a time: concurrent writers are not coordinated by this prototype.
 - `versions`: live source adapters and operation-scoped release snapshots.
 - `compatibility`: ecosystem-specific runtime range evaluation.
 - `profile_yaml`: readable YAML revision documents.
+- `dockerfile`: dynamic development image rendering and safe file export.
 - `storage`: storage interface, JSON validation, and atomic persistence.
 - `engine`: environment interface and simulation implementation.
 - `application`: use cases, validation, revision management, and project lookup.

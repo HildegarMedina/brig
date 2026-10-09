@@ -560,6 +560,7 @@ class InteractiveApp:
                         "Shell",
                         "Apply profile update",
                         "Delete project",
+                        "View Dockerfile",
                     ],
                 )
                 if choice == 0:
@@ -593,9 +594,15 @@ class InteractiveApp:
                     ):
                         continue
                     message = self.app.update_project(name)
-                else:
+                elif choice == 6:
                     if self.delete_project(name):
                         return
+                    continue
+                else:
+                    self.ui.notice(
+                        "Generated Dockerfile",
+                        self.app.project_dockerfile(name, Path.cwd()).splitlines(),
+                    )
                     continue
                 self.ui.notice("Demo result", message.splitlines())
             except Cancelled:

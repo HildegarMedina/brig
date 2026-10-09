@@ -9,6 +9,7 @@ from uuid import uuid4
 from brig.catalog import VersionCatalog, validate_selection
 from brig.versions import LiveVersionCatalog
 from brig.engine import EnvironmentEngine
+from brig.dockerfile import render_dockerfile, write_dockerfile
 from brig.errors import BrigError
 from brig.models import Profile, ProfileRevision, Project, State
 from brig.storage import StateStore
@@ -152,6 +153,16 @@ class Application:
         candidate.projects.append(project)
         self._commit(candidate)
         return project
+
+    def project_dockerfile(
+        self, name: str | None, directory: Path, output: Path | None = None
+    ) -> str:
+        project = self.resolve_project(name, directory)
+        contents = render_dockerfile(project)
+        if output is None:
+            return contents
+        destination = write_dockerfile(output, contents)
+        return f"Dockerfile exported to {destination}"
 
     def project_for_deletion(self, name: str) -> Project:
         project = self.project(name)

@@ -3,6 +3,7 @@
 import curses
 import tempfile
 import unittest
+from unittest.mock import patch
 from copy import deepcopy
 from pathlib import Path
 import json
@@ -126,6 +127,16 @@ class WizardTests(unittest.TestCase):
             InteractiveApp(self.app, ScriptedTerminal(), Path("/tmp")).delete_project(
                 "api"
             )
+
+    def test_project_detail_previews_dockerfile_without_mutating_project(self):
+        before = deepcopy(self.app.state)
+        terminal = ScriptedTerminal()
+        with patch.object(terminal, "choose", side_effect=[7, Cancelled()]):
+            InteractiveApp(self.app, terminal, Path("/tmp")).project_detail("website")
+        title, lines = terminal.messages[-1]
+        self.assertEqual(title, "Generated Dockerfile")
+        self.assertIn("FROM php:8.3.15-cli-bookworm", "\n".join(lines))
+        self.assertEqual(self.app.state, before)
 
     def test_profile_delete_requires_confirmation(self):
         self.app.save_profile("unused", {"php": "8.3.15"}, {}, {})

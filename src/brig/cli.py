@@ -51,6 +51,20 @@ def parser() -> argparse.ArgumentParser:
     projects.add_parser("init", help="register a local folder using a wizard")
     projects.add_parser("list", help="list projects")
     projects.add_parser("show", help="show project configuration").add_argument("name")
+    dockerfile = projects.add_parser(
+        "dockerfile", help="render the project's development Dockerfile"
+    )
+    dockerfile.add_argument(
+        "name",
+        nargs="?",
+        help="project name; defaults to the registered project for this folder",
+    )
+    dockerfile.add_argument(
+        "--output",
+        type=Path,
+        metavar="FILE",
+        help="export to a new file instead of printing; existing files are kept",
+    )
     projects.add_parser(
         "update", help="apply the latest profile revision"
     ).add_argument("name")
@@ -108,6 +122,8 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             or "No profiles. Use 'brig profile create'."
         )
     if args.command == "project":
+        if args.action == "dockerfile":
+            return app.project_dockerfile(args.name, Path.cwd(), args.output)
         if args.action == "delete":
             return app.delete_project(args.name)
         if args.action == "list":
@@ -152,8 +168,10 @@ def main(argv: list[str] | None = None) -> int:
                 else 1
             )
         else:
-            print("brig · Demo mode")
-            print(dispatch(app, args))
+            if not (args.command == "project" and args.action == "dockerfile"):
+                print("brig · Demo mode")
+            result = dispatch(app, args)
+            print(result, end="" if result.endswith("\n") else "\n")
         return 0
     except BrigError as error:
         print(f"brig: {error}", file=sys.stderr)
