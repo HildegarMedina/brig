@@ -25,10 +25,12 @@ def project_lines(app: Application, project: Project) -> list[str]:
         f"Project    {project.name}",
         f"Folder     {project.path or '(sample project; no folder mounted)'}",
         f"Profile    {project.profile}{update}",
-        f"Status     {'running' if project.running else 'stopped'} (simulated)",
+        f"Status     {app.project_status(project)}",
         *configuration_lines(project.configuration),
         "",
-        "Planned environment — not created",
+        "Planned environment — not created"
+        if app.engine.simulated
+        else "Docker environment",
         f"Dev        {environment.development}",
         f"Network    {environment.network}",
         *[

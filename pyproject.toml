@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "brig"
 version = "0.1.0"
-description = "A terminal prototype for isolated development environments"
+description = "Profile-based, isolated development environments"
 requires-python = ">=3.12"
 dependencies = [
     "packaging>=24,<27",

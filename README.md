@@ -1,17 +1,25 @@
 # brig
 
-A navigable terminal prototype for profile-based development environments.
+A terminal application for profile-based, isolated development environments.
 
-**Demo mode:** environment actions are simulations. Brig does not create Docker
-containers, launch agents, or request credentials. Dockerfiles can be previewed
-or explicitly exported to a new file.
+`brig run <project>` prepares one project's pinned Dockerfile and Compose
+configuration, builds its development image if missing, starts its containers,
+and opens an unprivileged Bash terminal at `/workspace`. Only that project's
+registered folder is bind-mounted. Services have project-specific networks and
+persistent volumes, with no database ports published on the host.
+
 Profile creation and editing query live version sources. New installations
-start with empty profile and project lists. Published versions do not guarantee compatibility
-between every runtime, package manager, and service combination.
+start with empty profile and project lists. Published versions do not guarantee
+compatibility between every runtime, package manager, and service combination.
+Agent installation and authentication are not implemented yet.
 
 ## Install with uv
 
 Requires Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/).
+Starting environments also requires Docker Engine, a running accessible daemon,
+and the Docker Compose v2 plugin or newer. Run Brig as your regular user.
+Brig reports missing Docker/Compose or socket access errors; it does not install
+system software.
 
 ```bash
 uv tool install .
@@ -37,13 +45,15 @@ Version constraint evaluation uses `packaging` (Python) and `semantic-version`
 (Node.js). Packaging uses setuptools. On distributions that omit `curses` from Python, install your
 distribution's Python curses support before opening the interactive interface.
 
-## Walk through the demo
+## Create and run a project
 
 1. Run `brig` in an interactive terminal.
 2. Open **Profiles → Create profile**. Choose runtimes, versions, tools, optional
    services, and Claude Code. Review the configuration, then select **Save**.
 3. Open **Projects → Create project**. Choose an existing local folder and profile.
-4. Open the project and select **Start**, then **Run agent** or **Shell**.
+4. Run `brig run <project_name>` or open the project and select **Shell**.
+   Brig builds the image if needed, starts the services, and enters the terminal.
+   Type `exit` to return to the host; the environment remains running.
 5. Edit the profile to create a new revision. The project retains its snapshot.
 6. Stop the project and select **Apply profile update** to adopt the new revision.
 
@@ -168,7 +178,7 @@ brig project update website
 brig project dockerfile website
 brig project delete website
 brig up --project website
-brig run claude --project website
+brig run website
 brig shell --project website
 brig down --project website
 ```
@@ -177,8 +187,8 @@ Inside a registered project folder or a subfolder, omit `--project`:
 
 ```bash
 brig up
-brig run                 # uses the profile's default agent
-brig run claude
+brig run                 # prepare this project and enter its terminal
+brig shell               # same terminal flow
 brig down
 ```
 
@@ -201,7 +211,9 @@ state save restores the YAML revisions and leaves the profile registered.
 To unregister a project, select **Projects → project → Delete project**, or run
 `brig project delete <name>`. The confirmation defaults to **Cancel**. Only the
 Brig registration is removed: the local folder, code, profile, and profile YAML
-revisions are kept. Stop a running project first with `brig down --project <name>`.
+revisions are kept. Stop a running project first with `brig down --project <name>`. Docker is
+checked even when the saved status says stopped, including services left by a
+partially failed startup.
 For scripts, `brig project delete <name> --yes` confirms without a terminal;
 running-project checks still apply. The name and folder can then be registered
 again, and a profile no longer referenced by any project can be deleted.
@@ -251,9 +263,9 @@ installation and service driver rules kept separately.
 The development image runs as the `brig` user in `/workspace`; `BRIG_UID` and
 `BRIG_GID` build arguments default to 1000 and can match the project folder's
 owner. It keeps the container available with `sleep infinity`. Mounting the
-project, HTTP serving, database/cache containers, MongoDB/Redis PHP extensions,
-and agents require subsequent orchestration work. Brig does not build or start
-the image yet. Exact version tags pin the selected runtime/tool releases;
+project, HTTP serving, MongoDB/Redis PHP extensions, and agents require subsequent
+work. `brig run` and `brig up` build the image if needed and orchestrate its
+database/cache containers. Exact version tags pin the selected runtime/tool releases;
 image digests and Debian package versions are not locked.
 
 A **profile** defines runtimes, tools, services, and a default agent. Each edit
@@ -261,24 +273,57 @@ creates a revision. A **project** references a profile and stores an independent
 snapshot of its selected revision. Updates are explicit and require a stopped
 project.
 
-Every project has a unique planned development container, network, agent-data
-volume, and service containers and volumes. The eventual Docker implementation
-will mount only the project's local folder at `/workspace`. These resource names
-are previews, not resources created by the prototype. Container isolation is not
-virtual-machine isolation; containers would share the host kernel.
+Every project has a separate development container, network, home volume,
+and selected service containers and data volumes. The local project folder is
+mounted at `/workspace`; the Docker socket and other host folders are not
+mounted. Container isolation shares the host kernel.
 
-Claude Code is available as a simulation. Codex and OpenCode are listed as future
-integrations; attempting to run them explains that status. Real agent adapters,
-authentication, Docker orchestration, and `.deb`/`.rpm`
-packages are outside this prototype.
+```bash
+brig run website                       # build if missing, start, enter Bash
+brig up --project website              # start without entering the terminal
+brig shell --project website           # prepare and enter the terminal
+brig run website --command python --version
+brig down --project website            # remove containers/network; keep data
+```
+
+`run` without a name discovers the nearest registered parent folder. The terminal
+requires a TTY; `--command` runs a program without one and passes its arguments
+directly, without shell interpretation. `run` previously referred to simulated
+agents; it now runs a project. `brig agent [name] --project <project>` reports
+that agent installation is not available yet.
+
+Startup uses the project's saved revision, generates configuration under
+`<data-directory>/runtime/brig-<project-id>/<image-hash>/`, and matches the host
+user's UID/GID for source-file ownership. The build context includes only the
+Dockerfile. Existing development images are reused. Compose starts selected
+services and waits for their healthchecks before the development container.
+It does not automatically install application dependencies or launch an HTTP
+server. No application ports are published in this version.
+
+Database initialization passwords are generated once per project and stored in
+`runtime/brig-<project-id>/credentials.json`. Generated files have mode 0600;
+credentials are injected using service-specific env files, separate from the
+profile YAML. Keep this runtime directory in backups alongside the state and
+profiles: missing/corrupt credentials are not replaced over existing volumes.
+The developer container receives connection variables (`PGHOST`, `PGPASSWORD`,
+`MYSQL_HOST`, `MYSQL_PASSWORD`, `MARIADB_HOST`, `MARIADB_PASSWORD`, `MONGODB_URI`,
+`REDIS_HOST`, `REDIS_URL`, etc.). Brig does not modify application `.env` files.
+
+`down` keeps database data and the container home directory in named Docker
+volumes. Removing a project's registration also keeps those volumes and the
+local runtime artifacts. Major service-version changes require a data migration
+before the existing data volume can be reused. Brig refuses automatic major
+upgrades rather than reinitializing existing data. Lifecycle operations on the
+same project use a local lock. Status displays query Docker; if Docker is
+unavailable they show an unknown status instead of assuming the project stopped.
 
 ## Local data
 
-Definitions and simulated running status persist in
+Definitions and the last recorded running status persist in
 `${XDG_DATA_HOME:-~/.local/share}/brig/state.json`. The first run creates an empty
 store. Profiles and projects appear only after you create them.
 
-Use a separate directory to try the demo without affecting your usual data:
+Use a separate directory to keep definitions and generated configuration apart:
 
 ```bash
 brig --data-dir /tmp/brig-demo
@@ -289,8 +334,9 @@ The store validates its schema and profile/project relationships offline before 
 Malformed or unsupported data produces an error and is never silently replaced.
 Writes use temporary files followed by atomic replacement. New YAML revisions
 are prepared before committing state; failed saves remove new documents.
-Back up `state.json` and the `profiles` directory before resetting the demo;
-move both aside to start with an empty store. Use one brig
+Back up `state.json`, `profiles`, and `runtime` before resetting local state.
+Docker volumes are stored separately by Docker; back up their database data
+with the corresponding database tools. Use one brig
 session at a time: concurrent writers are not coordinated by this prototype.
 
 ## Code structure
@@ -302,7 +348,9 @@ session at a time: concurrent writers are not coordinated by this prototype.
 - `profile_yaml`: readable YAML revision documents.
 - `dockerfile`: dynamic development image rendering and safe file export.
 - `storage`: storage interface, JSON validation, and atomic persistence.
-- `engine`: environment interface and simulation implementation.
+- `compose`: service definitions, connection variables and Compose rendering.
+- `engine`: execution protocol and simulation for isolated tests.
+- `docker_engine`: real builds, project lifecycle, state inspection and terminal execution.
 - `application`: use cases, validation, revision management, and project lookup.
 - `presentation`: shared plain text summaries.
 - `cli` and `tui`: argument parsing, terminal rendering, and interactive flows.
@@ -311,3 +359,19 @@ Application logic depends on storage and execution protocols. The interfaces
 share the same use cases; neither performs persistence or execution directly.
 Tests cover revision behavior, independent project state, storage failures,
 corruption handling, CLI behavior, and wizard confirmation/cancellation.
+
+## Docker integration tests
+
+The default suite runs without Docker; three integration tests are skipped.
+To exercise actual builds, per-project isolation, image reuse, Redis persistence,
+bind-mount ownership, the five database/cache adapters with PHP connections,
+and an interactive terminal through a pseudo-terminal:
+
+```bash
+BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle -v
+```
+
+These tests create temporary projects and remove only their own labeled Docker
+resources afterward. First execution downloads images and builds them. Pinned
+fixture runtime releases can be overridden with `BRIG_TEST_PYTHON`,
+`BRIG_TEST_PHP`, and `BRIG_TEST_REDIS`.

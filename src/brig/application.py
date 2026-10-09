@@ -166,7 +166,7 @@ class Application:
 
     def project_for_deletion(self, name: str) -> Project:
         project = self.project(name)
-        if project.running:
+        if self.engine.has_running_resources(project):
             raise BrigError(
                 f"Cannot delete running project '{project.name}'. Stop it first with 'brig down --project {project.name}'."
             )
@@ -186,18 +186,22 @@ class Application:
         latest = self.profile(project.profile).latest
         if latest.number == project.configuration.number:
             return f"{project.name} already uses the latest profile revision."
-        if project.running:
+        if self.engine.has_running_resources(project):
             raise BrigError("Stop the project before applying a profile update.")
         candidate = deepcopy(self.state)
         target = next(p for p in candidate.projects if p.id == project.id)
         target.configuration = deepcopy(latest)
         self._commit(candidate)
-        return (
-            f"Updated {project.name} to profile revision {latest.number} (simulated)."
-        )
+        return f"Updated {project.name} to profile revision {latest.number}."
 
     def start(self, name: str) -> str:
         return self._set_running(name, True)
+
+    def project_status(self, project: Project) -> str:
+        try:
+            return "running" if self.engine.is_running(project) else "stopped"
+        except BrigError:
+            return "unknown (Docker unavailable)"
 
     def stop(self, name: str) -> str:
         return self._set_running(name, False)
@@ -205,8 +209,10 @@ class Application:
     def run_agent(self, name: str, agent: str) -> str:
         return self.engine.run_agent(self.project(name), agent)
 
-    def shell(self, name: str) -> str:
-        return self.engine.shell(self.project(name))
+    def shell(self, name: str, command=None) -> str:
+        self.engine.validate_shell(command)
+        self.start(name)
+        return self.engine.shell(self.project(name), command)
 
     def _set_running(self, name: str, running: bool) -> str:
         project = self.project(name)

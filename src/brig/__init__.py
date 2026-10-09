@@ -1,3 +1,3 @@
-"""Brig: a demo of profile-based development environments."""
+"""Brig: profile-based, isolated development environments."""
 
 __version__ = "0.1.0"

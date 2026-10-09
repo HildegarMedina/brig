@@ -7,7 +7,7 @@ from pathlib import Path
 
 from brig import __version__
 from brig.application import Application
-from brig.engine import DemoEngine
+from brig.docker_engine import DockerEngine
 from brig.errors import BrigError
 from brig.presentation import project_lines
 from brig.storage import JsonStateStore, default_data_directory
@@ -16,16 +16,14 @@ from brig.tui import launch
 
 def parser() -> argparse.ArgumentParser:
     root = argparse.ArgumentParser(
-        prog="brig", description="Profile-based development environments — Demo mode."
+        prog="brig", description="Isolated, profile-based development environments."
     )
-    root.add_argument(
-        "--version", action="version", version=f"brig {__version__} (demo)"
-    )
+    root.add_argument("--version", action="version", version=f"brig {__version__}")
     root.add_argument(
         "--data-dir",
         type=Path,
         default=default_data_directory(),
-        help="override local demo data directory",
+        help="override local data directory",
     )
     commands = root.add_subparsers(dest="command")
     profiles = commands.add_parser(
@@ -79,10 +77,11 @@ def parser() -> argparse.ArgumentParser:
         help="confirm deletion without opening the interactive confirmation",
     )
     for name, description in (
-        ("up", "simulate starting a project"),
-        ("down", "simulate stopping a project"),
-        ("run", "simulate launching an agent inside a project"),
-        ("shell", "simulate opening the project shell"),
+        ("up", "build if needed and start one project's Docker environment"),
+        ("down", "stop a project's environment, keeping its data"),
+        ("run", "prepare one project and enter its isolated terminal"),
+        ("shell", "prepare the current project and enter its isolated terminal"),
+        ("agent", "launch a project agent (not implemented yet)"),
     ):
         command = commands.add_parser(name, help=description)
         command.add_argument(
@@ -91,6 +90,19 @@ def parser() -> argparse.ArgumentParser:
             help="select a project instead of detecting its folder",
         )
         if name == "run":
+            command.add_argument(
+                "name",
+                nargs="?",
+                help="project name; defaults to this folder's project",
+            )
+        if name in ("run", "shell"):
+            command.add_argument(
+                "--command",
+                dest="command_program",
+                nargs=argparse.REMAINDER,
+                help="execute a program instead of opening an interactive terminal",
+            )
+        if name == "agent":
             command.add_argument(
                 "agent", nargs="?", help="agent name; defaults to the profile's agent"
             )
@@ -130,7 +142,7 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             return (
                 "\n".join(
                     f"{p.name} · {p.profile} r{p.configuration.number} · "
-                    f"{'running (simulated)' if p.running else 'stopped'}"
+                    f"{app.project_status(p)}"
                     for p in app.state.projects
                 )
                 or "No projects. Use 'brig project init'."
@@ -138,14 +150,21 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
         if args.action == "show":
             return "\n".join(project_lines(app, app.project(args.name)))
         return app.update_project(args.name)
-    project = app.resolve_project(args.project, Path.cwd())
+    name = getattr(args, "name", None)
+    if name and args.project and name != args.project:
+        raise BrigError(
+            "Choose one project: use its name or --project, not different values for both."
+        )
+    project = app.resolve_project(name or args.project, Path.cwd())
     if args.command == "up":
         return app.start(project.name)
     if args.command == "down":
         return app.stop(project.name)
-    if args.command == "run":
+    if args.command == "agent":
         return app.run_agent(project.name, args.agent or project.configuration.agent)
-    return app.shell(project.name)
+    if args.command in ("run", "shell") and args.command_program == []:
+        raise BrigError("--command needs a program, e.g. --command python --version.")
+    return app.shell(project.name, args.command_program)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -158,7 +177,10 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 2
     try:
-        app = Application(JsonStateStore(args.data_dir.expanduser()), DemoEngine())
+        app = Application(
+            JsonStateStore(args.data_dir.expanduser()),
+            DockerEngine(args.data_dir.expanduser() / "runtime"),
+        )
         if action:
             return (
                 0
@@ -168,10 +190,9 @@ def main(argv: list[str] | None = None) -> int:
                 else 1
             )
         else:
-            if not (args.command == "project" and args.action == "dockerfile"):
-                print("brig · Demo mode")
             result = dispatch(app, args)
-            print(result, end="" if result.endswith("\n") else "\n")
+            if result:
+                print(result, end="" if result.endswith("\n") else "\n")
         return 0
     except BrigError as error:
         print(f"brig: {error}", file=sys.stderr)

@@ -1,4 +1,4 @@
-"""An execution boundary: the prototype implements only a simulation."""
+"""Execution protocol and a simulation used by isolated application tests."""
 
 from dataclasses import dataclass
 from typing import Protocol
@@ -17,6 +17,13 @@ class Environment:
 
 
 class EnvironmentEngine(Protocol):
+    simulated: bool
+
+    def is_running(self, project: Project) -> bool: ...
+
+    def has_running_resources(self, project: Project) -> bool: ...
+
+    def validate_shell(self, command=None) -> None: ...
     def describe(self, project: Project) -> Environment: ...
 
     def start(self, project: Project) -> str: ...
@@ -25,10 +32,21 @@ class EnvironmentEngine(Protocol):
 
     def run_agent(self, project: Project, agent: str) -> str: ...
 
-    def shell(self, project: Project) -> str: ...
+    def shell(self, project: Project, command=None) -> str: ...
 
 
 class DemoEngine:
+    simulated = True
+
+    def is_running(self, project: Project) -> bool:
+        return project.running
+
+    def has_running_resources(self, project: Project) -> bool:
+        return self.is_running(project)
+
+    def validate_shell(self, command=None) -> None:
+        pass
+
     def describe(self, project: Project) -> Environment:
         prefix = f"brig-{project.id}"
         services = {name: f"{prefix}-{name}" for name in project.configuration.services}
@@ -61,7 +79,7 @@ class DemoEngine:
             "Simulation only: no agent was launched and no credentials are needed."
         )
 
-    def shell(self, project: Project) -> str:
+    def shell(self, project: Project, command=None) -> str:
         self._require_running(project)
         return (
             f"Would open a shell inside {self.describe(project).development} at /workspace.\n"

@@ -61,7 +61,7 @@ class Terminal:
         self.screen.erase()
         height, width = self.screen.getmaxyx()
         self._write(1, 2, "brig", self.accent)
-        self._write(1, 10, "DEMO MODE · no Docker or agents executed", curses.A_DIM)
+        self._write(1, 10, "isolated project environments", curses.A_DIM)
         if height < 12 or width < 45:
             self._write(3, 1, "Resize terminal to at least 45 × 12.")
             self.screen.refresh()
@@ -87,6 +87,16 @@ class Terminal:
         self.render(
             "Version catalog", [message], "Fetching published versions · Ctrl+C cancel"
         )
+
+    def external(self, action):
+        """Give Docker progress and interactive shells a normal terminal."""
+        curses.def_prog_mode()
+        curses.endwin()
+        try:
+            return action()
+        finally:
+            curses.reset_prog_mode()
+            self.screen.refresh()
 
     def key(self):
         key = self.screen.get_wch()
@@ -264,13 +274,13 @@ class InteractiveApp:
                     self.ui.notice(
                         "Agents",
                         [
-                            f"{agent.name}: {'available (simulation)' if agent.available else 'future integration'}"
+                            f"{agent.name}: installation pending"
                             for agent in AGENTS.values()
                         ]
                         + [
                             "",
                             "Agents will run inside each project's development container.",
-                            "No authentication is performed in this prototype.",
+                            "Agent installation and authentication are not available yet.",
                         ],
                     )
                 elif choice == 3:
@@ -278,7 +288,7 @@ class InteractiveApp:
                         "Settings",
                         [
                             "Language: English",
-                            "Engine: Demo",
+                            f"Engine: {'Demo' if self.app.engine.simulated else 'Docker Compose'}",
                             f"Data directory: {self.data_directory}",
                             "Catalog: live versions from Docker Official Images, PyPI and npm",
                             "Project updates: explicit; stop the project before applying",
@@ -409,7 +419,9 @@ class InteractiveApp:
             existing.services if existing else {},
             live,
         )
-        self.ui.choose(f"{title} · 5/6 · default agent", ["Claude Code (simulated)"])
+        self.ui.choose(
+            f"{title} · 5/6 · default agent", ["Claude Code (installation pending)"]
+        )
         revision = ProfileRevision(
             existing.number + 1 if existing else 1, runtimes, tools, services
         )
@@ -480,7 +492,10 @@ class InteractiveApp:
             return
         project = self.app.create_project(name, Path(folder), profile.name)
         self.ui.notice(
-            "Project saved", [f"{project.name} is ready to start (simulated)."]
+            "Project saved",
+            [
+                f"{project.name} is ready. Use 'brig run {project.name}' to start and enter it."
+            ],
         )
 
     def profiles(self) -> None:
@@ -516,7 +531,7 @@ class InteractiveApp:
             try:
                 projects = self.app.state.projects
                 options = [
-                    f"{p.name} · {p.profile} r{p.configuration.number} · {'running (simulated)' if p.running else 'stopped'}"
+                    f"{p.name} · {p.profile} r{p.configuration.number} · {self.app.project_status(p)}"
                     for p in projects
                 ] + ["+ Create project"]
                 index = self.ui.choose("Projects", options)
@@ -551,7 +566,7 @@ class InteractiveApp:
             try:
                 project = self.app.project(name)
                 choice = self.ui.choose(
-                    f"{name} · {'running (simulated)' if project.running else 'stopped'}",
+                    f"{name} · {self.app.project_status(project)}",
                     [
                         "View configuration and environment",
                         "Start",
@@ -567,21 +582,27 @@ class InteractiveApp:
                     self.ui.notice(name, project_lines(self.app, project))
                     continue
                 if choice == 1:
-                    message = self.app.start(name)
+                    message = getattr(self.ui, "external", lambda action: action())(
+                        lambda: self.app.start(name)
+                    )
                 elif choice == 2:
-                    message = self.app.stop(name)
+                    message = getattr(self.ui, "external", lambda action: action())(
+                        lambda: self.app.stop(name)
+                    )
                 elif choice == 3:
                     agents = list(AGENTS)
                     selected = self.ui.choose(
                         "Run agent",
                         [
-                            f"{agent.name} · {'simulation' if agent.available else 'coming later'}"
+                            f"{agent.name} · installation pending"
                             for agent in AGENTS.values()
                         ],
                     )
                     message = self.app.run_agent(name, agents[selected])
                 elif choice == 4:
-                    message = self.app.shell(name)
+                    message = getattr(self.ui, "external", lambda action: action())(
+                        lambda: self.app.shell(name)
+                    )
                 elif choice == 5:
                     latest = self.app.profile(project.profile).latest
                     if not self.ui.confirm(
@@ -604,7 +625,8 @@ class InteractiveApp:
                         self.app.project_dockerfile(name, Path.cwd()).splitlines(),
                     )
                     continue
-                self.ui.notice("Demo result", message.splitlines())
+                if message:
+                    self.ui.notice("Result", message.splitlines())
             except Cancelled:
                 return
             except BrigError as error:

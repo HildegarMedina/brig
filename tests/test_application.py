@@ -250,8 +250,7 @@ class ApplicationTests(unittest.TestCase):
         self.create_project()
         with self.assertRaisesRegex(BrigError, "stopped"):
             self.app.run_agent("first", "claude")
-        with self.assertRaisesRegex(BrigError, "stopped"):
-            self.app.shell("first")
+        self.assertIn("no shell was opened", self.app.shell("first"))
         self.app.start("first")
         self.assertIn("no agent was launched", self.app.run_agent("first", "claude"))
         self.assertIn("no shell was opened", self.app.shell("first"))

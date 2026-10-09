@@ -19,6 +19,9 @@ class CliTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.data = Path(self.directory.name) / "data"
+        fake_engine = patch("brig.cli.DockerEngine", return_value=DemoEngine())
+        fake_engine.start()
+        self.addCleanup(fake_engine.stop)
 
     def command(self, *arguments):
         output, errors = io.StringIO(), io.StringIO()
@@ -30,7 +33,6 @@ class CliTests(unittest.TestCase):
         JsonStateStore(self.data).save(demo_state())
         status, output, errors = self.command("profile", "list")
         self.assertEqual(status, 0)
-        self.assertIn("Demo mode", output)
         self.assertIn("web_dev", output)
         self.assertEqual(errors, "")
         status, output, _ = self.command("project", "show", "website")
@@ -40,7 +42,7 @@ class CliTests(unittest.TestCase):
         status, output, _ = self.command("up", "--project", "website")
         self.assertEqual(status, 0)
         self.assertIn("simulated", output)
-        status, output, _ = self.command("run", "claude", "--project", "website")
+        status, output, _ = self.command("agent", "claude", "--project", "website")
         self.assertEqual(status, 0)
         self.assertIn("no agent was launched", output)
         self.assertEqual(self.command("shell", "--project", "website")[0], 0)
@@ -54,6 +56,32 @@ class CliTests(unittest.TestCase):
         self.assertIn("FROM php:8.3.15-cli-bookworm", output)
         self.assertNotIn("brig · Demo mode", output)
         self.assertEqual(errors, "")
+
+    def test_run_selects_one_project_and_passes_command_arguments(self):
+        JsonStateStore(self.data).save(demo_state())
+        engine = DemoEngine()
+        with (
+            patch("brig.cli.DockerEngine", return_value=engine),
+            patch.object(engine, "shell", return_value="") as shell,
+        ):
+            status, output, errors = self.command(
+                "run", "website", "--command", "python", "-c", "print('$HOME')"
+            )
+        self.assertEqual(status, 0)
+        self.assertEqual((output, errors), ("", ""))
+        self.assertEqual(shell.call_args.args[0].name, "website")
+        self.assertEqual(shell.call_args.args[1], ["python", "-c", "print('$HOME')"])
+        self.assertTrue(JsonStateStore(self.data).load().projects[0].running)
+
+    def test_run_rejects_conflicting_projects_or_empty_command(self):
+        JsonStateStore(self.data).save(demo_state())
+        for arguments, message in (
+            (("run", "website", "--project", "api"), "Choose one project"),
+            (("run", "website", "--command"), "needs a program"),
+        ):
+            status, _, errors = self.command(*arguments)
+            self.assertEqual(status, 1)
+            self.assertIn(message, errors)
 
     def test_dockerfile_export_and_python_project(self):
         JsonStateStore(self.data).save(demo_state())
@@ -96,7 +124,7 @@ class CliTests(unittest.TestCase):
 
     def test_future_agent_returns_error(self):
         JsonStateStore(self.data).save(demo_state())
-        status, _, errors = self.command("run", "codex", "--project", "api")
+        status, _, errors = self.command("agent", "codex", "--project", "api")
         self.assertEqual(status, 1)
         self.assertIn("future integration", errors)
 
