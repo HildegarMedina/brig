@@ -1,6 +1,7 @@
 """Agent integrations: installation, execution and persistent configuration."""
 
 from dataclasses import dataclass
+import shlex
 
 from brig.errors import BrigError
 
@@ -15,10 +16,26 @@ class AgentIntegration:
     config_directory: str | None = None
     config_environment: str | None = None
     history_directory: str | None = None
+    extra_history_directories: tuple[str, ...] = ()
+
+    @property
+    def history_directories(self) -> tuple[str, ...]:
+        return (
+            (self.history_directory,) if self.history_directory else ()
+        ) + self.extra_history_directories
 
     @property
     def available(self) -> bool:
         return bool(self.stage and self.image)
+
+
+def command_wrapper(name: str, command: tuple[str, ...], *, prepare=()) -> str:
+    lines = ("#!/bin/sh", "set -eu", *prepare, "exec " + shlex.join(command) + ' "$@"')
+    return (
+        "RUN printf '%s\\n' "
+        + " ".join(shlex.quote(line) for line in lines)
+        + f" > /usr/local/bin/{name} && chmod 755 /usr/local/bin/{name}"
+    )
 
 
 AGENTS = {
@@ -48,8 +65,74 @@ AGENTS = {
         config_environment="CLAUDE_CONFIG_DIR",
         history_directory="projects",
     ),
-    "codex": AgentIntegration("Codex", ("codex",)),
-    "opencode": AgentIntegration("OpenCode", ("opencode",)),
+    "codex": AgentIntegration(
+        name="Codex",
+        command=("codex",),
+        stage=(
+            "FROM debian:bookworm-slim AS codex_binary",
+            "RUN set -eux; \\",
+            "    apt-get update; \\",
+            "    apt-get install -y --no-install-recommends ca-certificates curl; \\",
+            "    curl -fsSL https://chatgpt.com/codex/install.sh -o /tmp/install-codex.sh; \\",
+            "    CODEX_HOME=/opt/brig-codex CODEX_INSTALL_DIR=/usr/local/bin CODEX_NON_INTERACTIVE=1 sh /tmp/install-codex.sh; \\",
+            "    test -x /opt/brig-codex/packages/standalone/current/bin/codex; \\",
+            "    /usr/local/bin/codex --version",
+            "",
+        ),
+        image=(
+            "COPY --from=codex_binary /opt/brig-codex/ /opt/brig-codex/",
+            command_wrapper(
+                "codex",
+                (
+                    "/opt/brig-codex/packages/standalone/current/bin/codex",
+                    "-c",
+                    'cli_auth_credentials_store="file"',
+                    "-c",
+                    'sqlite_home="/home/brig/.local/state/codex"',
+                    "-c",
+                    'log_dir="/home/brig/.local/state/codex/logs"',
+                    "-c",
+                    "check_for_update_on_startup=false",
+                ),
+                prepare=("mkdir -p /home/brig/.local/state/codex",),
+            ),
+            "",
+        ),
+        config_directory="/home/brig/.config/codex",
+        config_environment="CODEX_HOME",
+        history_directory="sessions",
+        extra_history_directories=("archived_sessions",),
+    ),
+    "opencode": AgentIntegration(
+        name="OpenCode",
+        command=("opencode",),
+        stage=(
+            "FROM debian:bookworm-slim AS opencode_binary",
+            "RUN set -eux; \\",
+            "    apt-get update; \\",
+            "    apt-get install -y --no-install-recommends ca-certificates curl unzip libstdc++6; \\",
+            "    curl -fsSL https://opencode.ai/install -o /tmp/install-opencode.sh; \\",
+            "    bash /tmp/install-opencode.sh --no-modify-path; \\",
+            "    /root/.opencode/bin/opencode --version",
+            "",
+        ),
+        image=(
+            "COPY --from=opencode_binary /root/.opencode/bin/opencode /opt/brig-opencode/opencode",
+            "ENV OPENCODE_CONFIG_DIR=/home/brig/.local/share/opencode/config",
+            "ENV OPENCODE_DB=/home/brig/.local/state/opencode/brig.db",
+            "ENV OPENCODE_DISABLE_AUTOUPDATE=1",
+            command_wrapper(
+                "opencode",
+                ("/opt/brig-opencode/opencode",),
+                prepare=("mkdir -p /home/brig/.local/state/opencode",),
+            ),
+            "",
+        ),
+        packages=("libstdc++6",),
+        config_directory="/home/brig/.local/share/opencode",
+        history_directory="project",
+        extra_history_directories=("storage",),
+    ),
 }
 
 

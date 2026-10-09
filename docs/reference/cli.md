@@ -81,21 +81,23 @@ with a shell; specify one as the program if needed.
 brig agent [AGENT] [--project NAME]
 ```
 
-Builds a missing image, starts the selected project, and launches Claude Code
-inside its development container at `/workspace`. An interactive terminal is
-required. Omitting `AGENT` uses the profile's default agent. Codex and OpenCode
-remain future integrations.
+Builds a missing image, starts the selected project, and launches its selected
+agent inside the development container at `/workspace`. An interactive terminal
+is required. Omitting `AGENT` uses the profile's default agent. Only agents in the
+project's pinned revision can be launched.
 
-You can also enter with `brig run PROJECT` and type `claude`. On first use,
-follow Claude's sign-in prompts. Its configuration and credentials stay in the
-shared agent volume. Projects registered under the same Brig data directory and
-host user reuse that login on this machine. Conversation files under Claude's
-`projects/` directory have a separate volume per project. Brig does not copy host
-credentials. Signing out of Claude affects the shared login.
+```bash
+brig agent codex --project my-api
+brig agent opencode --project my-api
+```
 
-Profiles select a list of agents and a default from that list. The command can
-only launch agents selected in the project's pinned revision. Claude Code is the
-first available integration.
+You can also enter with `brig run my-api` and type `claude`, `codex`, or `opencode`
+if selected. Follow the agent's sign-in or provider connection prompts on first
+use. Credentials and global configuration persist in an external volume for that
+agent, shared across projects under the same Brig data directory and host user.
+Signing out affects that agent's shared login. Brig does not copy host credentials
+or perform authentication. Conversation directories and conversation databases
+use project-specific storage; see [storage](storage.md).
 
 ## Terminal interface
 

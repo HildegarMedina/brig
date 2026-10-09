@@ -17,19 +17,19 @@ Only tools for selected runtimes appear. At least one runtime is required; tools
 and services are optional. A profile can select several runtimes and services.
 
 Profiles select an `agents` list and a default `agent` from that list. Existing
-revisions containing only `agent` select that one agent automatically. Claude Code
-is the first available integration; selecting future integrations is blocked until
-their installation adapter is implemented.
+revisions containing only `agent` select that one agent automatically. Claude Code,
+Codex, and OpenCode can be selected individually or together.
 
-Selected Claude Code is installed using Anthropic's native
-installer and its stable channel. It works without adding Node.js to a PHP or
-Python profile. The installer resolves the agent version when its build stage
-runs; unlike runtime and tool versions, that version is not pinned in the profile
-YAML. Docker reuses the installed binary when reusing an image or cached stage.
-Background updates are disabled so the executable stays with the image.
-Codex and OpenCode are listed as future integrations.
+Selected agents use their official native installers, without requiring Node.js.
+Claude uses its stable channel; Codex and OpenCode resolve their latest releases
+when the build stage runs. Unlike runtime and tool versions, agent releases are
+not pinned in profile YAML. Docker reuses installed binaries with an image or
+cached stage. Automatic updates are disabled; rebuilding the installation stage
+is necessary to fetch another release.
 
-See [Anthropic's installation documentation](https://code.claude.com/docs/en/setup).
+See [Claude installation](https://code.claude.com/docs/en/setup),
+[Codex CLI](https://learn.chatgpt.com/docs/codex/cli), and
+[OpenCode installation](https://opencode.ai/docs/).
 
 ## Version sources
 
@@ -40,7 +40,7 @@ and sorted newest first.
 | --- | --- |
 | Runtimes and services | [Docker Official Images manifests](https://github.com/docker-library/official-images) for Linux images |
 | pip and uv | [PyPI JSON API](https://docs.pypi.org/api/json/) |
-| npm, pnpm, and Yarn Classic | [npm registry](https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md) |
+| npm, pnpm, Yarn Classic, and Playwright | [npm registry](https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md) |
 | Composer | [Official release feed](https://getcomposer.org/versions) |
 
 Docker manifests describe currently maintained definitions, not an inventory of
@@ -77,7 +77,7 @@ selected runtime:
 
 | Tool | Evaluated requirement |
 | --- | --- |
-| npm, pnpm, Yarn Classic | `engines.node`, including npm ranges with `||`, caret, and tilde |
+| npm, pnpm, Yarn Classic, Playwright | `engines.node`, including npm ranges with `||`, caret, and tilde |
 | pip, uv | `Requires-Python` from non-yanked distribution files |
 | Composer | Minimum PHP version declared in the release feed |
 

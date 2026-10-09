@@ -122,11 +122,11 @@ class CliTests(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("--project", errors)
 
-    def test_future_agent_returns_error(self):
+    def test_unselected_agent_returns_error(self):
         JsonStateStore(self.data).save(demo_state())
         status, _, errors = self.command("agent", "codex", "--project", "api")
         self.assertEqual(status, 1)
-        self.assertIn("future integration", errors)
+        self.assertIn("not selected", errors)
 
     def test_delete_with_explicit_confirmation_removes_unused_profile(self):
         app = Application(JsonStateStore(self.data), DemoEngine(), FakeVersionCatalog)

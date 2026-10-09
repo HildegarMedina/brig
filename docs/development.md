@@ -41,10 +41,10 @@ preservation when engine operations fail.
 ## Docker integration tests
 
 ```bash
-BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle -v
+BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle tests.integration.test_agents -v
 ```
 
-The four enabled tests verify:
+The five enabled tests verify:
 
 - Entering Bash through a real pseudo-terminal and returning to the host.
 - Building a missing image, reusing the container, mounting the correct folder,
@@ -56,6 +56,9 @@ The four enabled tests verify:
   checking health, PDO connections, and MongoDB authentication.
 - Running Node.js, Claude, and Playwright; navigating a local page, clicking a
   button, saving a screenshot, and checking agent storage permissions.
+
+- Executing native Claude, Codex, and OpenCode without Node.js; checking shared
+  fixture credentials, private conversation state, and persistence after recreation.
 
 Tests use temporary profiles and folders. Cleanup selects only resources labeled
 with their IDs and image tags belonging to those projects. First startups download

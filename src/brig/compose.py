@@ -59,6 +59,21 @@ def project_prefix(project: Project) -> str:
     return f"brig-{project.id.lower()}"
 
 
+def agent_history_volumes(
+    project: Project, agent: str
+) -> tuple[tuple[str, str, str], ...]:
+    integration = AGENTS[agent]
+    return tuple(
+        (
+            f"{agent}_history" + (f"_{index + 1}" if index else ""),
+            f"{project_prefix(project)}-{agent}-history"
+            + (f"-{index + 1}" if index else ""),
+            f"{integration.config_directory}/{directory}",
+        )
+        for index, directory in enumerate(integration.history_directories)
+    )
+
+
 def yaml_document(value, indent=0) -> str:
     """Emit the small JSON-compatible YAML subset needed by Compose."""
 
@@ -135,7 +150,6 @@ def compose_definition(
         if not integration.config_directory:
             continue
         shared = f"{agent}_config"
-        history = f"{agent}_history"
         volumes[shared] = {
             "name": (agent_volumes or {}).get(agent, f"brig-{agent}-{uid}"),
             "external": True,
@@ -147,13 +161,13 @@ def compose_definition(
                 "target": integration.config_directory,
             }
         )
-        if integration.history_directory:
-            volumes[history] = {"name": f"{prefix}-{agent}-history", "labels": labels}
+        for history, volume, target in agent_history_volumes(project, agent):
+            volumes[history] = {"name": volume, "labels": labels}
             services["dev"]["volumes"].append(
                 {
                     "type": "volume",
                     "source": history,
-                    "target": f"{integration.config_directory}/{integration.history_directory}",
+                    "target": target,
                 }
             )
     dependencies = {}

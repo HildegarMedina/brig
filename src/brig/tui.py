@@ -280,7 +280,7 @@ class InteractiveApp:
                         + [
                             "",
                             "Agents will run inside each project's development container.",
-                            "Claude Code prompts you to sign in on first use.",
+                            "Sign in or connect a provider from each agent on first use.",
                         ],
                     )
                 elif choice == 3:

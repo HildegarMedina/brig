@@ -187,7 +187,7 @@ class ApplicationTests(unittest.TestCase):
             ({"python": "latest"}, {}, {}, "claude"),
             ({"python": "3.12.8"}, {"composer": "2.8.5"}, {}, "claude"),
             ({"python": "3.12.8"}, {}, {"mysql": "8"}, "claude"),
-            ({"python": "3.12.8"}, {}, {}, "codex"),
+            ({"python": "3.12.8"}, {}, {}, "unknown"),
         ]
         for runtimes, tools, services, agent in cases:
             with self.subTest(
@@ -254,7 +254,7 @@ class ApplicationTests(unittest.TestCase):
         self.app.start("first")
         self.assertIn("no agent was launched", self.app.run_agent("first", "claude"))
         self.assertIn("no shell was opened", self.app.shell("first"))
-        with self.assertRaisesRegex(BrigError, "future integration"):
+        with self.assertRaisesRegex(BrigError, "not selected"):
             self.app.run_agent("first", "opencode")
         with self.assertRaisesRegex(BrigError, "Unknown agent"):
             self.app.run_agent("first", "unknown")

@@ -87,20 +87,26 @@ ownership labels and, for a service's data, its major version. Existing developm
 containers with conflicting names are not automatically adopted.
 
 `SCOPE` hashes the engine's absolute runtime directory. All projects in the same
-Brig data directory for the same host user share Claude's login, global settings,
-and configuration. `CLAUDE_CONFIG_DIR` points Claude at that shared storage. The
-volume is external to project Compose lifecycles and has agent, user, and scope
-ownership labels. It survives `down` and project deletion; another data directory
-or host user gets separate storage. Brig does not mount host agent credentials.
+Brig data directory for the same host user share each selected agent's login and
+global configuration. Each agent has its own external volume named
+`brig-AGENT-UID-SCOPE`, with agent, user, and scope ownership labels. It survives
+`down` and project deletion; another data directory or host user gets separate
+storage. Brig does not mount host agent credentials.
 
-Conversation files in the nested `projects/` directory have a separate volume per
-project, preventing histories from colliding at the common `/workspace` path.
-The shared directory and history directory are initialized with the unprivileged
-user as owner and permissions 0700. Claude manages credential files and refreshes
-the login; Brig does not perform authentication or guarantee a token never expires.
+| Agent | Shared storage | Project-specific conversation storage |
+| --- | --- | --- |
+| Claude | `/home/brig/.config/claude` (`CLAUDE_CONFIG_DIR`) | Nested `projects/` volume |
+| Codex | `/home/brig/.config/codex` (`CODEX_HOME`), including `auth.json` | Nested `sessions/` and `archived_sessions/` volumes; SQLite databases and logs under `/home/brig/.local/state/codex` in the private home volume |
+| OpenCode | `/home/brig/.local/share/opencode`, including `auth.json` and `config/` (`OPENCODE_CONFIG_DIR`) | SQLite database at `/home/brig/.local/state/opencode/brig.db` (`OPENCODE_DB`) in the private home volume; nested `project/` and legacy `storage/` volumes |
 
-The Claude executable lives at `/usr/local/bin/claude` in the image so existing
-home volumes do not hide it when containers are recreated.
+The first nested volume is named `brig-ID-AGENT-history`; additional directories
+use `brig-ID-AGENT-history-2`. Shared directories and nested history directories
+are owned by the unprivileged user with permissions 0700. Codex uses file-based
+credential storage so its login can be shared without a host keyring. Agents
+manage credentials and token refresh; Brig does not guarantee a login never expires.
+
+Agent executables and their installation resources live outside `/home/brig`,
+so persistent home volumes do not hide them when containers are recreated.
 
 ## What each operation preserves
 

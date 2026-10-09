@@ -97,8 +97,15 @@ development container while preserving the source folder and named volumes.
 
 Use `claude --version` inside the container to check installation, or launch it
 directly with `brig agent --project my-api`. Follow its sign-in prompts on first
-use. Brig does not copy credentials from the host or automate sign-in. Codex and
-OpenCode are not implemented yet.
+use. For other selected agents, check `codex --version` or `opencode --version`
+and launch `brig agent codex --project my-api` or `brig agent opencode --project my-api`.
+Brig does not copy credentials from the host or automate sign-in.
+
+Codex supports `codex login --device-auth` for headless authentication when your
+account permits it. OpenCode connects providers through `/connect` or
+`opencode auth login`. Use the agent's own authentication flow; see
+[Codex authentication](https://learn.chatgpt.com/docs/auth) and
+[OpenCode providers](https://opencode.ai/docs/providers/).
 
 Signing in once shares that session with other projects under the same Brig data
 directory and host user. `down`, recreating a container, or deleting a project

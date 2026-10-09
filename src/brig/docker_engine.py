@@ -12,7 +12,12 @@ import tempfile
 from pathlib import Path
 from contextlib import contextmanager
 
-from brig.compose import project_prefix, render_compose, service_environment
+from brig.compose import (
+    project_prefix,
+    render_compose,
+    service_environment,
+    agent_history_volumes,
+)
 from brig.dockerfile import render_dockerfile
 from brig.engine import Environment
 from brig.agents import AGENTS, validate_agent
@@ -48,10 +53,8 @@ class DockerEngine:
                 for agent in project.configuration.selected_agents
                 if AGENTS[agent].config_directory
                 for volume in (self.agent_volume_name(agent),)
-                + (
-                    (f"{prefix}-{agent}-history",)
-                    if AGENTS[agent].history_directory
-                    else ()
+                + tuple(
+                    volume for _, volume, _ in agent_history_volumes(project, agent)
                 )
             )
             + tuple(f"{prefix}-{name}-data" for name in project.configuration.services)

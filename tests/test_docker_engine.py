@@ -54,7 +54,7 @@ class DockerRunner:
         if args[1:3] == ["container", "ls"]:
             return CompletedProcess(args, 0, "project-dev" if self.running else "", "")
         if args[1:3] == ["volume", "inspect"]:
-            if args[-1].startswith("brig-claude-"):
+            if args[-1].startswith(("brig-claude-", "brig-codex-", "brig-opencode-")):
                 if args[-1] not in self.agent_volumes:
                     return CompletedProcess(args, 1, "", "Error: no such volume")
                 return CompletedProcess(
@@ -211,7 +211,7 @@ class DockerEngineTests(unittest.TestCase):
     def test_invalid_agent_or_missing_terminal_does_not_start_containers(self):
         for agent, error in (
             ("unknown", "Unknown agent"),
-            ("codex", "future integration"),
+            ("codex", "not selected"),
         ):
             with self.subTest(agent=agent), self.assertRaisesRegex(BrigError, error):
                 self.app.run_agent("api", agent)

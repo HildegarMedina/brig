@@ -223,13 +223,16 @@ def render_dockerfile(project: Project) -> str:
     for integration in integrations:
         lines.extend(integration.image)
     agent_directories = " ".join(
-        (
-            f"{integration.config_directory}/{integration.history_directory}"
-            if integration.history_directory
-            else integration.config_directory
-        )
+        directory
         for integration in integrations
         if integration.config_directory
+        for directory in (
+            integration.config_directory,
+            *(
+                f"{integration.config_directory}/{history}"
+                for history in integration.history_directories
+            ),
+        )
     )
     lines.extend(
         [
@@ -238,24 +241,28 @@ def render_dockerfile(project: Project) -> str:
             '    groupadd --gid "$BRIG_GID" brig; \\',
             '    useradd --uid "$BRIG_UID" --gid brig --create-home --shell /bin/bash brig; \\',
             f"    mkdir -p /workspace /home/brig/.config/composer /home/brig/.cache/composer {agent_directories}; \\",
-            "    chown -R brig:brig /workspace /home/brig/.config /home/brig/.cache",
+            "    chown -R brig:brig /workspace /home/brig",
             "",
         ]
     )
     for integration in integrations:
         if integration.config_directory:
             private_directories = integration.config_directory
-            if integration.history_directory:
-                private_directories += (
-                    f" {integration.config_directory}/{integration.history_directory}"
-                )
+            for history in integration.history_directories:
+                private_directories += f" {integration.config_directory}/{history}"
             lines.extend(
                 [
                     f"RUN chmod 700 {private_directories}",
-                    f"ENV {integration.config_environment}={integration.config_directory}",
                     "",
                 ]
             )
+            if integration.config_environment:
+                lines.extend(
+                    [
+                        f"ENV {integration.config_environment}={integration.config_directory}",
+                        "",
+                    ]
+                )
     if composer:
         lines.extend(
             [

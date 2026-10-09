@@ -5,7 +5,7 @@ command line. Choose your languages, tools, databases, and coding agents in a
 reusable profile, then attach that profile to a local project folder.
 
 It supports PHP, Python, and Node.js, plus PostgreSQL, MySQL, MariaDB, MongoDB,
-and Redis. Claude Code is the first available agent.
+and Redis. Claude Code, Codex, and OpenCode are available agents.
 
 ## How it works
 
@@ -49,7 +49,7 @@ brig profile create
 ```
 
 For example, name it `python-dev`, select Python and an available version, choose
-any tools or databases you need, keep Claude Code selected, and save. Tools and
+any tools or databases you need, select your agents and a default agent, and save. Tools and
 databases are optional. Use Space to select components and Enter to continue.
 Names use `kebab-case`, such as `python-dev` or `my-project`.
 
@@ -76,15 +76,17 @@ startup downloads the required images and packages. Inside the terminal, you can
 run `python --version`, work on your application, or type `claude` to start Claude
 Code. Follow its sign-in prompts the first time.
 
-Claude's login and global configuration persist across projects for the same
-host user and Brig data directory. Conversation files are stored per project.
+Each selected agent's login and global configuration persist across projects for
+the same host user and Brig data directory. Conversation files are stored per project.
 New projects reuse the login; you do not need to sign in for each one.
 
 Type `exit` in Bash to return to your machine. The environment keeps running.
-From the host, you can also open Claude directly:
+From the host, you can open the default agent or another selected agent:
 
 ```bash
 brig agent --project my-project
+brig agent codex --project my-project
+brig agent opencode --project my-project
 ```
 
 ### 4. Everyday commands
@@ -124,11 +126,11 @@ ruff format --check src tests
 uv run python -m unittest discover -s tests
 ```
 
-The default suite does not require Docker. Enable the four real integration tests
+The default suite does not require Docker. Enable the five real integration tests
 with:
 
 ```bash
-BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle -v
+BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle tests.integration.test_agents -v
 ```
 
 See [development and maintenance](docs/development.md) for the code architecture,

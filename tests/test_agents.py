@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from brig.agents import AGENTS, validate_agents
+from brig.compose import compose_definition
 from brig.application import Application
 from brig.dockerfile import render_dockerfile
 from brig.engine import DemoEngine
@@ -26,7 +27,7 @@ class AgentTests(unittest.TestCase):
             (["claude", "claude"], "claude", "only once"),
             (["claude"], "codex", "default agent"),
             (["unknown"], "unknown", "Unknown agent"),
-            (["codex"], "codex", "future integration"),
+            ([None], "claude", "Unknown agent"),
             ("claude", "claude", "at least one agent"),
         ):
             with self.subTest(agents=agents), self.assertRaisesRegex(BrigError, error):
@@ -98,3 +99,54 @@ class AgentTests(unittest.TestCase):
         raw = asdict(ProfileRevision(1, {"python": "3.12.8"}, {}, {}, agents=[]))
         with self.assertRaisesRegex(BrigError, "at least one agent"):
             _revision(raw)
+
+    def test_native_adapters_only_install_selected_agents_for_each_runtime(self):
+        with tempfile.TemporaryDirectory() as folder:
+            for runtime, version in (
+                ("php", "8.3.15"),
+                ("python", "3.12.8"),
+                ("node", "22.13.1"),
+            ):
+                for selected in ("codex", "opencode"):
+                    with self.subTest(runtime=runtime, agent=selected):
+                        app = Application(
+                            JsonStateStore(Path(folder)),
+                            DemoEngine(),
+                            FakeVersionCatalog,
+                        )
+                        name = f"{runtime}-{selected}"
+                        app.save_profile(
+                            name,
+                            {runtime: version},
+                            {},
+                            {},
+                            agent=selected,
+                            agents=[selected],
+                        )
+                        source = Path(folder) / name
+                        source.mkdir()
+                        project = app.create_project(name, source, name)
+                        dockerfile = render_dockerfile(project)
+                        self.assertIn(f"AS {selected}_binary", dockerfile)
+                        for other in set(AGENTS) - {selected}:
+                            self.assertNotIn(f"AS {other}_binary", dockerfile)
+                        definition = compose_definition(
+                            project, "brig-test", 1000, 1000
+                        )
+                        mounts = definition["services"]["dev"]["volumes"]
+                        for directory in AGENTS[selected].history_directories:
+                            target = f"{AGENTS[selected].config_directory}/{directory}"
+                            self.assertTrue(
+                                any(
+                                    mount.get("target") == target
+                                    for mount in mounts
+                                    if isinstance(mount, dict)
+                                )
+                            )
+                        self.assertNotIn("dangerously-bypass", dockerfile)
+
+    def test_unimplemented_registry_adapter_remains_unavailable(self):
+        future = replace(AGENTS["codex"], stage=(), image=())
+        with patch.dict(AGENTS, future=future):
+            with self.assertRaisesRegex(BrigError, "future integration"):
+                validate_agents(["future"], "future")
