@@ -55,6 +55,13 @@ fields, Ctrl+U clears the field. Resize the terminal to at least 45 columns and
 
 Run `brig profile create`, name the profile, and select components by category:
 
+New profile and project names must use `snake_case`: 1–64 ASCII characters,
+starting with a lowercase letter, followed by lowercase letters, digits, or
+single underscores between words. Examples: `laravel_project`, `python_api`,
+`api_v2`. Spaces, hyphens, uppercase letters, accented letters, and leading,
+trailing, or repeated underscores are rejected in the name field. Existing
+records remain readable so older installations do not lose access to their data.
+
 | Category | Components |
 | --- | --- |
 | Runtimes | PHP, Python, Node.js |
@@ -125,7 +132,7 @@ The confirmation shows the full path. For example (illustrative pinned versions)
 
 ```yaml
 schema_version: 1
-name: "web-dev"
+name: "web_dev"
 revision: 1
 runtimes:
   php: "8.3.15"
@@ -151,7 +158,7 @@ projects; neither format is an executable Docker Compose file.
 brig --help
 brig profile create
 brig profile list
-brig profile edit web-dev
+brig profile edit web_dev
 brig profile delete scratch
 brig project init
 brig project list

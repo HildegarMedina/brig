@@ -374,7 +374,7 @@ class InteractiveApp:
         live = self.app.catalog_factory()
         if not editing:
             name = self.ui.input(
-                f"{title} · 1/6 · name",
+                f"{title} · 1/6 · name (snake_case)",
                 required_message="Profile name is required. Enter a name to continue.",
                 validator=self.app.validate_profile_name,
             )
@@ -452,7 +452,11 @@ class InteractiveApp:
     def project_wizard(self) -> None:
         if not self.app.state.profiles:
             raise BrigError("Create a profile before registering a project.")
-        name = self.ui.input("Create project · 1/4 · name")
+        name = self.ui.input(
+            "Create project · 1/4 · name (snake_case)",
+            required_message="Project name is required. Enter a name to continue.",
+            validator=self.app.validate_project_name,
+        )
         folder = self.ui.input(
             "Create project · 2/4 · existing local folder", str(Path.cwd())
         )

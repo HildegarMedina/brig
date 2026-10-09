@@ -209,7 +209,7 @@ class StorageTests(unittest.TestCase):
         ):
             self.store.save(state)
         self.assertEqual(self.store.path.read_bytes(), original)
-        self.assertFalse(profile_path(self.store.path.parent, "web-dev", 2).exists())
+        self.assertFalse(profile_path(self.store.path.parent, "web_dev", 2).exists())
         self.assertEqual(list(self.store.path.parent.rglob("*.tmp")), [])
 
     def test_yaml_quotes_names_and_cannot_escape_profile_directory(self):

@@ -109,12 +109,12 @@ class ApplicationTests(unittest.TestCase):
         self.app.update_project("first")
         self.assertEqual(self.app.project("first").configuration.number, 2)
 
-    def test_duplicate_names_are_case_insensitive(self):
+    def test_duplicate_names_are_rejected(self):
         with self.assertRaisesRegex(BrigError, "already exists"):
-            self.app.save_profile("PYTHON", {"python": "3.12.8"}, {}, {})
+            self.app.save_profile("python", {"python": "3.12.8"}, {}, {})
         self.create_project()
         with self.assertRaisesRegex(BrigError, "already exists"):
-            self.app.create_project("FIRST", self.root, "python")
+            self.app.create_project("first", self.root, "python")
 
     def test_duplicate_profile_is_rejected_before_fetching_versions(self):
         from unittest.mock import Mock
@@ -123,7 +123,7 @@ class ApplicationTests(unittest.TestCase):
             side_effect=AssertionError("No version lookup should occur")
         )
         with self.assertRaisesRegex(BrigError, "already exists.*Choose another name"):
-            self.app.save_profile(" PYTHON ", {"python": "3.12.8"}, {}, {})
+            self.app.save_profile(" python ", {"python": "3.12.8"}, {}, {})
         self.app.catalog_factory.assert_not_called()
 
     def test_missing_folder_and_duplicate_folder_are_rejected(self):
@@ -230,6 +230,37 @@ class ApplicationTests(unittest.TestCase):
         self.assertIn("already stopped", self.app.stop("first"))
 
     def test_name_validation(self):
-        for name in ("", "  ", "x" * 65, "bad\nname", "bad\x1bname"):
-            with self.subTest(name=name), self.assertRaises(BrigError):
-                self.app.save_profile(name, {"python": "3.12.8"}, {}, {})
+        for name in (
+            "",
+            "  ",
+            "x" * 65,
+            "bad\nname",
+            "bad\x1bname",
+            "Laravel Project",
+            "Uppercase",
+            "foo-bar",
+            "foo.bar",
+            "café",
+            "_foo",
+            "foo_",
+            "foo__bar",
+            "1foo",
+            "foo/bar",
+        ):
+            with self.subTest(name=name):
+                before = deepcopy(self.app.state)
+                with self.assertRaisesRegex(BrigError, "snake_case"):
+                    self.app.save_profile(name, {"python": "3.12.8"}, {}, {})
+                with self.assertRaisesRegex(BrigError, "snake_case"):
+                    self.app.create_project(name, self.root, "python")
+                self.assertEqual(self.app.state, before)
+
+    def test_snake_case_names_are_valid_for_profiles_and_projects(self):
+        for name in ("a", "php83", "laravel_project", "api_v2", "project_1", "a" * 64):
+            with self.subTest(name=name):
+                self.assertEqual(self.app.validate_profile_name(name), name)
+                self.assertEqual(self.app.validate_project_name(name), name)
+        self.app.save_profile("laravel_dev", {"php": "8.3.15"}, {}, {})
+        project = self.app.create_project("laravel_project", self.root, "laravel_dev")
+        self.assertEqual(project.name, "laravel_project")
+        self.assertEqual(project.profile, "laravel_dev")

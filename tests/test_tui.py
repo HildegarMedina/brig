@@ -122,7 +122,7 @@ class WizardTests(unittest.TestCase):
         terminal = ScriptedTerminal()
         terminal.confirm = Mock(side_effect=AssertionError("Should not offer deletion"))
         with self.assertRaisesRegex(BrigError, "Used by projects: website"):
-            InteractiveApp(self.app, terminal, Path("/tmp")).delete_profile("web-dev")
+            InteractiveApp(self.app, terminal, Path("/tmp")).delete_profile("web_dev")
         terminal.confirm.assert_not_called()
 
     def test_default_is_lts_and_labels_do_not_enter_saved_versions(self):
@@ -187,7 +187,7 @@ class WizardTests(unittest.TestCase):
 
     def test_duplicate_profile_name_can_be_corrected_in_name_screen(self):
         name_input = TerminalTests().terminal(
-            [*" WEB-DEV ", "\n", "\x15", *"laravel", "\n"]
+            [*" web_dev ", "\n", "\x15", *"laravel", "\n"]
         )
         terminal = ScriptedTerminal(multiples=[["php"], [], []], choices=[0, 0])
         terminal.input = name_input.input
@@ -206,9 +206,51 @@ class WizardTests(unittest.TestCase):
             )
         )
 
+    def test_profile_snake_case_error_can_be_corrected_before_runtime_selection(self):
+        name_input = TerminalTests().terminal(
+            [*"Laravel Dev", "\n", "\x15", *"laravel_dev", "\n"]
+        )
+        terminal = ScriptedTerminal(multiples=[["php"], [], []], choices=[0, 0])
+        terminal.input = name_input.input
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(self.app.profile("laravel_dev").name, "laravel_dev")
+        self.assertTrue(
+            any("Use snake_case" in text for text in name_input.screen.written)
+        )
+
+    def test_project_snake_case_error_and_duplicate_name_can_be_corrected_inline(self):
+        with tempfile.TemporaryDirectory() as folder:
+            name_input = TerminalTests().terminal(
+                [
+                    *"Laravel Project",
+                    "\n",
+                    "\x15",
+                    *"website",
+                    "\n",
+                    "\x15",
+                    *"laravel_project",
+                    "\n",
+                ]
+            )
+            terminal = ScriptedTerminal(inputs=[folder], choices=[0])
+            scripted_input = terminal.input
+            terminal.input = lambda title, *args, **kwargs: (
+                name_input.input(title, *args, **kwargs)
+                if "1/4" in title
+                else scripted_input(title, *args, **kwargs)
+            )
+            InteractiveApp(self.app, terminal, Path("/tmp")).project_wizard()
+            self.assertEqual(self.app.project("laravel_project").path, folder)
+            self.assertTrue(
+                any("Use snake_case" in text for text in name_input.screen.written)
+            )
+            self.assertTrue(
+                any("already exists" in text for text in name_input.screen.written)
+            )
+
     def test_duplicate_name_can_cancel_before_component_selection(self):
         before = deepcopy(self.app.state)
-        name_input = TerminalTests().terminal([*"web-dev", "\n", "\x1b"])
+        name_input = TerminalTests().terminal([*"web_dev", "\n", "\x1b"])
         terminal = ScriptedTerminal()
         terminal.input = name_input.input
         with self.assertRaises(Cancelled):
@@ -272,7 +314,7 @@ class WizardTests(unittest.TestCase):
 
     def test_categories_and_runtime_dependencies_are_visible(self):
         terminal = ScriptedTerminal(
-            inputs=["node-dev"],
+            inputs=["node_dev"],
             multiples=[
                 ["node"],
                 ["pnpm"],
@@ -296,7 +338,7 @@ class WizardTests(unittest.TestCase):
         self.assertTrue(
             any("Caches / key-value stores" in option for option in service_options)
         )
-        self.assertEqual(len(self.app.profile("node-dev").latest.services), 5)
+        self.assertEqual(len(self.app.profile("node_dev").latest.services), 5)
 
     def test_source_failure_cancel_preserves_state(self):
         before = deepcopy(self.app.state)
@@ -317,7 +359,7 @@ class WizardTests(unittest.TestCase):
         fetch = Mock(return_value="Tags: 8.3.1\nArchitectures: amd64")
         self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
         terminal = ScriptedTerminal(
-            inputs=["php-only"], multiples=[["php"], [], []], choices=[0, 0]
+            inputs=["php_only"], multiples=[["php"], [], []], choices=[0, 0]
         )
         InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
         self.assertEqual(fetch.call_count, 1)
@@ -340,7 +382,7 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(fetch.call_count, 2)
 
     def test_edit_replaces_unlisted_versions_without_changing_project_snapshots(self):
-        original = deepcopy(self.app.profile("python-dev").latest)
+        original = deepcopy(self.app.profile("python_dev").latest)
         projects = deepcopy(self.app.state.projects)
         self.app.catalog_factory = lambda: FakeVersionCatalog(
             {"python": ("3.14.0",), "uv": ("0.10.0",), "redis": ("8.0.1",)}
@@ -348,9 +390,9 @@ class WizardTests(unittest.TestCase):
         terminal = ScriptedTerminal(
             multiples=[["python"], ["uv"], ["redis"]], choices=[0, 0, 0, 0]
         )
-        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard("python-dev")
-        self.assertEqual(self.app.profile("python-dev").latest.number, 3)
-        self.assertEqual(self.app.profile("python-dev").revisions[1], original)
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard("python_dev")
+        self.assertEqual(self.app.profile("python_dev").latest.number, 3)
+        self.assertEqual(self.app.profile("python_dev").revisions[1], original)
         self.assertEqual(self.app.state.projects, projects)
         self.assertEqual(
             len(
@@ -376,7 +418,7 @@ class WizardTests(unittest.TestCase):
             InteractiveApp(self.app, terminal, Path("/tmp")).project_wizard()
             project = self.app.project("local")
             self.assertEqual(project.path, str(Path(folder).resolve()))
-            self.assertEqual(project.profile, "web-dev")
+            self.assertEqual(project.profile, "web_dev")
 
     def test_declined_project_review_does_not_save(self):
         before = deepcopy(self.app.state)

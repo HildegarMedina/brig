@@ -31,7 +31,7 @@ class CliTests(unittest.TestCase):
         status, output, errors = self.command("profile", "list")
         self.assertEqual(status, 0)
         self.assertIn("Demo mode", output)
-        self.assertIn("web-dev", output)
+        self.assertIn("web_dev", output)
         self.assertEqual(errors, "")
         status, output, _ = self.command("project", "show", "website")
         self.assertEqual(status, 0)
@@ -69,10 +69,10 @@ class CliTests(unittest.TestCase):
 
     def test_delete_used_profile_is_rejected_even_with_yes(self):
         JsonStateStore(self.data).save(demo_state())
-        status, _, errors = self.command("profile", "delete", "web-dev", "--yes")
+        status, _, errors = self.command("profile", "delete", "web_dev", "--yes")
         self.assertEqual(status, 1)
         self.assertIn("Used by projects: website", errors)
-        self.assertIn("web-dev", self.command("profile", "list")[1])
+        self.assertIn("web_dev", self.command("profile", "list")[1])
 
     def test_first_run_lists_are_empty_and_remain_empty_on_reload(self):
         for _ in range(2):
@@ -88,8 +88,8 @@ class CliTests(unittest.TestCase):
         for arguments in (
             (),
             ("profile", "create"),
-            ("profile", "edit", "web-dev"),
-            ("profile", "delete", "web-dev"),
+            ("profile", "edit", "web_dev"),
+            ("profile", "delete", "web_dev"),
             ("project", "init"),
         ):
             with (

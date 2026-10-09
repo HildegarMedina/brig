@@ -81,11 +81,11 @@ def demo_state() -> State:
     )
     return State(
         profiles=[
-            Profile("web-dev", [web]),
-            Profile("python-dev", [python, python_new]),
+            Profile("web_dev", [web]),
+            Profile("python_dev", [python, python_new]),
         ],
         projects=[
-            Project(uuid4().hex, "website", None, "web-dev", deepcopy(web)),
-            Project(uuid4().hex, "api", None, "python-dev", deepcopy(python_new), True),
+            Project(uuid4().hex, "website", None, "web_dev", deepcopy(web)),
+            Project(uuid4().hex, "api", None, "python_dev", deepcopy(python_new), True),
         ],
     )

@@ -3,6 +3,7 @@
 from copy import deepcopy
 from collections.abc import Callable
 from pathlib import Path
+import re
 from uuid import uuid4
 
 from brig.catalog import VersionCatalog, validate_selection
@@ -56,11 +57,23 @@ class Application:
         )
 
     def validate_profile_name(self, name: str, *, editing: bool = False) -> str:
+        if editing:
+            # Existing records remain editable; this flow does not rename them.
+            return self.profile(name.strip()).name
         name = self._validate_name(name)
         if not editing and any(
             p.name.casefold() == name.casefold() for p in self.state.profiles
         ):
             raise BrigError(f"Profile '{name}' already exists. Choose another name.")
+        return name
+
+    def validate_project_name(self, name: str) -> str:
+        name = self._validate_name(name)
+        if any(
+            project.name.casefold() == name.casefold()
+            for project in self.state.projects
+        ):
+            raise BrigError(f"Project '{name}' already exists. Choose another name.")
         return name
 
     def save_profile(
@@ -125,9 +138,7 @@ class Application:
         return f"Deleted profile '{profile.name}' and all its revisions."
 
     def create_project(self, name: str, path: Path, profile_name: str) -> Project:
-        name = self._validate_name(name)
-        if any(p.name.casefold() == name.casefold() for p in self.state.projects):
-            raise BrigError(f"Project '{name}' already exists.")
+        name = self.validate_project_name(name)
         directory = path.expanduser().resolve()
         if not directory.is_dir():
             raise BrigError(f"Project folder does not exist: {directory}")
@@ -185,12 +196,8 @@ class Application:
     @staticmethod
     def _validate_name(name: str) -> str:
         name = name.strip()
-        if (
-            not name
-            or len(name) > 64
-            or any(ord(c) < 32 or ord(c) == 127 for c in name)
-        ):
+        if len(name) > 64 or not re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", name):
             raise BrigError(
-                "Name must contain 1–64 characters without control characters."
+                "Use snake_case, e.g. laravel_project: a-z, 0-9 and single _; start with a letter. Max 64 chars."
             )
         return name
