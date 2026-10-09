@@ -4,8 +4,8 @@ A navigable terminal prototype for profile-based development environments.
 
 **Demo mode:** environment actions are simulations. Brig does not create Docker
 containers, launch agents, request credentials, or write into project folders.
-Profile creation and editing query live version sources. The seeded sample
-profiles remain examples. Published versions do not guarantee compatibility
+Profile creation and editing query live version sources. New installations
+start with empty profile and project lists. Published versions do not guarantee compatibility
 between every runtime, package manager, and service combination.
 
 ## Install with uv
@@ -152,6 +152,7 @@ brig --help
 brig profile create
 brig profile list
 brig profile edit web-dev
+brig profile delete scratch
 brig project init
 brig project list
 brig project show website
@@ -176,6 +177,17 @@ an interactive terminal; list and show commands work in pipelines. Failed
 operations return exit code 1, missing interactive terminals return 2, and
 Ctrl+C returns 130.
 
+To delete an unused profile, open **Profiles → select profile → Delete profile**
+or run `brig profile delete <name>`. The confirmation defaults to **Cancel**;
+profile saves default to **Save**. Deleting removes the profile, all revisions,
+and their YAML files. A profile referenced by any project (running or stopped)
+cannot be deleted; the error lists the projects using it. A deleted name can be
+used again for a new profile starting at revision 1.
+
+For scripts, `brig profile delete <name> --yes` explicitly confirms deletion
+without an interactive terminal. Project-reference checks still apply. A failed
+state save restores the YAML revisions and leaves the profile registered.
+
 ## Profiles, projects, and agents
 
 A **profile** defines runtimes, tools, services, and a default agent. Each edit
@@ -197,8 +209,8 @@ packages are outside this prototype.
 ## Local data
 
 Definitions and simulated running status persist in
-`${XDG_DATA_HOME:-~/.local/share}/brig/state.json`. The first run seeds two sample
-profiles and projects; sample projects have no local folder mounted.
+`${XDG_DATA_HOME:-~/.local/share}/brig/state.json`. The first run creates an empty
+store. Profiles and projects appear only after you create them.
 
 Use a separate directory to try the demo without affecting your usual data:
 
@@ -212,7 +224,7 @@ Malformed or unsupported data produces an error and is never silently replaced.
 Writes use temporary files followed by atomic replacement. New YAML revisions
 are prepared before committing state; failed saves remove new documents.
 Back up `state.json` and the `profiles` directory before resetting the demo;
-move both aside to seed fresh examples. Use one brig
+move both aside to start with an empty store. Use one brig
 session at a time: concurrent writers are not coordinated by this prototype.
 
 ## Code structure

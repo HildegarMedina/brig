@@ -31,12 +31,42 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(app.state.projects, [])
         self.assertEqual(app.state.profiles, [])
 
-    def test_first_run_seeds_examples_with_no_host_mounts(self):
+    def test_delete_unused_profile_and_reuse_its_name(self):
+        message = self.app.delete_profile("PYTHON")
+        self.assertIn("Deleted profile 'python'", message)
+        self.assertEqual(self.app.state.profiles, [])
+        self.assertEqual(self.store.load().profiles, [])
+        self.app.save_profile("python", {"python": "3.12.8"}, {}, {})
+        self.assertEqual(self.app.profile("python").latest.number, 1)
+
+    def test_cannot_delete_profile_used_by_stopped_or_running_projects(self):
+        self.create_project("first")
+        self.create_project("second")
+        self.app.start("second")
+        before = deepcopy(self.app.state)
+        with self.assertRaisesRegex(BrigError, "Used by projects: first, second"):
+            self.app.delete_profile("python")
+        self.assertEqual(self.app.state, before)
+
+    def test_failed_profile_delete_preserves_memory_and_persisted_state(self):
+        before = deepcopy(self.app.state)
+        self.store.fail = True
+        with self.assertRaisesRegex(BrigError, "Disk is full"):
+            self.app.delete_profile("python")
+        self.assertEqual(self.app.state, before)
+        self.assertEqual(self.store.load(), before)
+
+    def test_unknown_profile_cannot_be_deleted(self):
+        before = deepcopy(self.app.state)
+        with self.assertRaisesRegex(BrigError, "Unknown profile"):
+            self.app.delete_profile("missing")
+        self.assertEqual(self.app.state, before)
+
+    def test_first_run_starts_and_persists_empty_lists(self):
         store = MemoryStore()
         app = Application(store, DemoEngine())
-        self.assertEqual(len(app.state.projects), 2)
-        self.assertTrue(all(p.path is None for p in app.state.projects))
-        self.assertIsNotNone(store.state)
+        self.assertEqual(app.state, State())
+        self.assertEqual(store.state, State())
 
     def test_projects_have_independent_snapshots_resources_and_status(self):
         first = self.create_project("first")

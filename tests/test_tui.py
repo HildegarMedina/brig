@@ -7,12 +7,12 @@ from copy import deepcopy
 from pathlib import Path
 import json
 
-from brig.application import Application, demo_state
+from brig.application import Application
 from brig.catalog import COMPONENTS
 from brig.engine import DemoEngine
 from brig.errors import BrigError, Cancelled
 from brig.tui import InteractiveApp, Terminal
-from tests.fakes import MemoryStore, FakeVersionCatalog
+from tests.fakes import demo_state, MemoryStore, FakeVersionCatalog
 from brig.versions import LiveVersionCatalog
 
 
@@ -78,7 +78,7 @@ class ScriptedTerminal:
         self.version_choices.append((args, kwargs))
         return next(self.choices)
 
-    def confirm(self, *args):
+    def confirm(self, *args, **kwargs):
         return self.confirmed
 
     def notice(self, title, lines, *, error=False):
@@ -102,6 +102,28 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(profile.latest.runtimes, {"python": "3.12.8", "php": "8.2.27"})
         self.assertEqual(profile.latest.tools, {"uv": "0.5.24", "composer": "2.8.5"})
         self.assertEqual(profile.latest.services, {"redis": "7.4.2"})
+
+    def test_profile_delete_requires_confirmation(self):
+        self.app.save_profile("unused", {"php": "8.3.15"}, {}, {})
+        before = deepcopy(self.app.state)
+        terminal = ScriptedTerminal(confirmed=False)
+        InteractiveApp(self.app, terminal, Path("/tmp")).delete_profile("unused")
+        self.assertEqual(self.app.state, before)
+        terminal.confirmed = True
+        InteractiveApp(self.app, terminal, Path("/tmp")).delete_profile("unused")
+        self.assertNotIn(
+            "unused", [profile.name for profile in self.app.state.profiles]
+        )
+        self.assertEqual(terminal.messages[-1][0], "Profile deleted")
+
+    def test_profile_used_by_project_is_rejected_before_confirmation(self):
+        from unittest.mock import Mock
+
+        terminal = ScriptedTerminal()
+        terminal.confirm = Mock(side_effect=AssertionError("Should not offer deletion"))
+        with self.assertRaisesRegex(BrigError, "Used by projects: website"):
+            InteractiveApp(self.app, terminal, Path("/tmp")).delete_profile("web-dev")
+        terminal.confirm.assert_not_called()
 
     def test_default_is_lts_and_labels_do_not_enter_saved_versions(self):
         self.app.catalog_factory = lambda: LiveVersionCatalog(node_release_source)
@@ -405,6 +427,22 @@ class TerminalTests(unittest.TestCase):
     def test_arrow_navigation_selects_option(self):
         terminal = self.terminal([curses.KEY_DOWN, "\n"])
         self.assertEqual(terminal.choose("Menu", ["one", "two"]), 1)
+
+    def test_save_is_default_and_delete_defaults_to_cancel(self):
+        terminal = self.terminal(["\n", "\n"])
+        self.assertTrue(terminal.confirm("Create profile", ["Name: custom"]))
+        terminal = self.terminal(["\n", "\n"])
+        self.assertFalse(
+            terminal.confirm(
+                "Delete profile", ["Name: custom"], action="Delete profile"
+            )
+        )
+        terminal = self.terminal(["\n", curses.KEY_UP, "\n"])
+        self.assertTrue(
+            terminal.confirm(
+                "Delete profile", ["Name: custom"], action="Delete profile"
+            )
+        )
 
     def test_validation_error_has_dedicated_line_and_keeps_keyboard_help(self):
         terminal = self.terminal(["\n", " ", "\n"])

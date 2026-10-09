@@ -231,9 +231,16 @@ class Terminal:
             elif key == curses.KEY_UP:
                 offset = max(offset - 1, 0)
 
-    def confirm(self, title: str, lines: list[str]) -> bool:
+    def confirm(self, title: str, lines: list[str], *, action: str = "Save") -> bool:
         self.notice(title, lines)
-        return self.choose("Save these changes?", ["Save", "Cancel"], default=1) == 0
+        return (
+            self.choose(
+                "Save these changes?" if action == "Save" else f"{action}?",
+                [action, "Cancel"],
+                default=0 if action == "Save" else 1,
+            )
+            == 0
+        )
 
 
 class InteractiveApp:
@@ -427,6 +434,21 @@ class InteractiveApp:
             ],
         )
 
+    def delete_profile(self, name: str) -> None:
+        profile = self.app.profile_for_deletion(name)
+        if not self.ui.confirm(
+            f"Delete profile '{profile.name}'",
+            [
+                f"Name       {profile.name}",
+                f"Revisions  {len(profile.revisions)}",
+                "All revisions and their YAML files will be deleted.",
+            ],
+            action="Delete profile",
+        ):
+            return
+        message = self.app.delete_profile(profile.name)
+        self.ui.notice("Profile deleted", [message])
+
     def project_wizard(self) -> None:
         if not self.app.state.profiles:
             raise BrigError("Create a profile before registering a project.")
@@ -469,15 +491,17 @@ class InteractiveApp:
                     self.profile_wizard()
                 else:
                     name = profiles[index].name
-                    if (
-                        self.ui.choose(name, ["View latest revision", "Edit profile"])
-                        == 0
-                    ):
+                    action = self.ui.choose(
+                        name, ["View latest revision", "Edit profile", "Delete profile"]
+                    )
+                    if action == 0:
                         self.ui.notice(
                             name, configuration_lines(self.app.profile(name).latest)
                         )
-                    else:
+                    elif action == 1:
                         self.profile_wizard(name)
+                    else:
+                        self.delete_profile(name)
             except Cancelled:
                 return
             except BrigError as error:
@@ -564,6 +588,8 @@ def launch(
                 interactive.profile_wizard()
             elif action == "profile-edit":
                 interactive.profile_wizard(name)
+            elif action == "profile-delete":
+                interactive.delete_profile(name)
             elif action == "project-create":
                 interactive.project_wizard()
             else:

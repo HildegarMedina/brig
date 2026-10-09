@@ -36,6 +36,15 @@ def parser() -> argparse.ArgumentParser:
     profiles.add_parser("edit", help="create a new profile revision").add_argument(
         "name"
     )
+    deletion = profiles.add_parser(
+        "delete", help="delete an unused profile and its YAML revisions"
+    )
+    deletion.add_argument("name")
+    deletion.add_argument(
+        "--yes",
+        action="store_true",
+        help="confirm deletion without opening the interactive confirmation",
+    )
     projects = commands.add_parser(
         "project", help="manage isolated projects"
     ).add_subparsers(dest="action", required=True)
@@ -69,6 +78,8 @@ def _interactive_action(args: argparse.Namespace) -> str | None:
         return "home"
     if args.command == "profile" and args.action in ("create", "edit"):
         return f"profile-{args.action}"
+    if args.command == "profile" and args.action == "delete" and not args.yes:
+        return "profile-delete"
     if args.command == "project" and args.action == "init":
         return "project-create"
     return None
@@ -76,6 +87,8 @@ def _interactive_action(args: argparse.Namespace) -> str | None:
 
 def dispatch(app: Application, args: argparse.Namespace) -> str:
     if args.command == "profile":
+        if args.action == "delete":
+            return app.delete_profile(args.name)
         return (
             "\n".join(
                 f"{p.name} · revision {p.latest.number}" for p in app.state.profiles

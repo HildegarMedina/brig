@@ -8,6 +8,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from brig.cli import main
+from brig.application import Application
+from brig.engine import DemoEngine
+from brig.storage import JsonStateStore
+from tests.fakes import FakeVersionCatalog, demo_state
 
 
 class CliTests(unittest.TestCase):
@@ -23,6 +27,7 @@ class CliTests(unittest.TestCase):
         return status, output.getvalue(), errors.getvalue()
 
     def test_list_show_and_demo_execution(self):
+        JsonStateStore(self.data).save(demo_state())
         status, output, errors = self.command("profile", "list")
         self.assertEqual(status, 0)
         self.assertIn("Demo mode", output)
@@ -48,15 +53,43 @@ class CliTests(unittest.TestCase):
         self.assertIn("--project", errors)
 
     def test_future_agent_returns_error(self):
+        JsonStateStore(self.data).save(demo_state())
         status, _, errors = self.command("run", "codex", "--project", "api")
         self.assertEqual(status, 1)
         self.assertIn("future integration", errors)
+
+    def test_delete_with_explicit_confirmation_removes_unused_profile(self):
+        app = Application(JsonStateStore(self.data), DemoEngine(), FakeVersionCatalog)
+        app.save_profile("custom", {"php": "8.3.15"}, {}, {})
+        status, output, errors = self.command("profile", "delete", "custom", "--yes")
+        self.assertEqual(status, 0)
+        self.assertIn("Deleted profile 'custom'", output)
+        self.assertEqual(errors, "")
+        self.assertNotIn("custom", self.command("profile", "list")[1])
+
+    def test_delete_used_profile_is_rejected_even_with_yes(self):
+        JsonStateStore(self.data).save(demo_state())
+        status, _, errors = self.command("profile", "delete", "web-dev", "--yes")
+        self.assertEqual(status, 1)
+        self.assertIn("Used by projects: website", errors)
+        self.assertIn("web-dev", self.command("profile", "list")[1])
+
+    def test_first_run_lists_are_empty_and_remain_empty_on_reload(self):
+        for _ in range(2):
+            status, output, errors = self.command("profile", "list")
+            self.assertEqual(status, 0)
+            self.assertIn("No profiles.", output)
+            self.assertEqual(errors, "")
+            self.assertIn("No projects.", self.command("project", "list")[1])
+        self.assertEqual(JsonStateStore(self.data).load().profiles, [])
+        self.assertEqual(JsonStateStore(self.data).load().projects, [])
 
     def test_noninteractive_wizards_fail_without_initializing_data(self):
         for arguments in (
             (),
             ("profile", "create"),
             ("profile", "edit", "web-dev"),
+            ("profile", "delete", "web-dev"),
             ("project", "init"),
         ):
             with (

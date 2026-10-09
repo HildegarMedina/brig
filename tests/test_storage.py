@@ -6,13 +6,13 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from brig.application import Application, demo_state
+from brig.application import Application
 from brig.engine import DemoEngine
 from brig.errors import BrigError
 from brig.storage import JsonStateStore, default_data_directory
 from brig.profile_yaml import profile_path, render_profile
 from brig.models import Profile, ProfileRevision
-from tests.fakes import FakeVersionCatalog
+from tests.fakes import demo_state, FakeVersionCatalog
 
 
 class StorageTests(unittest.TestCase):
@@ -23,6 +23,77 @@ class StorageTests(unittest.TestCase):
 
     def test_missing_state_returns_none(self):
         self.assertIsNone(self.store.load())
+
+    def test_deleting_profile_removes_all_yaml_revisions_and_allows_recreation(self):
+        app = Application(self.store, DemoEngine(), FakeVersionCatalog)
+        app.save_profile("custom", {"php": "8.3.15"}, {}, {})
+        app.save_profile("custom", {"php": "8.2.27"}, {}, {}, editing=True)
+        directory = profile_path(self.store.path.parent, "custom", 1).parent
+        self.assertEqual(len(list(directory.glob("*.yaml"))), 2)
+        app.delete_profile("custom")
+        self.assertFalse(directory.exists())
+        self.assertEqual(self.store.load(), app.state)
+        self.assertEqual(list(self.store.path.parent.glob(".delete-profile-*")), [])
+        app.save_profile("custom", {"python": "3.12.8"}, {}, {})
+        self.assertIn(
+            'python: "3.12.8"',
+            profile_path(self.store.path.parent, "custom", 1).read_text(),
+        )
+
+    def test_failed_delete_restores_yaml_directory_and_original_state(self):
+        app = Application(self.store, DemoEngine(), FakeVersionCatalog)
+        app.save_profile("custom", {"php": "8.3.15"}, {}, {})
+        app.save_profile("custom", {"php": "8.2.27"}, {}, {}, editing=True)
+        original = self.store.path.read_bytes()
+        directory = profile_path(self.store.path.parent, "custom", 1).parent
+        documents = {path.name: path.read_bytes() for path in directory.iterdir()}
+        import os
+
+        replace = os.replace
+
+        def fail_state(source, destination):
+            if destination == self.store.path:
+                raise OSError("state failed")
+            replace(source, destination)
+
+        with (
+            patch("brig.storage.os.replace", side_effect=fail_state),
+            self.assertRaisesRegex(BrigError, "Cannot save"),
+        ):
+            app.delete_profile("custom")
+        self.assertEqual(self.store.path.read_bytes(), original)
+        self.assertEqual(
+            {path.name: path.read_bytes() for path in directory.iterdir()}, documents
+        )
+        self.assertEqual(self.store.load(), app.state)
+        self.assertEqual(list(self.store.path.parent.glob(".delete-profile-*")), [])
+
+    def test_failed_restore_preserves_original_yaml_in_staging_directory(self):
+        app = Application(self.store, DemoEngine(), FakeVersionCatalog)
+        app.save_profile("custom", {"php": "8.3.15"}, {}, {})
+        original = self.store.path.read_bytes()
+        document = profile_path(self.store.path.parent, "custom", 1)
+        contents = document.read_bytes()
+        import os
+
+        replace = os.replace
+
+        def fail_state_and_restore(source, destination):
+            if destination in (self.store.path, document.parent):
+                raise OSError("write failure")
+            replace(source, destination)
+
+        with (
+            patch("brig.storage.os.replace", side_effect=fail_state_and_restore),
+            self.assertRaisesRegex(BrigError, "Original YAML files are preserved"),
+        ):
+            app.delete_profile("custom")
+        self.assertEqual(self.store.path.read_bytes(), original)
+        staged = list(
+            self.store.path.parent.glob(".delete-profile-*/revisions/revision-1.yaml")
+        )
+        self.assertEqual(len(staged), 1)
+        self.assertEqual(staged[0].read_bytes(), contents)
 
     def test_round_trip_includes_revisions_and_project_snapshots(self):
         state = demo_state()

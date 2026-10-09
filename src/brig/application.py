@@ -13,26 +13,6 @@ from brig.models import Profile, ProfileRevision, Project, State
 from brig.storage import StateStore
 
 
-def demo_state() -> State:
-    web = ProfileRevision(
-        1, {"php": "8.3.15"}, {"composer": "2.8.5"}, {"postgresql": "17.2"}
-    )
-    python = ProfileRevision(1, {"python": "3.11.11"}, {"uv": "0.5.24"}, {})
-    python_new = ProfileRevision(
-        2, {"python": "3.12.8"}, {"uv": "0.5.24"}, {"redis": "7.4.2"}
-    )
-    return State(
-        profiles=[
-            Profile("web-dev", [web]),
-            Profile("python-dev", [python, python_new]),
-        ],
-        projects=[
-            Project(uuid4().hex, "website", None, "web-dev", deepcopy(web)),
-            Project(uuid4().hex, "api", None, "python-dev", deepcopy(python_new), True),
-        ],
-    )
-
-
 class Application:
     def __init__(
         self,
@@ -44,7 +24,7 @@ class Application:
         self.engine = engine
         self.catalog_factory = catalog_factory
         loaded = store.load()
-        self.state = loaded if loaded is not None else demo_state()
+        self.state = loaded if loaded is not None else State()
         if loaded is None:
             store.save(self.state)
 
@@ -120,6 +100,29 @@ class Application:
         )
         self._commit(candidate)
         return profile
+
+    def profile_for_deletion(self, name: str) -> Profile:
+        profile = self.profile(name)
+        projects = [
+            project.name
+            for project in self.state.projects
+            if project.profile == profile.name
+        ]
+        if projects:
+            raise BrigError(
+                f"Cannot delete profile '{profile.name}'. Used by projects: {', '.join(projects)}."
+            )
+        return profile
+
+    def delete_profile(self, name: str) -> str:
+        profile = self.profile_for_deletion(name)
+        candidate = deepcopy(self.state)
+        candidate.profiles = [
+            item for item in candidate.profiles if item.name != profile.name
+        ]
+        self.store.delete_profile(candidate, profile)
+        self.state = candidate
+        return f"Deleted profile '{profile.name}' and all its revisions."
 
     def create_project(self, name: str, path: Path, profile_name: str) -> Project:
         name = self._validate_name(name)

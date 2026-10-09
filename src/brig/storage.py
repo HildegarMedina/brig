@@ -2,6 +2,7 @@
 
 import json
 import os
+import shutil
 import tempfile
 from dataclasses import asdict
 from pathlib import Path
@@ -19,6 +20,8 @@ class StateStore(Protocol):
     def load(self) -> State | None: ...
 
     def save(self, state: State) -> None: ...
+
+    def delete_profile(self, state: State, profile: Profile) -> None: ...
 
 
 def default_data_directory() -> Path:
@@ -177,3 +180,40 @@ class JsonStateStore:
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+
+    def delete_profile(self, state: State, profile: Profile) -> None:
+        directory = profile_path(self.path.parent, profile.name, 1).parent
+        temporary = None
+        committed = False
+        try:
+            # Move revision files aside before committing state. A failed save
+            # restores the complete directory, including all previous revisions.
+            temporary = Path(
+                tempfile.mkdtemp(dir=self.path.parent, prefix=".delete-profile-")
+            )
+            staged = temporary / "revisions"
+            moved = False
+            if directory.exists():
+                os.replace(directory, staged)
+                moved = True
+            try:
+                self.save(state)
+                committed = True
+            except Exception:
+                if moved:
+                    try:
+                        os.replace(staged, directory)
+                    except OSError as error:
+                        raise BrigError(
+                            f"Deletion failed and revisions could not be restored. Original YAML files are preserved at {staged}: {error}"
+                        ) from error
+                raise
+        except OSError as error:
+            raise BrigError(
+                f"Cannot delete profile '{profile.name}': {error}"
+            ) from error
+        finally:
+            if temporary is not None and (
+                committed or not (temporary / "revisions").exists()
+            ):
+                shutil.rmtree(temporary, ignore_errors=True)
