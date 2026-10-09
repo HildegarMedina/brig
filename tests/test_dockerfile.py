@@ -25,6 +25,35 @@ def php_project(services=None):
 
 
 class DockerfileTests(unittest.TestCase):
+    def test_base_tools_and_clients_follow_services_for_every_runtime(self):
+        for runtime, version in (
+            ("php", "8.3.15"),
+            ("python", "3.12.8"),
+            ("node", "22.13.1"),
+        ):
+            project = php_project()
+            project.configuration.runtimes = {runtime: version}
+            project.configuration.tools = {}
+            plain = render_dockerfile(project)
+            for tool in ("curl", "jq", "ripgrep"):
+                self.assertIn(tool, plain)
+            self.assertNotIn("postgresql-client", plain)
+            self.assertNotIn("default-mysql-client", plain)
+            self.assertNotIn("redis-tools", plain)
+            self.assertNotIn("mongodb-mongosh", plain)
+            project.configuration.services = {
+                "postgresql": "17.2",
+                "mysql": "8.4.3",
+                "mariadb": "11.4.4",
+                "mongodb": "8.0.4",
+                "redis": "7.4.2",
+            }
+            contents = render_dockerfile(project)
+            self.assertIn("postgresql-client", contents)
+            self.assertEqual(contents.count("default-mysql-client"), 1)
+            self.assertIn("redis-tools", contents)
+            self.assertIn("mongodb-mongosh", contents)
+
     def test_exact_images_nonroot_user_and_runtime_workspace(self):
         contents = render_dockerfile(php_project({"mysql": "8.4.3"}))
         self.assertIn("FROM php:8.3.15-cli-bookworm\n", contents)

@@ -93,6 +93,20 @@ specific project.
 
 ## Translation into a Docker environment
 
+Every development image includes Git, Bash, curl, jq, ripgrep, and unzip.
+Database clients are added automatically for selected services, regardless of the
+application language: `psql` for PostgreSQL, `mysql` and `mariadb` for MySQL/MariaDB,
+`mongosh` for MongoDB, and `redis-cli` for Redis. These commands run from the
+development terminal and connect over the project's private network.
+
+PostgreSQL, MySQL/MariaDB, and Redis clients use Debian Bookworm packages; the
+MySQL command is provided by MariaDB's compatible client. MongoDB's shell uses
+MongoDB's signed Debian repository. Client package versions are resolved during
+the build and can differ from the pinned server version. For version-sensitive
+backup/restore operations, use the matching server's tools in its service
+container. Client installation does not add database servers to the development
+image.
+
 Runtimes use Bookworm variants at their chosen releases. Selected tools are
 installed with exact versions. Bundled pip or npm remains when no version of
 those tools is selected.

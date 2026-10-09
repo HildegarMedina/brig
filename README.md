@@ -20,6 +20,9 @@ Your folder is mounted at `/workspace`, so code changes appear on your machine.
 The terminal runs as an unprivileged user with your UID/GID. Each project has its
 own containers, network, and data volumes.
 
+Git, Bash, curl, jq, and ripgrep are included. Selecting a database also installs
+its command-line client in the development environment.
+
 ## Install
 
 Requires Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/). Running

@@ -323,6 +323,25 @@ class DockerLifecycleTests(unittest.TestCase):
         """
         result = self.brig("run", "integration-project", "--command", "php", "-r", code)
         self.assertIn("all-service-connections-ok", result.stdout)
+        clients = self.brig(
+            "run",
+            "integration-project",
+            "--command",
+            "sh",
+            "-ec",
+            """
+            curl --version >/dev/null
+            printf '{"ok":true}' | jq -e '.ok' >/dev/null
+            printf 'searchable-code' | rg 'searchable' >/dev/null
+            test "$(psql -Atc 'SELECT 1')" = 1
+            test "$(MYSQL_PWD="$MYSQL_PASSWORD" mysql -h mysql -u brig -D brig -Nse 'SELECT 1')" = 1
+            test "$(MYSQL_PWD="$MARIADB_PASSWORD" mysql -h mariadb -u brig -D brig -Nse 'SELECT 1')" = 1
+            mongosh "$MONGODB_URI" --quiet --eval 'quit(db.runCommand({ping:1}).ok ? 0 : 1)'
+            test "$(redis-cli -h redis ping)" = PONG
+            echo all-development-clients-ok
+        """,
+        )
+        self.assertIn("all-development-clients-ok", clients.stdout)
         self.assertIn(
             "Claude Code",
             self.brig(

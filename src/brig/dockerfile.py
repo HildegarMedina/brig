@@ -18,6 +18,13 @@ DATABASE_DRIVERS = {
     "postgresql": ("pdo_pgsql", ("libpq-dev",)),
 }
 
+DATABASE_CLIENTS = {
+    "postgresql": ("postgresql-client",),
+    "mysql": ("default-mysql-client",),
+    "mariadb": ("default-mysql-client",),
+    "redis": ("redis-tools",),
+}
+
 # Every runtime uses the same Debian release, including in mixed profiles.
 RUNTIME_IMAGES = {
     "php": "php:{version}-cli-bookworm",
@@ -67,7 +74,11 @@ def render_dockerfile(project: Project) -> str:
     python = runtimes.get("python")
     node = runtimes.get("node")
     composer = configuration.tools.get("composer")
-    packages = {"ca-certificates", "git", "unzip"}
+    packages = {"ca-certificates", "git", "unzip", "curl", "jq", "ripgrep"}
+    for service in configuration.services:
+        packages.update(DATABASE_CLIENTS.get(service, ()))
+    if "mongodb" in configuration.services:
+        packages.add("gnupg")
     integrations = [AGENTS[name] for name in sorted(configuration.selected_agents)]
     for integration in integrations:
         packages.update(integration.packages)
@@ -152,6 +163,20 @@ def render_dockerfile(project: Project) -> str:
             f'    docker-php-ext-install -j"$(nproc)" {" ".join(sorted(extensions))}; \\'
         )
     lines.extend(["    rm -rf /var/lib/apt/lists/*", ""])
+    if "mongodb" in configuration.services:
+        lines.extend(
+            [
+                "# MongoDB's shell is distributed separately from the selected server.",
+                "RUN set -eux; \\",
+                "    curl -fsSL https://pgp.mongodb.com/server-8.0.asc -o /tmp/mongodb.asc; \\",
+                "    gpg --dearmor -o /usr/share/keyrings/mongodb-shell.gpg /tmp/mongodb.asc; \\",
+                "    echo 'deb [signed-by=/usr/share/keyrings/mongodb-shell.gpg] https://repo.mongodb.org/apt/debian bookworm/mongodb-org/8.0 main' > /etc/apt/sources.list.d/mongodb-shell.list; \\",
+                "    apt-get update; \\",
+                "    apt-get install -y --no-install-recommends mongodb-mongosh; \\",
+                "    rm -rf /var/lib/apt/lists/* /tmp/mongodb.asc",
+                "",
+            ]
+        )
     if python:
         # Reinstall pip after relocating Python to regenerate executable shebangs.
         pip_version = configuration.tools.get("pip")
