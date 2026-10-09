@@ -32,8 +32,8 @@ uv run brig
 uv run python -m unittest discover -s tests -v
 ```
 
-There are no runtime dependencies outside Python's standard library. Packaging
-uses setuptools. On distributions that omit `curses` from Python, install your
+Version constraint evaluation uses `packaging` (Python) and `semantic-version`
+(Node.js). Packaging uses setuptools. On distributions that omit `curses` from Python, install your
 distribution's Python curses support before opening the interactive interface.
 
 ## Walk through the demo
@@ -69,7 +69,7 @@ Only package managers for selected runtimes appear. Each chosen component's
 versions are fetched when its selector opens, sorted newest first, and searchable
 with `/`. There are no version lists to update in the application:
 
-- Runtimes, Composer, and services use the Linux tags in
+- Runtimes and services use the Linux tags in
   [Docker Official Images](https://github.com/docker-library/official-images).
   These lists cover currently maintained image definitions, not all historical
   releases; moving aliases, image variants, and prereleases are excluded.
@@ -78,14 +78,46 @@ with `/`. There are no version lists to update in the application:
 - npm, pnpm, and Yarn Classic use the
   [npm registry](https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md),
   excluding deprecated releases. Yarn Modern is not included in this version.
+- Composer uses its [official release feed](https://getcomposer.org/versions),
+  including the PHP minimum and LTS status for each currently supported release.
 
 Creation and editing require internet access for selected components. A failed
 request offers Retry or Cancel; no stale or fabricated fallback is offered.
 One wizard keeps a consistent snapshot through review and save; the next wizard
 fetches again. Existing profiles, projects, and their pinned versions load
 offline. Editing asks for an available replacement if an old version is no
-longer listed. Runtime dependencies are checked; detailed package-manager
-runtime version compatibility is not yet resolved automatically.
+longer listed or compatible with the selected runtime.
+
+### Release channels and compatibility
+
+MySQL versions show **LTS** or **Innovation**, using the official image
+repository's [live branch metadata](https://github.com/docker-library/mysql/blob/master/versions.json).
+Node.js shows **LTS** or **Current** from the
+[official release index](https://nodejs.org/dist/index.json).
+New profiles initially highlight the newest listed LTS for Node.js and MySQL.
+An existing profile's version remains highlighted when still available.
+Composer also shows its published LTS status. Other releases show Stable;
+this means a non-prerelease, not an inferred LTS or compatibility guarantee.
+If channel metadata does not identify a release, it is marked Channel unverified.
+
+Tools show only releases that satisfy their published runtime requirements:
+
+- npm, pnpm, and Yarn Classic: each release's `engines.node`, evaluated with
+  npm range syntax (including `||`, caret, tilde, and patch boundaries).
+- pip and uv: the `Requires-Python` constraints of non-yanked distribution
+  files, evaluated with Python's version specifiers. For uv, this checks the
+  interpreter used to install its Python distribution, not every interpreter
+  uv might later manage.
+- Composer: the minimum PHP version in the official release feed.
+
+Missing or unreadable constraints are not treated as compatible. If no verified
+tool release supports a runtime, an error returns you to runtime/tool selection
+while retaining the profile name. Save validates compatibility again, using
+the same metadata snapshot. Loading existing revisions remains offline.
+
+This verifies declared runtime requirements. Project dependency resolution,
+PHP extensions, operating system and CPU architecture support, and actual
+container execution are separate checks for the Docker implementation.
 
 On Save, each profile revision produces a readable YAML document under
 `<data-directory>/profiles/profile-<encoded-name>/revision-<number>.yaml`.
@@ -188,6 +220,7 @@ session at a time: concurrent writers are not coordinated by this prototype.
 - `models`: application records.
 - `catalog`: categorized component definitions and agent metadata.
 - `versions`: live source adapters and operation-scoped release snapshots.
+- `compatibility`: ecosystem-specific runtime range evaluation.
 - `profile_yaml`: readable YAML revision documents.
 - `storage`: storage interface, JSON validation, and atomic persistence.
 - `engine`: environment interface and simulation implementation.

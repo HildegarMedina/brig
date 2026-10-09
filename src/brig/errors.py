@@ -7,3 +7,7 @@ class BrigError(Exception):
 
 class Cancelled(Exception):
     """The user cancelled an interactive flow."""
+
+
+class IncompatibleSelection(BrigError):
+    """Return to runtime/tool selection instead of abandoning the profile."""

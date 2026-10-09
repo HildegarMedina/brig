@@ -25,7 +25,7 @@ RUNTIMES = {
 }
 TOOLS = {
     "composer": Component(
-        "Composer", "PHP package managers", "docker", "composer", "php"
+        "Composer", "PHP package managers", "composer", "composer", "php"
     ),
     "pip": Component("pip", "Python package managers", "pypi", "pip", "python"),
     "uv": Component("uv", "Python package managers", "pypi", "uv", "python"),
@@ -54,6 +54,18 @@ COMPONENTS = {**RUNTIMES, **TOOLS, **SERVICES}
 
 class VersionCatalog(Protocol):
     def versions(self, name: str) -> tuple[str, ...]: ...
+
+    def label(self, name: str, version: str) -> str: ...
+
+    def preferred_version(self, name: str, versions: list[str]) -> str: ...
+
+    def compatible_versions(
+        self, name: str, runtimes: dict[str, str]
+    ) -> tuple[str, ...]: ...
+
+    def compatibility_issue(
+        self, name: str, version: str, runtimes: dict[str, str]
+    ) -> str | None: ...
 
 
 @dataclass(frozen=True)
@@ -108,3 +120,7 @@ def validate_selection(
                     raise BrigError(
                         f"{name} {version} is not available from its version source."
                     )
+        for name, version in tools.items():
+            issue = versions.compatibility_issue(name, version, runtimes)
+            if issue:
+                raise BrigError(issue)

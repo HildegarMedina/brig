@@ -38,6 +38,18 @@ class FakeVersionCatalog:
             raise value
         return value
 
+    def label(self, name, version):
+        return version
+
+    def preferred_version(self, name, versions):
+        return versions[0]
+
+    def compatible_versions(self, name, runtimes):
+        return self.versions(name)
+
+    def compatibility_issue(self, name, version, runtimes):
+        return None
+
 
 class MemoryStore:
     def __init__(self, state=None):

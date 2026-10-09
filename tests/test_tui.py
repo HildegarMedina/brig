@@ -5,6 +5,7 @@ import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
+import json
 
 from brig.application import Application, demo_state
 from brig.catalog import COMPONENTS
@@ -12,6 +13,32 @@ from brig.engine import DemoEngine
 from brig.errors import BrigError, Cancelled
 from brig.tui import InteractiveApp, Terminal
 from tests.fakes import MemoryStore, FakeVersionCatalog
+from brig.versions import LiveVersionCatalog
+
+
+def node_release_source(url):
+    if url.endswith("library/node"):
+        return "Tags: 26.1.0, 24.2.0, 22.1.0\nArchitectures: amd64"
+    if url == "https://nodejs.org/dist/index.json":
+        return json.dumps(
+            [
+                {"version": "v26.1.0", "lts": False},
+                {"version": "v24.2.0", "lts": "Krypton"},
+                {"version": "v22.1.0", "lts": "Jod"},
+            ]
+        )
+    if url == "https://registry.npmjs.org/npm":
+        return json.dumps(
+            {
+                "versions": {
+                    "12.0.0": {
+                        "dist": {"tarball": "url"},
+                        "engines": {"node": ">=24.0.0"},
+                    }
+                }
+            }
+        )
+    raise AssertionError(f"Unexpected source: {url}")
 
 
 class ScriptedTerminal:
@@ -22,6 +49,7 @@ class ScriptedTerminal:
         self.confirmed = confirmed
         self.messages = []
         self.selections = []
+        self.version_choices = []
 
     def input(self, *args, **kwargs):
         value = next(self.inputs)
@@ -47,12 +75,13 @@ class ScriptedTerminal:
         self.messages.append(("Loading", [message]))
 
     def choose(self, *args, **kwargs):
+        self.version_choices.append((args, kwargs))
         return next(self.choices)
 
     def confirm(self, *args):
         return self.confirmed
 
-    def notice(self, title, lines):
+    def notice(self, title, lines, *, error=False):
         self.messages.append((title, lines))
 
 
@@ -73,6 +102,97 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(profile.latest.runtimes, {"python": "3.12.8", "php": "8.2.27"})
         self.assertEqual(profile.latest.tools, {"uv": "0.5.24", "composer": "2.8.5"})
         self.assertEqual(profile.latest.services, {"redis": "7.4.2"})
+
+    def test_default_is_lts_and_labels_do_not_enter_saved_versions(self):
+        self.app.catalog_factory = lambda: LiveVersionCatalog(node_release_source)
+        terminal = ScriptedTerminal(
+            inputs=["lts"], multiples=[["node"], [], []], choices=[1, 0]
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        args, kwargs = terminal.version_choices[0]
+        self.assertEqual(args[1], ["26.1.0 · Current", "24.2.0 · LTS", "22.1.0 · LTS"])
+        self.assertEqual(args[2], 1)
+        self.assertEqual(self.app.profile("lts").latest.runtimes, {"node": "24.2.0"})
+
+    def test_no_compatible_tool_returns_to_runtime_selection_and_keeps_name(self):
+        from unittest.mock import Mock
+
+        fetch = Mock(side_effect=node_release_source)
+        self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
+        terminal = ScriptedTerminal(
+            inputs=["compatible"],
+            multiples=[["node"], ["npm"], ["node"], ["npm"], []],
+            choices=[2, 1, 0, 0],
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        profile = self.app.profile("compatible")
+        self.assertEqual(profile.latest.runtimes, {"node": "24.2.0"})
+        self.assertEqual(profile.latest.tools, {"npm": "12.0.0"})
+        self.assertTrue(
+            any(
+                "No verified npm version" in " ".join(lines)
+                for _, lines in terminal.messages
+            )
+        )
+        self.assertEqual(fetch.call_count, 3)
+
+    def test_incompatible_release_is_hidden_from_tool_selector(self):
+        def source(url):
+            if url == "https://registry.npmjs.org/npm":
+                return json.dumps(
+                    {
+                        "versions": {
+                            "12.0.0": {
+                                "dist": {"tarball": "url"},
+                                "engines": {"node": ">=24"},
+                            },
+                            "10.0.0": {
+                                "dist": {"tarball": "url"},
+                                "engines": {"node": ">=20"},
+                            },
+                        }
+                    }
+                )
+            return node_release_source(url)
+
+        self.app.catalog_factory = lambda: LiveVersionCatalog(source)
+        terminal = ScriptedTerminal(
+            inputs=["node22"], multiples=[["node"], ["npm"], []], choices=[2, 0, 0]
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(terminal.version_choices[1][0][1], ["10.0.0 · Stable"])
+        self.assertEqual(self.app.profile("node22").latest.tools, {"npm": "10.0.0"})
+
+    def test_duplicate_profile_name_can_be_corrected_in_name_screen(self):
+        name_input = TerminalTests().terminal(
+            [*" WEB-DEV ", "\n", "\x15", *"laravel", "\n"]
+        )
+        terminal = ScriptedTerminal(multiples=[["php"], [], []], choices=[0, 0])
+        terminal.input = name_input.input
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(self.app.profile("laravel").latest.runtimes, {"php": "8.3.15"})
+        errors = [
+            (text, style)
+            for text, style in name_input.screen.drawn
+            if "already exists" in text
+        ]
+        self.assertTrue(errors)
+        self.assertTrue(
+            all(
+                style & curses.A_BOLD and not style & curses.A_DIM
+                for _, style in errors
+            )
+        )
+
+    def test_duplicate_name_can_cancel_before_component_selection(self):
+        before = deepcopy(self.app.state)
+        name_input = TerminalTests().terminal([*"web-dev", "\n", "\x1b"])
+        terminal = ScriptedTerminal()
+        terminal.input = name_input.input
+        with self.assertRaises(Cancelled):
+            InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(terminal.selections, [])
+        self.assertEqual(self.app.state, before)
 
     def test_empty_runtime_selection_keeps_wizard_open_and_preserves_name(self):
         selector = TerminalTests().terminal(
@@ -255,6 +375,7 @@ class FakeScreen:
         self.keys = iter(keys)
         self.size = size
         self.written = []
+        self.drawn = []
 
     def getmaxyx(self):
         return self.size
@@ -270,6 +391,7 @@ class FakeScreen:
 
     def addnstr(self, y, x, value, maximum, style):
         self.written.append(value[:maximum])
+        self.drawn.append((value[:maximum], style))
 
 
 class TerminalTests(unittest.TestCase):
@@ -277,11 +399,49 @@ class TerminalTests(unittest.TestCase):
         terminal = Terminal.__new__(Terminal)
         terminal.screen = FakeScreen(keys, size)
         terminal.accent = 0
+        terminal.error_style = curses.A_BOLD
         return terminal
 
     def test_arrow_navigation_selects_option(self):
         terminal = self.terminal([curses.KEY_DOWN, "\n"])
         self.assertEqual(terminal.choose("Menu", ["one", "two"]), 1)
+
+    def test_validation_error_has_dedicated_line_and_keeps_keyboard_help(self):
+        terminal = self.terminal(["\n", " ", "\n"])
+        self.assertEqual(
+            terminal.multiple(
+                "Runtimes",
+                ["php"],
+                set(),
+                required_message="Select at least one runtime.",
+            ),
+            ["php"],
+        )
+        self.assertIn(
+            ("Error: Select at least one runtime.", curses.A_BOLD),
+            terminal.screen.drawn,
+        )
+        self.assertTrue(
+            any(
+                "space toggle" in text and style == curses.A_DIM
+                for text, style in terminal.screen.drawn
+            )
+        )
+
+    def test_color_terminal_initializes_red_bold_error_style(self):
+        from unittest.mock import Mock, patch
+
+        with (
+            patch("brig.tui.curses.curs_set"),
+            patch("brig.tui.curses.has_colors", return_value=True),
+            patch("brig.tui.curses.start_color"),
+            patch("brig.tui.curses.use_default_colors"),
+            patch("brig.tui.curses.init_pair") as init_pair,
+            patch("brig.tui.curses.color_pair", side_effect=lambda number: number << 8),
+        ):
+            terminal = Terminal(Mock())
+        init_pair.assert_any_call(2, curses.COLOR_RED, -1)
+        self.assertEqual(terminal.error_style, curses.A_BOLD | (2 << 8))
 
     def test_version_search_filters_options(self):
         terminal = self.terminal(["/", "3", ".", "1", "1", "\n", "\n"])

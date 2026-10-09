@@ -86,6 +86,16 @@ class ApplicationTests(unittest.TestCase):
         with self.assertRaisesRegex(BrigError, "already exists"):
             self.app.create_project("FIRST", self.root, "python")
 
+    def test_duplicate_profile_is_rejected_before_fetching_versions(self):
+        from unittest.mock import Mock
+
+        self.app.catalog_factory = Mock(
+            side_effect=AssertionError("No version lookup should occur")
+        )
+        with self.assertRaisesRegex(BrigError, "already exists.*Choose another name"):
+            self.app.save_profile(" PYTHON ", {"python": "3.12.8"}, {}, {})
+        self.app.catalog_factory.assert_not_called()
+
     def test_missing_folder_and_duplicate_folder_are_rejected(self):
         with self.assertRaisesRegex(BrigError, "does not exist"):
             self.app.create_project("missing", self.root / "absent", "python")
@@ -143,6 +153,29 @@ class ApplicationTests(unittest.TestCase):
         before = deepcopy(self.app.state)
         with self.assertRaisesRegex(BrigError, "not available"):
             self.app.save_profile("invalid", {"python": "3.99.1"}, {}, {})
+        self.assertEqual(self.app.state, before)
+
+    def test_incompatible_tool_is_rejected_before_persistence(self):
+        import json
+        from brig.versions import LiveVersionCatalog
+
+        before = deepcopy(self.app.state)
+        payload = {"stable": [{"version": "2.10.3", "min-php": 80400}]}
+        catalog = LiveVersionCatalog(
+            lambda url: (
+                json.dumps(payload)
+                if url == "https://getcomposer.org/versions"
+                else "Tags: 8.3.15\nArchitectures: amd64"
+            )
+        )
+        with self.assertRaisesRegex(BrigError, "PHP 8.3.15.*Requires: >=8.4.0"):
+            self.app.save_profile(
+                "invalid",
+                {"php": "8.3.15"},
+                {"composer": "2.10.3"},
+                {},
+                catalog=catalog,
+            )
         self.assertEqual(self.app.state, before)
 
     def test_demo_agent_and_shell_require_running_project(self):

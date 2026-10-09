@@ -75,6 +75,14 @@ class Application:
             "No project found for this folder. Use --project <name> or 'brig project init'."
         )
 
+    def validate_profile_name(self, name: str, *, editing: bool = False) -> str:
+        name = self._validate_name(name)
+        if not editing and any(
+            p.name.casefold() == name.casefold() for p in self.state.profiles
+        ):
+            raise BrigError(f"Profile '{name}' already exists. Choose another name.")
+        return name
+
     def save_profile(
         self,
         name: str,
@@ -86,7 +94,7 @@ class Application:
         editing: bool = False,
         catalog: VersionCatalog | None = None,
     ) -> Profile:
-        name = self._validate_name(name)
+        name = self.validate_profile_name(name, editing=editing)
         validate_selection(
             runtimes,
             tools,
@@ -99,8 +107,6 @@ class Application:
             original = self.profile(name)
             profile = next(p for p in candidate.profiles if p.name == original.name)
         else:
-            if any(p.name.casefold() == name.casefold() for p in candidate.profiles):
-                raise BrigError(f"Profile '{name}' already exists.")
             profile = Profile(name, [])
             candidate.profiles.append(profile)
         profile.revisions.append(

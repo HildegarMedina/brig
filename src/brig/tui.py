@@ -1,13 +1,22 @@
 """Curses views and interactive flows; all mutations go through Application."""
 
 import curses
+from collections.abc import Callable
 from pathlib import Path
 
 from brig.application import Application
-from brig.catalog import AGENTS, RUNTIMES, SERVICES, TOOLS, Component, VersionCatalog
+from brig.catalog import (
+    AGENTS,
+    COMPONENTS,
+    RUNTIMES,
+    SERVICES,
+    TOOLS,
+    Component,
+    VersionCatalog,
+)
 from brig.profile_yaml import profile_path
 from brig.versions import source_label
-from brig.errors import BrigError, Cancelled
+from brig.errors import BrigError, Cancelled, IncompatibleSelection
 from brig.models import ProfileRevision
 from brig.presentation import configuration_lines, project_lines
 
@@ -21,11 +30,14 @@ class Terminal:
         except curses.error:
             pass
         self.accent = curses.A_BOLD
+        self.error_style = curses.A_BOLD
         if curses.has_colors():
             curses.start_color()
             curses.use_default_colors()
             curses.init_pair(1, curses.COLOR_CYAN, -1)
             self.accent |= curses.color_pair(1)
+            curses.init_pair(2, curses.COLOR_RED, -1)
+            self.error_style |= curses.color_pair(2)
 
     def _write(self, y: int, x: int, text: str, style: int = 0) -> None:
         height, width = self.screen.getmaxyx()
@@ -37,7 +49,14 @@ class Terminal:
                 pass
 
     def render(
-        self, title: str, rows: list[str], footer: str, selected: int = -1
+        self,
+        title: str,
+        rows: list[str],
+        footer: str,
+        selected: int = -1,
+        *,
+        error_message: str | None = None,
+        error_rows: bool = False,
     ) -> None:
         self.screen.erase()
         height, width = self.screen.getmaxyx()
@@ -48,7 +67,7 @@ class Terminal:
             self.screen.refresh()
             return
         self._write(3, 2, title, curses.A_BOLD)
-        capacity = max(1, height - 8)
+        capacity = max(1, height - 8 - bool(error_message))
         offset = max(0, selected - capacity + 1)
         for index, row in enumerate(rows[offset : offset + capacity], offset):
             is_selected = index == selected
@@ -56,8 +75,11 @@ class Terminal:
                 5 + index - offset,
                 2,
                 ("› " if is_selected else "  ") + row,
-                curses.A_REVERSE if is_selected else 0,
+                (self.error_style if error_rows else 0)
+                | (curses.A_REVERSE if is_selected else 0),
             )
+        if error_message:
+            self._write(height - 3, 2, f"Error: {error_message}", self.error_style)
         self._write(height - 2, 2, footer, curses.A_DIM)
         self.screen.refresh()
 
@@ -132,8 +154,9 @@ class Terminal:
             self.render(
                 title,
                 rows,
-                error or "↑↓ navigate · space toggle · enter continue · esc cancel",
+                "↑↓ navigate · space toggle · enter continue · esc cancel",
                 selected,
+                error_message=error,
             )
             key = self.key()
             if key == "\x1b":
@@ -159,6 +182,7 @@ class Terminal:
         default: str = "",
         *,
         required_message: str | None = None,
+        validator: Callable[[str], str] | None = None,
     ) -> str:
         value = default
         error = None
@@ -166,7 +190,8 @@ class Terminal:
             self.render(
                 title,
                 [value + "▏"],
-                error or "type to edit · ctrl+u clear · enter continue · esc cancel",
+                "type to edit · ctrl+u clear · enter continue · esc cancel",
+                error_message=error,
             )
             key = self.key()
             if key == "\x1b":
@@ -175,7 +200,11 @@ class Terminal:
                 if required_message and not value.strip():
                     error = required_message
                     continue
-                return value.strip()
+                try:
+                    return validator(value.strip()) if validator else value.strip()
+                except BrigError as validation_error:
+                    error = str(validation_error)
+                    continue
             if key in (curses.KEY_BACKSPACE, "\x7f", "\b"):
                 value = value[:-1]
             elif key == "\x15":
@@ -185,13 +214,15 @@ class Terminal:
             if value.strip():
                 error = None
 
-    def notice(self, title: str, lines: list[str]) -> None:
+    def notice(self, title: str, lines: list[str], *, error: bool = False) -> None:
         offset = 0
         while True:
             height, _ = self.screen.getmaxyx()
             maximum = max(0, len(lines) - max(1, height - 8))
             offset = min(offset, maximum)
-            self.render(title, lines[offset:], "↑↓ scroll · enter / esc close")
+            self.render(
+                title, lines[offset:], "↑↓ scroll · enter / esc close", error_rows=error
+            )
             key = self.key()
             if key in ("\n", "\r", "\x1b", "q", curses.KEY_ENTER):
                 return
@@ -251,7 +282,7 @@ class InteractiveApp:
             except Cancelled:
                 return
             except BrigError as error:
-                self.ui.notice("Could not complete action", [str(error)])
+                self.ui.notice("Could not complete action", [str(error)], error=True)
 
     def _select_versions(
         self,
@@ -261,6 +292,7 @@ class InteractiveApp:
         live: VersionCatalog,
         *,
         required_message: str | None = None,
+        runtimes: dict[str, str] | None = None,
     ) -> dict[str, str]:
         if not catalog:
             return {}
@@ -282,10 +314,16 @@ class InteractiveApp:
                     f"Fetching {component.label} versions from {source_label(component)}…"
                 )
                 try:
-                    versions = list(live.versions(name))
+                    versions = list(
+                        live.compatible_versions(name, runtimes)
+                        if component.runtime and runtimes is not None
+                        else live.versions(name)
+                    )
                     break
                 except BrigError as error:
-                    self.ui.notice("Version source unavailable", [str(error)])
+                    self.ui.notice(
+                        "Version source unavailable", [str(error)], error=True
+                    )
                     if (
                         self.ui.choose(
                             "Try fetching versions again?",
@@ -295,20 +333,27 @@ class InteractiveApp:
                         == 1
                     ):
                         raise Cancelled
+            if not versions:
+                runtime = COMPONENTS[component.runtime]
+                raise IncompatibleSelection(
+                    f"No verified {component.label} version supports {runtime.label} {runtimes[component.runtime]}. Choose a different runtime version or deselect this tool."
+                )
             if name in defaults and defaults[name] not in versions:
                 self.ui.notice(
                     "Choose an available version",
                     [
-                        f"Previously selected {component.label} {defaults[name]} is no longer listed.",
-                        "Select a published version to continue. Existing revisions remain unchanged.",
+                        f"Previously selected {component.label} {defaults[name]} is unavailable or incompatible with the selected runtime.",
+                        "Select a compatible published version. Existing revisions remain unchanged.",
                     ],
                 )
             default = (
-                versions.index(defaults[name]) if defaults.get(name) in versions else 0
+                versions.index(defaults[name])
+                if defaults.get(name) in versions
+                else versions.index(live.preferred_version(name, versions))
             )
             index = self.ui.choose(
                 f"{component.label} version · {source_label(component)}",
-                versions,
+                [live.label(name, version) for version in versions],
                 default,
                 searchable=True,
             )
@@ -323,24 +368,34 @@ class InteractiveApp:
         if not editing:
             name = self.ui.input(
                 f"{title} · 1/6 · name",
-                required_message="Profile name is required · type a name · enter continue · esc cancel",
+                required_message="Profile name is required. Enter a name to continue.",
+                validator=self.app.validate_profile_name,
             )
-        runtimes = self._select_versions(
-            f"{title} · 2/6 · runtimes",
-            RUNTIMES,
-            existing.runtimes if existing else {},
-            live,
-            required_message="Select a runtime · space toggle · enter continue · esc cancel",
-        )
-        compatible_tools = {n: t for n, t in TOOLS.items() if t.runtime in runtimes}
-        tools = self._select_versions(
-            f"{title} · 3/6 · tools",
-            compatible_tools,
-            {n: v for n, v in existing.tools.items() if n in compatible_tools}
-            if existing
-            else {},
-            live,
-        )
+        runtime_defaults = existing.runtimes if existing else {}
+        tool_defaults = existing.tools if existing else {}
+        while True:
+            runtimes = self._select_versions(
+                f"{title} · 2/6 · runtimes",
+                RUNTIMES,
+                runtime_defaults,
+                live,
+                required_message="Select a runtime with Space to continue.",
+            )
+            runtime_defaults = runtimes
+            compatible_tools = {n: t for n, t in TOOLS.items() if t.runtime in runtimes}
+            try:
+                tools = self._select_versions(
+                    f"{title} · 3/6 · tools · compatible versions only",
+                    compatible_tools,
+                    {n: v for n, v in tool_defaults.items() if n in compatible_tools},
+                    live,
+                    runtimes=runtimes,
+                )
+                break
+            except IncompatibleSelection as error:
+                self.ui.notice(
+                    "Choose a compatible runtime and tools", [str(error)], error=True
+                )
         services = self._select_versions(
             f"{title} · 4/6 · databases and caches",
             SERVICES,
@@ -426,7 +481,7 @@ class InteractiveApp:
             except Cancelled:
                 return
             except BrigError as error:
-                self.ui.notice("Could not complete action", [str(error)])
+                self.ui.notice("Could not complete action", [str(error)], error=True)
 
     def projects(self) -> None:
         while True:
@@ -444,7 +499,7 @@ class InteractiveApp:
             except Cancelled:
                 return
             except BrigError as error:
-                self.ui.notice("Could not complete action", [str(error)])
+                self.ui.notice("Could not complete action", [str(error)], error=True)
 
     def project_detail(self, name: str) -> None:
         while True:
@@ -496,7 +551,7 @@ class InteractiveApp:
             except Cancelled:
                 return
             except BrigError as error:
-                self.ui.notice("Could not complete action", [str(error)])
+                self.ui.notice("Could not complete action", [str(error)], error=True)
 
 
 def launch(
@@ -516,7 +571,7 @@ def launch(
         except Cancelled:
             pass
         except BrigError as error:
-            interactive.ui.notice("Could not complete action", [str(error)])
+            interactive.ui.notice("Could not complete action", [str(error)], error=True)
             return False
         return True
 
