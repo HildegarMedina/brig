@@ -40,6 +40,9 @@ TOOLS = {
         "node",
         version_prefix="1.",
     ),
+    "playwright": Component(
+        "Playwright (Chromium)", "Browser automation", "npm", "playwright", "node"
+    ),
 }
 SERVICES = {
     "postgresql": Component(

@@ -12,6 +12,7 @@ from uuid import uuid4
 from brig.models import Profile, ProfileRevision, Project, State
 from brig.docker_engine import DockerEngine
 from brig.storage import JsonStateStore
+from brig.versions import LiveVersionCatalog
 
 
 @unittest.skipUnless(
@@ -219,12 +220,15 @@ class DockerLifecycleTests(unittest.TestCase):
             self.inspect("container", f"brig-{self.other_id}-dev")["State"]["Running"]
         )
 
-    def test_node_only_profile_includes_claude_without_optional_package_managers(self):
+    def test_node_profile_runs_playwright_browser_and_claude(self):
         store = JsonStateStore(self.data)
         state = store.load()
-        revision = ProfileRevision(
-            2, {"node": os.environ.get("BRIG_TEST_NODE", "22.13.1")}, {}, {}
+        runtimes = {"node": os.environ.get("BRIG_TEST_NODE", "22.13.1")}
+        version = (
+            os.environ.get("BRIG_TEST_PLAYWRIGHT")
+            or LiveVersionCatalog().compatible_versions("playwright", runtimes)[0]
         )
+        revision = ProfileRevision(2, runtimes, {"playwright": version}, {})
         state.profiles[0].revisions.append(revision)
         state.projects[0].configuration = revision
         store.save(state)
@@ -238,6 +242,32 @@ class DockerLifecycleTests(unittest.TestCase):
         )
         self.assertIn("Claude Code", result.stdout)
         self.assertIn("v" + revision.runtimes["node"], result.stdout)
+        browser = self.brig(
+            "run",
+            "integration-project",
+            "--command",
+            "node",
+            "-e",
+            """
+            const http = require('http');
+            const { chromium } = require('playwright');
+            (async () => {
+                const server = http.createServer((req, res) => res.end(`<button onclick="this.textContent='Clicked'">Click</button>`));
+                await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
+                const browser = await chromium.launch();
+                try {
+                    const page = await browser.newPage();
+                    await page.goto('http://127.0.0.1:' + server.address().port);
+                    await page.getByRole('button').click();
+                    if (await page.getByRole('button').textContent() !== 'Clicked') throw Error('click failed');
+                    await page.screenshot({path:'browser.png'});
+                } finally { await browser.close(); await new Promise(resolve => server.close(resolve)); }
+                console.log('browser-automation-ok');
+            })().catch(error => { console.error(error); process.exit(1); });
+        """,
+        )
+        self.assertIn("browser-automation-ok", browser.stdout)
+        self.assertTrue((self.source / "browser.png").is_file())
 
     def test_interactive_terminal_entry(self):
         import pty

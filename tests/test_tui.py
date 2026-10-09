@@ -374,10 +374,8 @@ class WizardTests(unittest.TestCase):
         )
         InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
         tool_options = terminal.selections[1][1]
-        self.assertTrue(
-            all("Node.js package managers" in option for option in tool_options)
-        )
-        self.assertEqual(len(tool_options), 3)
+        self.assertTrue(any("Browser automation" in option for option in tool_options))
+        self.assertEqual(len(tool_options), 4)
         service_options = terminal.selections[2][1]
         self.assertTrue(
             any("Relational databases" in option for option in service_options)

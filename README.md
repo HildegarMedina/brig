@@ -22,6 +22,7 @@ own containers, network, and data volumes.
 
 Git, Bash, curl, jq, and ripgrep are included. Selecting a database also installs
 its command-line client in the development environment.
+Select Playwright with a Node.js runtime to add Chromium browser automation.
 
 ## Install
 

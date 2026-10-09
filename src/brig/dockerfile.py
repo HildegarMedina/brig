@@ -208,6 +208,18 @@ def render_dockerfile(project: Project) -> str:
                 "",
             ]
         )
+    if playwright := configuration.tools.get("playwright"):
+        lines.extend(
+            [
+                "ENV PLAYWRIGHT_BROWSERS_PATH=/opt/brig-playwright/browsers",
+                "ENV NODE_PATH=/opt/node/lib/node_modules",
+                f"RUN npm install --global playwright@{playwright} \\",
+                "    && playwright install --with-deps chromium \\",
+                "    && chmod -R a+rX /opt/brig-playwright \\",
+                "    && rm -rf /var/lib/apt/lists/*",
+                "",
+            ]
+        )
     for integration in integrations:
         lines.extend(integration.image)
     agent_directories = " ".join(

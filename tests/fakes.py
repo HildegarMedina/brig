@@ -25,6 +25,7 @@ class FakeVersionCatalog:
                 "npm": ("10.9.2",),
                 "pnpm": ("9.15.0",),
                 "yarn": ("1.22.22",),
+                "playwright": ("1.50.1",),
                 "postgresql": ("17.2", "16.6"),
                 "redis": ("7.4.2", "7.2.7"),
                 "mysql": ("8.4.3",),

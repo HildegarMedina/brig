@@ -25,6 +25,22 @@ def php_project(services=None):
 
 
 class DockerfileTests(unittest.TestCase):
+    def test_playwright_pins_package_and_installs_matching_browser_outside_home(self):
+        project = php_project()
+        plain = render_dockerfile(project)
+        self.assertNotIn("PLAYWRIGHT_BROWSERS_PATH", plain)
+        project.configuration.tools["playwright"] = "1.50.1"
+        with self.assertRaisesRegex(BrigError, "requires the node runtime"):
+            render_dockerfile(project)
+        project.configuration.runtimes["node"] = "22.13.1"
+        contents = render_dockerfile(project)
+        self.assertIn("playwright@1.50.1", contents)
+        self.assertIn("playwright install --with-deps chromium", contents)
+        self.assertIn(
+            "PLAYWRIGHT_BROWSERS_PATH=/opt/brig-playwright/browsers", contents
+        )
+        self.assertIn("NODE_PATH=/opt/node/lib/node_modules", contents)
+
     def test_base_tools_and_clients_follow_services_for_every_runtime(self):
         for runtime, version in (
             ("php", "8.3.15"),

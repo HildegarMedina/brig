@@ -8,6 +8,7 @@
 | PHP tools | Composer |
 | Python tools | pip, uv |
 | Node.js tools | npm, pnpm, Yarn Classic |
+| Browser automation | Playwright with Chromium (requires Node.js) |
 | Relational databases | PostgreSQL, MySQL, MariaDB |
 | Document databases | MongoDB |
 | Cache and key/value stores | Redis |
@@ -120,6 +121,15 @@ The development environment does not install database servers inside its own
 container or start applications based on folder contents.
 
 ## Profile format
+
+Select Playwright under Browser automation when Node.js is selected. Its versions
+are fetched from npm and filtered against the selected Node.js version. The image
+installs the exact package, its matching Chromium binaries, and Linux dependencies.
+Browsers live under `/opt/brig-playwright/browsers`, outside persistent home
+volumes. Run `playwright --help`, `playwright screenshot URL screenshot.png`, or
+use `require('playwright')` in Node.js. Local project dependencies take precedence;
+keep the profile's browser version aligned with a project's own Playwright version.
+This installs the CLI/library; it does not configure a Playwright MCP server.
 
 This example uses illustrative versions; the wizard shows releases available
 when you create or edit the profile:

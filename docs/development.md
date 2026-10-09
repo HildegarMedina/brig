@@ -54,8 +54,8 @@ The four enabled tests verify:
   is visible to both projects, and their conversation files remain separate.
 - Starting PostgreSQL, MySQL, MariaDB, MongoDB, and Redis with a PHP project;
   checking health, PDO connections, and MongoDB authentication.
-- Running Node.js and Claude in a Node-only profile without optional package
-  managers, and checking agent storage permissions.
+- Running Node.js, Claude, and Playwright; navigating a local page, clicking a
+  button, saving a screenshot, and checking agent storage permissions.
 
 Tests use temporary profiles and folders. Cleanup selects only resources labeled
 with their IDs and image tags belonging to those projects. First startups download
