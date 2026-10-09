@@ -1,41 +1,41 @@
-# Documentación de Brig
+# Brig documentation
 
-Brig crea un entorno de desarrollo para cada proyecto a partir de un perfil con
-versiones concretas. `brig run mi_proyecto` prepara ese entorno y abre una terminal
-Bash dentro de su contenedor de desarrollo.
+Brig creates a development environment for each project from a profile with
+pinned versions. `brig run my-project` prepares that environment and opens a Bash
+terminal inside its development container.
 
-## Por dónde empezar
+## Where to start
 
-| Necesitas… | Lee… |
+| You need to… | Read… |
 | --- | --- |
-| Crear y ejecutar tu primer proyecto | [Primer proyecto](tutoriales/primer-proyecto.md) |
-| Arrancar, detener, actualizar o borrar una definición | [Gestionar proyectos](guias/proyectos.md) |
-| Resolver un error de Docker, versiones o terminal | [Problemas frecuentes](guias/problemas-frecuentes.md) |
-| Entender cómo se conectan perfiles, proyectos y Docker | [Arquitectura y flujo de ejecución](explicacion/arquitectura.md) |
-| Consultar comandos y opciones | [Referencia de comandos](referencia/comandos.md) |
-| Saber dónde están las definiciones, credenciales y datos | [Almacenamiento y persistencia](referencia/datos.md) |
-| Consultar componentes, versiones y compatibilidad | [Componentes y versiones](referencia/componentes.md) |
-| Modificar el código y ejecutar pruebas | [Desarrollo y mantenimiento](desarrollo.md) |
+| Create and run your first project | [Your first project](tutorials/first-project.md) |
+| Start, stop, update, or delete a definition | [Manage projects](how-to/projects.md) |
+| Resolve a Docker, version, or terminal error | [Troubleshooting](how-to/troubleshooting.md) |
+| Understand how profiles, projects, and Docker fit together | [Architecture and execution flow](explanation/architecture.md) |
+| Look up commands and options | [Command reference](reference/cli.md) |
+| Find definitions, credentials, and data | [Storage and persistence](reference/storage.md) |
+| Look up components, versions, and compatibility | [Components and versions](reference/components.md) |
+| Change the code and run tests | [Development and maintenance](development.md) |
 
-## Alcance actual
+## Current scope
 
-El motor genera Dockerfiles y Compose para PHP, Python y Node.js, solos o
-combinados. Puede levantar PostgreSQL, MySQL, MariaDB, MongoDB y Redis según el
-perfil, construir la imagen que falta y abrir una terminal sin privilegios.
+The engine generates Dockerfiles and Compose configurations for PHP, Python, and
+Node.js, individually or together. It can start PostgreSQL, MySQL, MariaDB,
+MongoDB, and Redis according to the profile, build a missing image, and open an
+unprivileged terminal.
 
-Brig no instala Docker en la máquina, instala dependencias de la aplicación,
-arranca servidores HTTP ni publica puertos de la aplicación. La instalación y
-la autenticación de agentes todavía están pendientes. Los YAML de perfiles se
-pueden leer y compartir; su importación no está implementada.
+Installing Docker on the host, installing application dependencies, starting HTTP
+servers, and publishing application ports are not implemented. Agent installation
+and authentication are also pending. Profile YAML files can be read and shared;
+importing them is not implemented.
 
-## Cómo mantenemos esta documentación
+## Maintaining this documentation
 
-Usamos archivos Markdown dentro del mismo repositorio que el código. La
-organización sigue [Diátaxis](https://diataxis.fr/): tutoriales para aprender con un
-recorrido, guías para resolver una tarea, referencias para consultar detalles y
-explicaciones para comprender el sistema.
+Write documentation in English and keep it as Markdown in the same repository as
+the code. The organization follows [Diátaxis](https://diataxis.fr/): tutorials
+provide a learning journey, how-to guides address a task, references describe
+details, and explanations help readers understand the system.
 
-Cuando cambie un comando, un formato o una responsabilidad del motor, se debe
-actualizar su página en el mismo cambio. Los ejemplos deben distinguir versiones
-ilustrativas de versiones que se consultan en vivo. Documentamos el comportamiento
-implementado y señalamos las funciones pendientes.
+When a command, format, or engine responsibility changes, update its page in the
+same change. Examples must distinguish illustrative versions from versions fetched
+live. Document implemented behavior and identify pending features.

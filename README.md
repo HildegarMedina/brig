@@ -1,72 +1,72 @@
 # Brig
 
-Brig prepara un entorno de desarrollo Docker para cada proyecto a partir de un
-perfil con versiones concretas. Puede combinar PHP, Python y Node.js, añadir las
-herramientas seleccionadas y levantar PostgreSQL, MySQL, MariaDB, MongoDB y Redis.
+Brig prepares a Docker development environment for each project from a profile
+with pinned versions. It can combine PHP, Python, and Node.js, add selected tools,
+and start PostgreSQL, MySQL, MariaDB, MongoDB, and Redis.
 
 ```bash
-brig run mi_proyecto
+brig run my-project
 ```
 
-Construye la imagen si falta, inicia el entorno y abre una terminal sin privilegios
-en `/workspace`, montando la carpeta registrada del proyecto. Cada proyecto tiene
-su red y volúmenes. Salir de la terminal deja el entorno activo.
+It builds the image if missing, starts the environment, and opens an unprivileged
+terminal at `/workspace`, mounting the project's registered folder. Each project
+has its own network and volumes. Leaving the terminal keeps the environment running.
 
-## Instalar
+## Install
 
-Requiere Linux, Python 3.12 o superior y [uv](https://docs.astral.sh/uv/). Para ejecutar
-entornos, necesitas Docker Engine activo y el plugin de Compose v2 o superior,
-accesibles como tu usuario habitual.
+Requires Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/). Running
+environments also requires Docker Engine and the Docker Compose v2 plugin or
+newer, accessible as your regular user.
 
-Desde este repositorio:
+From this repository:
 
 ```bash
 uv tool install .
 brig --help
 ```
 
-Si el comando no aparece, ejecuta `uv tool update-shell` y abre otra terminal.
-Después de actualizar el código, usa `uv tool install --reinstall .`.
+If the command is not found, run `uv tool update-shell` and open another terminal.
+After updating the code, run `uv tool install --reinstall .`.
 
-## Crear y ejecutar un proyecto
+## Create and run a project
 
 ```bash
 brig profile create
-cd /ruta/a/tu/proyecto
+cd /path/to/your/project
 brig project init
 brig run
 ```
 
-Los asistentes consultan versiones disponibles al crear o editar el perfil. El
-proyecto guarda una copia de la revisión elegida; las actualizaciones son
-explícitas. Los nombres nuevos usan `snake_case`, por ejemplo `mi_proyecto`.
+The wizards fetch available versions when creating or editing a profile. The
+project stores a snapshot of the chosen revision; updates are explicit. New names
+use `kebab-case`, such as `my-project`.
 
-También puedes seleccionar un proyecto desde cualquier carpeta:
+You can also select a project from any folder:
 
 ```bash
-brig run mi_proyecto
-brig up --project mi_proyecto
-brig run mi_proyecto --command python --version
-brig down --project mi_proyecto
+brig run my-project
+brig up --project my-project
+brig run my-project --command python --version
+brig down --project my-project
 ```
 
-`down` retira los contenedores y la red, conservando el código y los volúmenes.
-Brig todavía no instala agentes, dependencias de la aplicación ni servidores HTTP,
-y no publica puertos de la aplicación.
+`down` removes containers and the network while preserving source files and
+volumes. Agent installation, application dependency installation, HTTP server
+startup, and application port publishing are not implemented yet.
 
-## Documentación
+## Documentation
 
-Empieza por el [índice de documentación](docs/README.md).
+Start with the [documentation index](docs/README.md).
 
-- [Tutorial: tu primer proyecto](docs/tutoriales/primer-proyecto.md).
-- [Guía: gestionar proyectos](docs/guias/proyectos.md).
-- [Explicación: arquitectura y flujo de ejecución](docs/explicacion/arquitectura.md).
-- [Referencia: comandos](docs/referencia/comandos.md).
-- [Referencia: datos y persistencia](docs/referencia/datos.md).
-- [Referencia: componentes y versiones](docs/referencia/componentes.md).
-- [Problemas frecuentes](docs/guias/problemas-frecuentes.md).
+- [Tutorial: your first project](docs/tutorials/first-project.md).
+- [How-to: manage projects](docs/how-to/projects.md).
+- [Explanation: architecture and execution flow](docs/explanation/architecture.md).
+- [Reference: commands](docs/reference/cli.md).
+- [Reference: storage and persistence](docs/reference/storage.md).
+- [Reference: components and versions](docs/reference/components.md).
+- [Troubleshooting](docs/how-to/troubleshooting.md).
 
-## Desarrollo
+## Development
 
 ```bash
 uv sync
@@ -75,12 +75,12 @@ ruff format --check src tests
 uv run python -m unittest discover -s tests
 ```
 
-La suite normal no necesita Docker; las tres pruebas de integración reales se
-habilitan con:
+The default suite does not require Docker. Enable the three real integration tests
+with:
 
 ```bash
 BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle -v
 ```
 
-Consulta [desarrollo y mantenimiento](docs/desarrollo.md) para la arquitectura del
-código, las pruebas y cómo añadir componentes.
+See [development and maintenance](docs/development.md) for the code architecture,
+testing, and how to add components.
