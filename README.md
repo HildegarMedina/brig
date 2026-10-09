@@ -1,16 +1,24 @@
 # Brig
 
-Brig prepares a Docker development environment for each project from a profile
-with pinned versions. It can combine PHP, Python, and Node.js, add selected tools,
-and start PostgreSQL, MySQL, MariaDB, MongoDB, and Redis.
+Brig runs your projects in isolated Docker development environments from the
+command line. Choose your languages, tools, databases, and coding agents in a
+reusable profile, then attach that profile to a local project folder.
 
-```bash
-brig run my-project
-```
+It supports PHP, Python, and Node.js, plus PostgreSQL, MySQL, MariaDB, MongoDB,
+and Redis. Claude Code is the first available agent.
 
-It builds the image if missing, starts the environment, and opens an unprivileged
-terminal at `/workspace`, mounting the project's registered folder. Each project
-has its own network and volumes. Leaving the terminal keeps the environment running.
+## How it works
+
+- **Profile:** a readable YAML definition of your environment. Available versions
+  are fetched when you choose components; your selections are saved as a revision.
+- **Project:** a local folder with a snapshot of a profile revision. Editing the
+  profile does not automatically change existing projects.
+- **Run:** Brig generates the Docker configuration, builds a missing image, starts
+  the selected services, and opens a terminal inside the project's container.
+
+Your folder is mounted at `/workspace`, so code changes appear on your machine.
+The terminal runs as an unprivileged user with your UID/GID. Each project has its
+own containers, network, and data volumes.
 
 ## Install
 
@@ -28,32 +36,68 @@ brig --help
 If the command is not found, run `uv tool update-shell` and open another terminal.
 After updating the code, run `uv tool install --reinstall .`.
 
-## Create and run a project
+## Start from zero
+
+### 1. Create a profile
 
 ```bash
 brig profile create
-cd /path/to/your/project
-brig project init
-brig run
 ```
 
-The wizards fetch available versions when creating or editing a profile. The
-project stores a snapshot of the chosen revision; updates are explicit. New names
-use `kebab-case`, such as `my-project`.
+For example, name it `python-dev`, select Python and an available version, choose
+any tools or databases you need, keep Claude Code selected, and save. Tools and
+databases are optional. Use Space to select components and Enter to continue.
+Names use `kebab-case`, such as `python-dev` or `my-project`.
 
-You can also select a project from any folder:
+### 2. Register a project folder
+
+```bash
+mkdir -p ~/projects/my-project
+cd ~/projects/my-project
+brig project init
+```
+
+Name the project `my-project`, keep the current folder, select `python-dev`, and
+save. You can also register an existing application folder. This step registers
+the folder and its environment; create or install your application inside it.
+
+### 3. Enter the environment
 
 ```bash
 brig run my-project
-brig up --project my-project
-brig run my-project --command python --version
-brig down --project my-project
 ```
 
-`down` removes containers and the network while preserving source files and
-volumes. Claude Code is installed in selected project images and uses a shared
-login on this machine. Application dependency installation, HTTP server
-startup, and application port publishing are not implemented yet.
+Brig builds the image if needed and starts the containers automatically. The first
+startup downloads the required images and packages. Inside the terminal, you can
+run `python --version`, work on your application, or type `claude` to start Claude
+Code. Follow its sign-in prompts the first time.
+
+Claude's login and global configuration persist across projects for the same
+host user and Brig data directory. Conversation files are stored per project.
+New projects reuse the login; you do not need to sign in for each one.
+
+Type `exit` in Bash to return to your machine. The environment keeps running.
+From the host, you can also open Claude directly:
+
+```bash
+brig agent --project my-project
+```
+
+### 4. Everyday commands
+
+| Command | Result |
+| --- | --- |
+| `brig run my-project` | Prepare the environment and enter its terminal |
+| `brig agent --project my-project` | Prepare the environment and open its default agent |
+| `brig up --project my-project` | Start in the background |
+| `brig down --project my-project` | Stop and remove containers; keep code, data, and login |
+| `brig project list` | List registered projects and their status |
+
+Inside a registered folder, `brig run` selects that project automatically. Run
+`brig` without arguments to use the interactive menu.
+
+Brig currently prepares the environment. Application dependency installation,
+HTTP server startup, and application port publishing require manual setup.
 
 ## Documentation
 
@@ -76,7 +120,7 @@ ruff format --check src tests
 uv run python -m unittest discover -s tests
 ```
 
-The default suite does not require Docker. Enable the three real integration tests
+The default suite does not require Docker. Enable the four real integration tests
 with:
 
 ```bash
