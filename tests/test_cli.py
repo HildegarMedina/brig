@@ -109,7 +109,7 @@ class CliTests(unittest.TestCase):
         app.save_profile("laravel", {"php": "8.3.15"}, {}, {})
         folder = Path(self.directory.name) / "source"
         folder.mkdir()
-        app.create_project("laravel_project", folder, "laravel")
+        app.create_project("laravel-project", folder, "laravel")
         with patch("brig.cli.Path.cwd", return_value=folder):
             status, output, errors = self.command("project", "dockerfile")
         self.assertEqual(status, 0)
@@ -151,13 +151,13 @@ class CliTests(unittest.TestCase):
         folder.mkdir()
         source = folder / "index.php"
         source.write_text("<?php echo 'hello';")
-        app.create_project("custom_project", folder, "custom")
+        app.create_project("custom-project", folder, "custom")
         before = {path: path.read_bytes() for path in self.data.rglob("*.yaml")}
         status, output, errors = self.command(
-            "project", "delete", "custom_project", "--yes"
+            "project", "delete", "custom-project", "--yes"
         )
         self.assertEqual(status, 0)
-        self.assertIn("Deleted project 'custom_project'", output)
+        self.assertIn("Deleted project 'custom-project'", output)
         self.assertEqual(errors, "")
         self.assertTrue(source.exists())
         self.assertEqual(

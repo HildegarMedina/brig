@@ -9,7 +9,7 @@ from brig.application import Application
 from brig.engine import DemoEngine
 from brig.errors import BrigError
 from brig.models import State
-from tests.fakes import MemoryStore, FakeVersionCatalog
+from tests.fakes import MemoryStore, FakeVersionCatalog, demo_state
 
 
 class ApplicationTests(unittest.TestCase):
@@ -275,29 +275,61 @@ class ApplicationTests(unittest.TestCase):
             "bad\x1bname",
             "Laravel Project",
             "Uppercase",
-            "foo-bar",
+            "foo_bar",
             "foo.bar",
             "café",
             "_foo",
             "foo_",
             "foo__bar",
+            "-foo",
+            "foo-",
+            "foo--bar",
+            "foo_bar-baz",
             "1foo",
             "foo/bar",
         ):
             with self.subTest(name=name):
                 before = deepcopy(self.app.state)
-                with self.assertRaisesRegex(BrigError, "snake_case"):
+                with self.assertRaisesRegex(BrigError, "kebab-case"):
                     self.app.save_profile(name, {"python": "3.12.8"}, {}, {})
-                with self.assertRaisesRegex(BrigError, "snake_case"):
+                with self.assertRaisesRegex(BrigError, "kebab-case"):
                     self.app.create_project(name, self.root, "python")
                 self.assertEqual(self.app.state, before)
 
-    def test_snake_case_names_are_valid_for_profiles_and_projects(self):
-        for name in ("a", "php83", "laravel_project", "api_v2", "project_1", "a" * 64):
+    def test_kebab_case_names_are_valid_for_profiles_and_projects(self):
+        for name in ("a", "php83", "laravel-project", "api-v2", "project-1", "a" * 64):
             with self.subTest(name=name):
                 self.assertEqual(self.app.validate_profile_name(name), name)
                 self.assertEqual(self.app.validate_project_name(name), name)
-        self.app.save_profile("laravel_dev", {"php": "8.3.15"}, {}, {})
-        project = self.app.create_project("laravel_project", self.root, "laravel_dev")
-        self.assertEqual(project.name, "laravel_project")
-        self.assertEqual(project.profile, "laravel_dev")
+        self.app.save_profile("laravel-dev", {"php": "8.3.15"}, {}, {})
+        project = self.app.create_project("laravel-project", self.root, "laravel-dev")
+        self.assertEqual(project.name, "laravel-project")
+        self.assertEqual(project.profile, "laravel-dev")
+
+    def test_existing_underscore_records_remain_accessible_and_editable(self):
+        state = demo_state()
+        folder = self.root / "legacy"
+        folder.mkdir()
+        state.projects[0].name = "legacy_project"
+        state.projects[0].path = str(folder)
+        app = Application(MemoryStore(state), DemoEngine(), FakeVersionCatalog)
+        before = deepcopy(app.project("legacy_project"))
+        app.save_profile("web_dev", {"php": "8.2.27"}, {}, {}, editing=True)
+        self.assertEqual(app.profile("web_dev").latest.number, 2)
+        self.assertEqual(app.resolve_project(None, folder / "subfolder"), before)
+        self.assertEqual(app.project("LEGACY_PROJECT").id, before.id)
+        app.update_project("legacy_project")
+        self.assertEqual(app.project("legacy_project").configuration.number, 2)
+        self.assertEqual(app.project("legacy_project").name, "legacy_project")
+        app.delete_project("legacy_project")
+        app.delete_profile("web_dev")
+        self.assertNotIn("web_dev", [profile.name for profile in app.state.profiles])
+
+    def test_legacy_duplicate_names_are_reported_before_format_validation(self):
+        state = demo_state()
+        state.projects[0].name = "legacy_project"
+        app = Application(MemoryStore(state), DemoEngine(), FakeVersionCatalog)
+        with self.assertRaisesRegex(BrigError, "already exists"):
+            app.validate_profile_name(" web_dev ")
+        with self.assertRaisesRegex(BrigError, "already exists"):
+            app.validate_project_name(" legacy_project ")

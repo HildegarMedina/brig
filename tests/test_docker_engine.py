@@ -81,14 +81,14 @@ class DockerEngineTests(unittest.TestCase):
         self.store = MemoryStore(State())
         self.app = Application(self.store, self.engine, FakeVersionCatalog)
         self.app.save_profile(
-            "python_dev",
+            "python-dev",
             {"python": "3.12.8"},
             {},
             {"postgresql": "17.2", "redis": "7.4.2"},
         )
         source = Path(self.folder.name) / "project"
         source.mkdir()
-        self.project = self.app.create_project("api", source, "python_dev")
+        self.project = self.app.create_project("api", source, "python-dev")
         self.runner.project_id = self.project.id
 
     def start(self):
@@ -168,7 +168,7 @@ class DockerEngineTests(unittest.TestCase):
     ):
         self.start()
         self.app.project("api").running = False
-        self.app.save_profile("python_dev", {"python": "3.11.11"}, {}, {}, editing=True)
+        self.app.save_profile("python-dev", {"python": "3.11.11"}, {}, {}, editing=True)
         with self.assertRaisesRegex(BrigError, "Stop the project"):
             self.app.update_project("api")
         with self.assertRaisesRegex(BrigError, "Cannot delete running"):

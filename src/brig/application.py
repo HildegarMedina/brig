@@ -61,21 +61,21 @@ class Application:
         if editing:
             # Existing records remain editable; this flow does not rename them.
             return self.profile(name.strip()).name
-        name = self._validate_name(name)
+        name = name.strip()
         if not editing and any(
             p.name.casefold() == name.casefold() for p in self.state.profiles
         ):
             raise BrigError(f"Profile '{name}' already exists. Choose another name.")
-        return name
+        return self._validate_name(name)
 
     def validate_project_name(self, name: str) -> str:
-        name = self._validate_name(name)
+        name = name.strip()
         if any(
             project.name.casefold() == name.casefold()
             for project in self.state.projects
         ):
             raise BrigError(f"Project '{name}' already exists. Choose another name.")
-        return name
+        return self._validate_name(name)
 
     def save_profile(
         self,
@@ -230,8 +230,8 @@ class Application:
     @staticmethod
     def _validate_name(name: str) -> str:
         name = name.strip()
-        if len(name) > 64 or not re.fullmatch(r"[a-z][a-z0-9]*(?:_[a-z0-9]+)*", name):
+        if len(name) > 64 or not re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*", name):
             raise BrigError(
-                "Use snake_case, e.g. laravel_project: a-z, 0-9 and single _; start with a letter. Max 64 chars."
+                "Use kebab-case, e.g. laravel-project: a-z, 0-9 and single -; start with a letter. Max 64 chars."
             )
         return name

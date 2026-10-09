@@ -17,7 +17,7 @@ from tests.fakes import FakeVersionCatalog, MemoryStore
 def php_project(services=None):
     return Project(
         "project-id",
-        "laravel_project",
+        "laravel-project",
         None,
         "laravel",
         ProfileRevision(1, {"php": "8.3.15"}, {"composer": "2.8.5"}, services or {}),
@@ -136,7 +136,7 @@ class DockerfileTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             app = Application(MemoryStore(State()), DemoEngine(), FakeVersionCatalog)
             app.save_profile("laravel", {"php": "8.3.15"}, {"composer": "2.8.5"}, {})
-            project = app.create_project("laravel_project", Path(folder), "laravel")
+            project = app.create_project("laravel-project", Path(folder), "laravel")
             app.save_profile("laravel", {"php": "8.2.27"}, {}, {}, editing=True)
             before = deepcopy(app.state)
             with patch(

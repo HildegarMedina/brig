@@ -36,22 +36,22 @@ class DockerLifecycleTests(unittest.TestCase):
         )
         project = Project(
             self.project_id,
-            "integration_project",
+            "integration-project",
             str(self.source),
-            "integration_profile",
+            "integration-profile",
             revision,
         )
         other_source = self.directory / "other"
         other_source.mkdir()
         other = Project(
             self.other_id,
-            "other_project",
+            "other-project",
             str(other_source),
-            "integration_profile",
+            "integration-profile",
             revision,
         )
         JsonStateStore(self.data).save(
-            State([Profile("integration_profile", [revision])], [project, other])
+            State([Profile("integration-profile", [revision])], [project, other])
         )
 
     def remove_resources(self):
@@ -128,7 +128,7 @@ class DockerLifecycleTests(unittest.TestCase):
             "assert s.recv(1024)==b'+OK\\r\\n'; s.close(); print('isolated-project-ok')"
         )
         result = self.brig(
-            "run", "integration_project", "--command", "python", "-c", program
+            "run", "integration-project", "--command", "python", "-c", program
         )
         self.assertIn("isolated-project-ok", result.stdout)
         self.assertEqual(
@@ -143,10 +143,10 @@ class DockerLifecycleTests(unittest.TestCase):
         self.assertFalse(
             self.inspect("container", prefix + "-redis")["HostConfig"]["PortBindings"]
         )
-        result = self.brig("up", "--project", "integration_project")
+        result = self.brig("up", "--project", "integration-project")
         self.assertNotIn("Building image for", result.stderr)
         self.assertEqual(self.inspect("container", prefix + "-dev")["Id"], first["Id"])
-        self.brig("down", "--project", "integration_project")
+        self.brig("down", "--project", "integration-project")
         self.assertTrue((self.source / "created_inside.txt").exists())
         self.inspect("volume", prefix + "-redis-data")
         result = self.brig(
@@ -158,13 +158,13 @@ class DockerLifecycleTests(unittest.TestCase):
             cwd=self.source,
         )
         self.assertIn("data-preserved", result.stdout)
-        self.brig("up", "--project", "other_project")
+        self.brig("up", "--project", "other-project")
         other = self.inspect("container", f"brig-{self.other_id}-dev")
         self.assertNotEqual(
             set(first["NetworkSettings"]["Networks"]),
             set(other["NetworkSettings"]["Networks"]),
         )
-        self.brig("down", "--project", "integration_project")
+        self.brig("down", "--project", "integration-project")
         self.assertTrue(
             self.inspect("container", f"brig-{self.other_id}-dev")["State"]["Running"]
         )
@@ -174,7 +174,7 @@ class DockerLifecycleTests(unittest.TestCase):
         import select
         import time
 
-        self.brig("up", "--project", "integration_project")
+        self.brig("up", "--project", "integration-project")
         master, slave = pty.openpty()
         process = subprocess.Popen(
             [
@@ -184,7 +184,7 @@ class DockerLifecycleTests(unittest.TestCase):
                 "--data-dir",
                 str(self.data),
                 "run",
-                "integration_project",
+                "integration-project",
             ],
             stdin=slave,
             stdout=slave,
@@ -236,7 +236,7 @@ class DockerLifecycleTests(unittest.TestCase):
         state.profiles[0].revisions.append(revision)
         state.projects[0].configuration = revision
         store.save(state)
-        self.brig("up", "--project", "integration_project")
+        self.brig("up", "--project", "integration-project")
         code = """
             foreach (["MYSQL", "MARIADB"] as $prefix) {
                 $pdo = new PDO("mysql:host=" . getenv($prefix . "_HOST") . ";dbname=brig", "brig", getenv($prefix . "_PASSWORD"));
@@ -251,7 +251,7 @@ class DockerLifecycleTests(unittest.TestCase):
             }
             echo "all-service-connections-ok";
         """
-        result = self.brig("run", "integration_project", "--command", "php", "-r", code)
+        result = self.brig("run", "integration-project", "--command", "php", "-r", code)
         self.assertIn("all-service-connections-ok", result.stdout)
         mongo = subprocess.run(
             [

@@ -384,7 +384,7 @@ class InteractiveApp:
         live = self.app.catalog_factory()
         if not editing:
             name = self.ui.input(
-                f"{title} · 1/6 · name (snake_case)",
+                f"{title} · 1/6 · name (kebab-case)",
                 required_message="Profile name is required. Enter a name to continue.",
                 validator=self.app.validate_profile_name,
             )
@@ -465,7 +465,7 @@ class InteractiveApp:
         if not self.app.state.profiles:
             raise BrigError("Create a profile before registering a project.")
         name = self.ui.input(
-            "Create project · 1/4 · name (snake_case)",
+            "Create project · 1/4 · name (kebab-case)",
             required_message="Project name is required. Enter a name to continue.",
             validator=self.app.validate_project_name,
         )

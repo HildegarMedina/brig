@@ -241,19 +241,22 @@ class WizardTests(unittest.TestCase):
             )
         )
 
-    def test_profile_snake_case_error_can_be_corrected_before_runtime_selection(self):
+    def test_profile_kebab_case_error_can_be_corrected_before_runtime_selection(self):
         name_input = TerminalTests().terminal(
-            [*"Laravel Dev", "\n", "\x15", *"laravel_dev", "\n"]
+            [*"Laravel Dev", "\n", "\x15", *"laravel-dev", "\n"]
         )
         terminal = ScriptedTerminal(multiples=[["php"], [], []], choices=[0, 0])
         terminal.input = name_input.input
         InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
-        self.assertEqual(self.app.profile("laravel_dev").name, "laravel_dev")
+        self.assertEqual(self.app.profile("laravel-dev").name, "laravel-dev")
         self.assertTrue(
-            any("Use snake_case" in text for text in name_input.screen.written)
+            any("name (kebab-case)" in text for text in name_input.screen.written)
+        )
+        self.assertTrue(
+            any("Use kebab-case" in text for text in name_input.screen.written)
         )
 
-    def test_project_snake_case_error_and_duplicate_name_can_be_corrected_inline(self):
+    def test_project_kebab_case_error_and_duplicate_name_can_be_corrected_inline(self):
         with tempfile.TemporaryDirectory() as folder:
             name_input = TerminalTests().terminal(
                 [
@@ -263,7 +266,7 @@ class WizardTests(unittest.TestCase):
                     *"website",
                     "\n",
                     "\x15",
-                    *"laravel_project",
+                    *"laravel-project",
                     "\n",
                 ]
             )
@@ -275,9 +278,12 @@ class WizardTests(unittest.TestCase):
                 else scripted_input(title, *args, **kwargs)
             )
             InteractiveApp(self.app, terminal, Path("/tmp")).project_wizard()
-            self.assertEqual(self.app.project("laravel_project").path, folder)
+            self.assertEqual(self.app.project("laravel-project").path, folder)
             self.assertTrue(
-                any("Use snake_case" in text for text in name_input.screen.written)
+                any("name (kebab-case)" in text for text in name_input.screen.written)
+            )
+            self.assertTrue(
+                any("Use kebab-case" in text for text in name_input.screen.written)
             )
             self.assertTrue(
                 any("already exists" in text for text in name_input.screen.written)
@@ -349,7 +355,7 @@ class WizardTests(unittest.TestCase):
 
     def test_categories_and_runtime_dependencies_are_visible(self):
         terminal = ScriptedTerminal(
-            inputs=["node_dev"],
+            inputs=["node-dev"],
             multiples=[
                 ["node"],
                 ["pnpm"],
@@ -373,7 +379,7 @@ class WizardTests(unittest.TestCase):
         self.assertTrue(
             any("Caches / key-value stores" in option for option in service_options)
         )
-        self.assertEqual(len(self.app.profile("node_dev").latest.services), 5)
+        self.assertEqual(len(self.app.profile("node-dev").latest.services), 5)
 
     def test_source_failure_cancel_preserves_state(self):
         before = deepcopy(self.app.state)
@@ -394,7 +400,7 @@ class WizardTests(unittest.TestCase):
         fetch = Mock(return_value="Tags: 8.3.1\nArchitectures: amd64")
         self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
         terminal = ScriptedTerminal(
-            inputs=["php_only"], multiples=[["php"], [], []], choices=[0, 0]
+            inputs=["php-only"], multiples=[["php"], [], []], choices=[0, 0]
         )
         InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
         self.assertEqual(fetch.call_count, 1)
