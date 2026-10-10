@@ -7,11 +7,11 @@ from pathlib import Path
 
 from brig import __version__
 from brig.application import Application
-from brig.docker_engine import DockerEngine
+from brig.docker.engine import DockerEngine
 from brig.errors import BrigError
-from brig.presentation import project_lines
-from brig.storage import JsonStateStore, default_data_directory
-from brig.tui import launch
+from brig.persistence.store import JsonStateStore, default_data_directory
+from brig.ui.presentation import project_lines
+from brig.ui.tui import launch
 
 
 def parser() -> argparse.ArgumentParser:

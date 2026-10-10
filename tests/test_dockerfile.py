@@ -7,10 +7,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from brig.application import Application
-from brig.dockerfile import render_dockerfile, write_dockerfile
-from brig.engine import DemoEngine
+from brig.docker.dockerfile import render_dockerfile
 from brig.errors import BrigError
 from brig.models import ProfileRevision, Project, State
+from brig.persistence.export import write_dockerfile
+from tests.demo_engine import DemoEngine
 from tests.fakes import FakeVersionCatalog, MemoryStore
 
 
@@ -195,7 +196,7 @@ class DockerfileTests(unittest.TestCase):
             app.save_profile("laravel", {"php": "8.2.27"}, {}, {}, editing=True)
             before = deepcopy(app.state)
             with patch(
-                "brig.versions.urlopen",
+                "brig.components.providers.urlopen",
                 side_effect=AssertionError("No network during generation"),
             ):
                 contents = app.project_dockerfile(None, Path(folder) / "subfolder")
@@ -225,13 +226,16 @@ class DockerfileTests(unittest.TestCase):
                 raise FileExistsError("created concurrently")
 
             with (
-                patch("brig.dockerfile.os.link", side_effect=raced_link),
+                patch("brig.persistence.export.os.link", side_effect=raced_link),
                 self.assertRaisesRegex(BrigError, "already exists"),
             ):
                 write_dockerfile(destination, "generated")
             self.assertEqual(destination.read_text(), "user-owned Dockerfile")
             with (
-                patch("brig.dockerfile.os.fsync", side_effect=OSError("write failure")),
+                patch(
+                    "brig.persistence.export.os.fsync",
+                    side_effect=OSError("write failure"),
+                ),
                 self.assertRaisesRegex(BrigError, "Cannot export"),
             ):
                 write_dockerfile(Path(folder) / "other", "generated")

@@ -4,8 +4,8 @@ import json
 import unittest
 from unittest.mock import Mock
 
-from brig.compatibility import ReleaseInfo, matches
-from brig.versions import LiveVersionCatalog
+from brig.components.compatibility import ReleaseInfo, matches
+from brig.components.versions import LiveVersionCatalog
 
 
 class RequirementTests(unittest.TestCase):

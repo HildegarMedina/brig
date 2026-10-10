@@ -9,10 +9,10 @@ import unittest
 from pathlib import Path
 from uuid import uuid4
 
+from brig.components.versions import LiveVersionCatalog
+from brig.docker.engine import DockerEngine
 from brig.models import Profile, ProfileRevision, Project, State
-from brig.docker_engine import DockerEngine
-from brig.storage import JsonStateStore
-from brig.versions import LiveVersionCatalog
+from brig.persistence.store import JsonStateStore
 
 
 @unittest.skipUnless(
@@ -73,13 +73,18 @@ class DockerLifecycleTests(unittest.TestCase):
                     ],
                     capture_output=True,
                     text=True,
+                    check=False,
                 )
                 for resource in result.stdout.split():
                     subprocess.run(
-                        ["docker", kind, "rm", "--force", resource], capture_output=True
+                        ["docker", kind, "rm", "--force", resource],
+                        capture_output=True,
+                        check=False,
                     )
             subprocess.run(
-                ["docker", "network", "rm", prefix + "-network"], capture_output=True
+                ["docker", "network", "rm", prefix + "-network"],
+                capture_output=True,
+                check=False,
             )
             result = subprocess.run(
                 [
@@ -93,11 +98,16 @@ class DockerLifecycleTests(unittest.TestCase):
                 ],
                 capture_output=True,
                 text=True,
+                check=False,
             )
             for image in set(result.stdout.split()):
-                subprocess.run(["docker", "image", "rm", image], capture_output=True)
+                subprocess.run(
+                    ["docker", "image", "rm", image], capture_output=True, check=False
+                )
         volume = DockerEngine(self.data / "runtime").agent_volume_name("claude")
-        subprocess.run(["docker", "volume", "rm", volume], capture_output=True)
+        subprocess.run(
+            ["docker", "volume", "rm", volume], capture_output=True, check=False
+        )
 
     def brig(self, *args, success=True, cwd=None):
         result = subprocess.run(
@@ -106,6 +116,7 @@ class DockerLifecycleTests(unittest.TestCase):
             capture_output=True,
             text=True,
             timeout=900,
+            check=False,
         )
         if success:
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -389,6 +400,7 @@ class DockerLifecycleTests(unittest.TestCase):
             ],
             capture_output=True,
             text=True,
+            check=False,
         )
         self.assertEqual(mongo.returncode, 0, mongo.stderr)
         for name in revision.services:

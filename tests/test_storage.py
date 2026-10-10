@@ -7,12 +7,12 @@ from pathlib import Path
 from unittest.mock import patch
 
 from brig.application import Application
-from brig.engine import DemoEngine
 from brig.errors import BrigError
-from brig.storage import JsonStateStore, default_data_directory
-from brig.profile_yaml import profile_path, render_profile
 from brig.models import Profile, ProfileRevision
-from tests.fakes import demo_state, FakeVersionCatalog
+from brig.persistence.profile_yaml import profile_path, render_profile
+from brig.persistence.store import JsonStateStore, default_data_directory
+from tests.demo_engine import DemoEngine
+from tests.fakes import FakeVersionCatalog, demo_state
 
 
 class StorageTests(unittest.TestCase):
@@ -57,7 +57,7 @@ class StorageTests(unittest.TestCase):
             replace(source, destination)
 
         with (
-            patch("brig.storage.os.replace", side_effect=fail_state),
+            patch("brig.persistence.store.os.replace", side_effect=fail_state),
             self.assertRaisesRegex(BrigError, "Cannot save"),
         ):
             app.delete_profile("custom")
@@ -84,7 +84,9 @@ class StorageTests(unittest.TestCase):
             replace(source, destination)
 
         with (
-            patch("brig.storage.os.replace", side_effect=fail_state_and_restore),
+            patch(
+                "brig.persistence.store.os.replace", side_effect=fail_state_and_restore
+            ),
             self.assertRaisesRegex(BrigError, "Original YAML files are preserved"),
         ):
             app.delete_profile("custom")
@@ -149,9 +151,14 @@ class StorageTests(unittest.TestCase):
         self.store.save(state)
         original = self.store.path.read_bytes()
         state.projects[0].running = True
-        with patch("brig.storage.os.replace", side_effect=OSError("write failure")):
-            with self.assertRaisesRegex(BrigError, "Cannot save"):
-                self.store.save(state)
+        with (
+            patch(
+                "brig.persistence.store.os.replace",
+                side_effect=OSError("write failure"),
+            ),
+            self.assertRaisesRegex(BrigError, "Cannot save"),
+        ):
+            self.store.save(state)
         self.assertEqual(self.store.path.read_bytes(), original)
         self.assertEqual(list(self.store.path.parent.glob(".state-*.tmp")), [])
 
@@ -183,7 +190,8 @@ class StorageTests(unittest.TestCase):
         )
         self.store.save(state)
         with patch(
-            "brig.versions.urlopen", side_effect=AssertionError("network forbidden")
+            "brig.components.providers.urlopen",
+            side_effect=AssertionError("network forbidden"),
         ):
             self.assertEqual(self.store.load(), state)
 
@@ -204,7 +212,7 @@ class StorageTests(unittest.TestCase):
             replace(source, destination)
 
         with (
-            patch("brig.storage.os.replace", side_effect=fail_state),
+            patch("brig.persistence.store.os.replace", side_effect=fail_state),
             self.assertRaises(BrigError),
         ):
             self.store.save(state)

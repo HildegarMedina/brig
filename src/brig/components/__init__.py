@@ -1,0 +1,1 @@
+"""Brig components package."""

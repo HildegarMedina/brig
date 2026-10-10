@@ -7,10 +7,10 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from brig.cli import main
 from brig.application import Application
-from brig.engine import DemoEngine
-from brig.storage import JsonStateStore
+from brig.persistence.store import JsonStateStore
+from brig.ui.cli import main
+from tests.demo_engine import DemoEngine
 from tests.fakes import FakeVersionCatalog, demo_state
 
 
@@ -19,7 +19,7 @@ class CliTests(unittest.TestCase):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)
         self.data = Path(self.directory.name) / "data"
-        fake_engine = patch("brig.cli.DockerEngine", return_value=DemoEngine())
+        fake_engine = patch("brig.ui.cli.DockerEngine", return_value=DemoEngine())
         fake_engine.start()
         self.addCleanup(fake_engine.stop)
 
@@ -61,7 +61,7 @@ class CliTests(unittest.TestCase):
         JsonStateStore(self.data).save(demo_state())
         engine = DemoEngine()
         with (
-            patch("brig.cli.DockerEngine", return_value=engine),
+            patch("brig.ui.cli.DockerEngine", return_value=engine),
             patch.object(engine, "shell", return_value="") as shell,
         ):
             status, output, errors = self.command(
@@ -110,14 +110,14 @@ class CliTests(unittest.TestCase):
         folder = Path(self.directory.name) / "source"
         folder.mkdir()
         app.create_project("laravel-project", folder, "laravel")
-        with patch("brig.cli.Path.cwd", return_value=folder):
+        with patch("brig.ui.cli.Path.cwd", return_value=folder):
             status, output, errors = self.command("project", "dockerfile")
         self.assertEqual(status, 0)
         self.assertIn("FROM php:8.3.15-cli-bookworm", output)
         self.assertEqual(errors, "")
 
     def test_project_resolution_error_is_actionable(self):
-        with patch("brig.cli.Path.cwd", return_value=Path(self.directory.name)):
+        with patch("brig.ui.cli.Path.cwd", return_value=Path(self.directory.name)):
             status, _, errors = self.command("up")
         self.assertEqual(status, 1)
         self.assertIn("--project", errors)

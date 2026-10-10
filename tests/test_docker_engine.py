@@ -10,7 +10,7 @@ from subprocess import CompletedProcess
 from unittest.mock import patch
 
 from brig.application import Application
-from brig.docker_engine import DockerEngine
+from brig.docker.engine import DockerEngine
 from brig.errors import BrigError
 from brig.models import State
 from tests.fakes import FakeVersionCatalog, MemoryStore
@@ -152,13 +152,15 @@ class DockerEngineTests(unittest.TestCase):
         self.assertTrue(self.app.project("api").running)
 
     def test_interactive_shell_uses_tty_and_rejects_pipelines_before_start(self):
-        with patch("brig.docker_engine.sys.stdin.isatty", return_value=False):
-            with self.assertRaisesRegex(BrigError, "interactive terminal"):
-                self.app.shell("api")
+        with (
+            patch("brig.docker.engine.sys.stdin.isatty", return_value=False),
+            self.assertRaisesRegex(BrigError, "interactive terminal"),
+        ):
+            self.app.shell("api")
         self.assertEqual(self.runner.calls, [])
         with (
-            patch("brig.docker_engine.sys.stdin.isatty", return_value=True),
-            patch("brig.docker_engine.sys.stdout.isatty", return_value=True),
+            patch("brig.docker.engine.sys.stdin.isatty", return_value=True),
+            patch("brig.docker.engine.sys.stdout.isatty", return_value=True),
             redirect_stderr(io.StringIO()),
         ):
             self.app.shell("api")
@@ -168,8 +170,8 @@ class DockerEngineTests(unittest.TestCase):
 
     def test_agent_prepares_project_and_launches_with_interactive_terminal(self):
         with (
-            patch("brig.docker_engine.sys.stdin.isatty", return_value=True),
-            patch("brig.docker_engine.sys.stdout.isatty", return_value=True),
+            patch("brig.docker.engine.sys.stdin.isatty", return_value=True),
+            patch("brig.docker.engine.sys.stdout.isatty", return_value=True),
             redirect_stderr(io.StringIO()),
         ):
             self.app.run_agent("api", "claude")
@@ -216,7 +218,7 @@ class DockerEngineTests(unittest.TestCase):
             with self.subTest(agent=agent), self.assertRaisesRegex(BrigError, error):
                 self.app.run_agent("api", agent)
         with (
-            patch("brig.docker_engine.sys.stdin.isatty", return_value=False),
+            patch("brig.docker.engine.sys.stdin.isatty", return_value=False),
             self.assertRaisesRegex(BrigError, "interactive terminal"),
         ):
             self.app.run_agent("api", "claude")
@@ -250,9 +252,11 @@ class DockerEngineTests(unittest.TestCase):
         self.runner.failure = "compose"
         with self.assertRaisesRegex(BrigError, "Compose is unavailable"):
             self.start()
-        with patch("brig.docker_engine.shutil.which", return_value=None):
-            with self.assertRaisesRegex(BrigError, "not installed"):
-                DockerEngine(Path(self.folder.name)).start(self.project)
+        with (
+            patch("brig.docker.client.shutil.which", return_value=None),
+            self.assertRaisesRegex(BrigError, "not installed"),
+        ):
+            DockerEngine(Path(self.folder.name)).start(self.project)
 
     def test_unowned_container_is_never_started_or_stopped(self):
         self.runner.exists = True
@@ -280,9 +284,11 @@ class DockerEngineTests(unittest.TestCase):
         self.assertFalse(credentials.exists())
 
     def test_concurrent_lifecycle_operation_is_rejected(self):
-        with self.engine._lock(self.project):
-            with self.assertRaisesRegex(BrigError, "Another Brig operation"):
-                self.start()
+        with (
+            self.engine.workspace.lock(self.project),
+            self.assertRaisesRegex(BrigError, "Another Brig operation"),
+        ):
+            self.start()
 
     def test_database_major_change_does_not_reinitialize_existing_volume(self):
         self.runner.volume_labels = {

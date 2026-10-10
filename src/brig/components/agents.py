@@ -1,7 +1,7 @@
 """Agent integrations: installation, execution and persistent configuration."""
 
-from dataclasses import dataclass
 import shlex
+from dataclasses import dataclass
 
 from brig.errors import BrigError
 

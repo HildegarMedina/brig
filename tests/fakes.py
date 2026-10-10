@@ -3,9 +3,8 @@
 from copy import deepcopy
 from uuid import uuid4
 
-from brig.models import Profile, ProfileRevision, Project, State
-
 from brig.errors import BrigError
+from brig.models import Profile, ProfileRevision, Project, State
 
 
 class FakeVersionCatalog:

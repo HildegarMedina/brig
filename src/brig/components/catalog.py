@@ -1,11 +1,11 @@
 """Extensible component definitions; release numbers belong to live providers."""
 
-from dataclasses import dataclass
 import re
+from dataclasses import dataclass
 from typing import Protocol
 
+from brig.components.agents import validate_agent
 from brig.errors import BrigError
-from brig.agents import AGENTS as AGENTS, validate_agent
 
 
 @dataclass(frozen=True)

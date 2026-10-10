@@ -6,16 +6,16 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from brig.agents import AGENTS, validate_agents
-from brig.compose import compose_definition
 from brig.application import Application
-from brig.dockerfile import render_dockerfile
-from brig.engine import DemoEngine
+from brig.components.agents import AGENTS, validate_agents
+from brig.docker.compose import compose_definition
+from brig.docker.dockerfile import render_dockerfile
 from brig.errors import BrigError
 from brig.models import ProfileRevision
-from brig.profile_yaml import profile_path
-from brig.storage import JsonStateStore
-from brig.tui import InteractiveApp
+from brig.persistence.profile_yaml import profile_path
+from brig.persistence.store import JsonStateStore
+from brig.ui.tui import InteractiveApp
+from tests.demo_engine import DemoEngine
 from tests.fakes import FakeVersionCatalog
 from tests.test_tui import ScriptedTerminal
 
@@ -93,8 +93,9 @@ class AgentTests(unittest.TestCase):
             self.assertFalse(app.project("codex-project").running)
 
     def test_corrupt_stored_agent_selection_is_rejected(self):
-        from brig.storage import _revision
         from dataclasses import asdict
+
+        from brig.persistence.codec import _revision
 
         raw = asdict(ProfileRevision(1, {"python": "3.12.8"}, {}, {}, agents=[]))
         with self.assertRaisesRegex(BrigError, "at least one agent"):
@@ -147,6 +148,8 @@ class AgentTests(unittest.TestCase):
 
     def test_unimplemented_registry_adapter_remains_unavailable(self):
         future = replace(AGENTS["codex"], stage=(), image=())
-        with patch.dict(AGENTS, future=future):
-            with self.assertRaisesRegex(BrigError, "future integration"):
-                validate_agents(["future"], "future")
+        with (
+            patch.dict(AGENTS, future=future),
+            self.assertRaisesRegex(BrigError, "future integration"),
+        ):
+            validate_agents(["future"], "future")

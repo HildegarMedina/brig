@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
+from brig.components.catalog import SERVICES
 from brig.models import ProfileRevision
-from brig.catalog import SERVICES
 
 
 def profile_path(directory: Path, name: str, revision: int) -> Path:

@@ -3,9 +3,9 @@
 import os
 import unittest
 
-from brig.docker_engine import DockerEngine
+from brig.docker.engine import DockerEngine
 from brig.models import ProfileRevision
-from brig.storage import JsonStateStore
+from brig.persistence.store import JsonStateStore
 from tests.integration import test_lifecycle
 
 
@@ -34,6 +34,7 @@ class AgentLifecycleTests(unittest.TestCase):
             subprocess.run(
                 ["docker", "volume", "rm", engine.agent_volume_name(agent)],
                 capture_output=True,
+                check=False,
             )
 
     def test_native_agents_share_credentials_and_keep_project_state(self):

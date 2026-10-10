@@ -1,19 +1,20 @@
 """Use cases shared by command-line and interactive interfaces."""
 
-from copy import deepcopy
-from collections.abc import Callable
-from pathlib import Path
 import re
+from collections.abc import Callable
+from copy import deepcopy
+from pathlib import Path
 from uuid import uuid4
 
-from brig.catalog import VersionCatalog, validate_selection
-from brig.versions import LiveVersionCatalog
+from brig.components.agents import validate_agent, validate_agents
+from brig.components.catalog import VersionCatalog, validate_selection
+from brig.components.versions import LiveVersionCatalog
+from brig.docker.dockerfile import render_dockerfile
 from brig.engine import EnvironmentEngine
-from brig.agents import validate_agent, validate_agents
-from brig.dockerfile import render_dockerfile, write_dockerfile
 from brig.errors import BrigError
 from brig.models import Profile, ProfileRevision, Project, State
-from brig.storage import StateStore
+from brig.persistence.export import write_dockerfile
+from brig.persistence.store import StateStore
 
 
 class Application:

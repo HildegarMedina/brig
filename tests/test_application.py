@@ -6,10 +6,10 @@ from copy import deepcopy
 from pathlib import Path
 
 from brig.application import Application
-from brig.engine import DemoEngine
 from brig.errors import BrigError
 from brig.models import State
-from tests.fakes import MemoryStore, FakeVersionCatalog, demo_state
+from tests.demo_engine import DemoEngine
+from tests.fakes import FakeVersionCatalog, MemoryStore, demo_state
 
 
 class ApplicationTests(unittest.TestCase):
@@ -225,7 +225,8 @@ class ApplicationTests(unittest.TestCase):
 
     def test_incompatible_tool_is_rejected_before_persistence(self):
         import json
-        from brig.versions import LiveVersionCatalog
+
+        from brig.components.versions import LiveVersionCatalog
 
         before = deepcopy(self.app.state)
         payload = {"stable": [{"version": "2.10.3", "min-php": 80400}]}

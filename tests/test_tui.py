@@ -1,20 +1,20 @@
 """Flow tests using scripted user choices rather than a real terminal."""
 
 import curses
+import json
 import tempfile
 import unittest
-from unittest.mock import patch
 from copy import deepcopy
 from pathlib import Path
-import json
+from unittest.mock import patch
 
 from brig.application import Application
-from brig.catalog import COMPONENTS
-from brig.engine import DemoEngine
+from brig.components.catalog import COMPONENTS
+from brig.components.versions import LiveVersionCatalog
 from brig.errors import BrigError, Cancelled
-from brig.tui import InteractiveApp, Terminal
-from tests.fakes import demo_state, MemoryStore, FakeVersionCatalog
-from brig.versions import LiveVersionCatalog
+from brig.ui.tui import InteractiveApp, Terminal
+from tests.demo_engine import DemoEngine
+from tests.fakes import FakeVersionCatalog, MemoryStore, demo_state
 
 
 def node_release_source(url):
@@ -175,7 +175,7 @@ class WizardTests(unittest.TestCase):
             inputs=["lts"], multiples=[["node"], [], []], choices=[1, 0]
         )
         InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
-        args, kwargs = terminal.version_choices[0]
+        args, _kwargs = terminal.version_choices[0]
         self.assertEqual(args[1], ["26.1.0 · Current", "24.2.0 · LTS", "22.1.0 · LTS"])
         self.assertEqual(args[2], 1)
         self.assertEqual(self.app.profile("lts").latest.runtimes, {"node": "24.2.0"})
@@ -401,8 +401,9 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(self.app.state, before)
 
     def test_fetch_only_selected_components_and_reuse_snapshot_on_save(self):
-        from brig.versions import LiveVersionCatalog
         from unittest.mock import Mock
+
+        from brig.components.versions import LiveVersionCatalog
 
         fetch = Mock(return_value="Tags: 8.3.1\nArchitectures: amd64")
         self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
@@ -414,9 +415,10 @@ class WizardTests(unittest.TestCase):
         self.assertTrue(fetch.call_args.args[0].endswith("/php"))
 
     def test_retry_continues_same_wizard_without_saving_partial_profile(self):
-        from brig.versions import LiveVersionCatalog
         from unittest.mock import Mock
         from urllib.error import URLError
+
+        from brig.components.versions import LiveVersionCatalog
 
         fetch = Mock(
             side_effect=[URLError("offline"), "Tags: 8.3.1\nArchitectures: amd64"]
@@ -560,12 +562,15 @@ class TerminalTests(unittest.TestCase):
         from unittest.mock import Mock, patch
 
         with (
-            patch("brig.tui.curses.curs_set"),
-            patch("brig.tui.curses.has_colors", return_value=True),
-            patch("brig.tui.curses.start_color"),
-            patch("brig.tui.curses.use_default_colors"),
-            patch("brig.tui.curses.init_pair") as init_pair,
-            patch("brig.tui.curses.color_pair", side_effect=lambda number: number << 8),
+            patch("brig.ui.tui.terminal.curses.curs_set"),
+            patch("brig.ui.tui.terminal.curses.has_colors", return_value=True),
+            patch("brig.ui.tui.terminal.curses.start_color"),
+            patch("brig.ui.tui.terminal.curses.use_default_colors"),
+            patch("brig.ui.tui.terminal.curses.init_pair") as init_pair,
+            patch(
+                "brig.ui.tui.terminal.curses.color_pair",
+                side_effect=lambda number: number << 8,
+            ),
         ):
             terminal = Terminal(Mock())
         init_pair.assert_any_call(2, curses.COLOR_RED, -1)

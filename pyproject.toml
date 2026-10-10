@@ -13,7 +13,7 @@ dependencies = [
 ]
 
 [project.scripts]
-brig = "brig.cli:main"
+brig = "brig.ui.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

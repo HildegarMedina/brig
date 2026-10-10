@@ -98,7 +98,7 @@ agent's login and global configuration. It does not mount the Docker socket or u
 privileged mode.
 
 Selected agents are installed as native executables during the image build.
-Agent adapters in `agents.py` define installation, command, dependencies, and
+Agent adapters in `components/agents.py` define installation, command, dependencies, and
 configuration location. The profile selects which adapters to include and which one is the
 default. A shared external volume keeps each agent's login per host user and Brig
 data directory; nested per-project storage keeps conversation files separate.
@@ -132,12 +132,13 @@ flowchart TD
 | Layer | Responsibility |
 | --- | --- |
 | `models` | Profiles, revisions, projects, and state records |
-| `catalog`, `versions`, `compatibility` | Components, providers, and declared requirements |
-| `storage`, `profile_yaml` | Local validation and persistence |
+| `components/` | Component/agent definitions, upstream providers, and declared requirements |
+| `persistence/` | State decoding, JSON/YAML transactions, and file export |
 | `application` | Creation, updates, deletion, and engine coordination |
-| `dockerfile`, `compose` | Generate definitions from the snapshot |
-| `engine`, `docker_engine` | Execution contract and real Docker operations |
-| `cli`, `tui`, `presentation` | Arguments, interaction, and presentation |
+| `docker/dockerfile`, `docker/compose`, `docker/services` | Generate definitions from the snapshot |
+| `engine`, `docker/engine` | Execution contract and Docker lifecycle coordination |
+| `docker/client`, `workspace`, `credentials`, `volumes` | Docker commands, private files/locks, credentials, and volume ownership |
+| `ui/cli`, `ui/tui/`, `ui/presentation` | Arguments, interaction, and presentation |
 
 Docker commands use argument lists without a host shell. The TUI suspends curses
 while Docker displays progress or the external terminal is in use, then restores

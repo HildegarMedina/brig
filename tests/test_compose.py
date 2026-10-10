@@ -4,7 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from brig.compose import compose_definition, render_compose, service_environment
+from brig.docker.compose import compose_definition, render_compose
+from brig.docker.services import service_environment
 from brig.errors import BrigError
 from tests.test_dockerfile import php_project
 

@@ -5,8 +5,8 @@ import unittest
 from unittest.mock import Mock
 from urllib.error import URLError
 
+from brig.components.versions import LiveVersionCatalog
 from brig.errors import BrigError
-from brig.versions import LiveVersionCatalog
 
 
 class VersionTests(unittest.TestCase):
@@ -106,4 +106,4 @@ Architectures: windows-amd64
                 self.subTest(name=name, text=text),
                 self.assertRaisesRegex(BrigError, "Cannot fetch"),
             ):
-                LiveVersionCatalog(lambda url: text).versions(name)
+                LiveVersionCatalog(lambda url, text=text: text).versions(name)

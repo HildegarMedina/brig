@@ -12,6 +12,32 @@ The package lives in `src/brig` and tests in `tests`. CLI and TUI use the same
 `Application` use cases. Component names and categories live in the catalog;
 actual release numbers belong to version providers.
 
+## Package responsibilities
+
+| Package/module | Responsibility |
+| --- | --- |
+| `models.py`, `errors.py`, `engine.py` | Records, errors, and the execution contract |
+| `application.py` | Shared use cases and state commits |
+| `ui/` | CLI argument handling and shared text summaries |
+| `ui/tui/` | Terminal widgets, profile flows, project flows, and top-level navigation |
+| `components/` | Component/agent registries, upstream providers, and compatibility |
+| `persistence/` | State decoding, JSON/YAML transactions, and file export |
+| `docker/` | Definition generation, Docker execution, workspace files, credentials, and volumes |
+
+`InteractiveApp` delegates feature flows to `ProfileViews` and `ProjectViews`.
+`Terminal` owns curses rendering and input. `DockerEngine` coordinates
+`DockerClient`, `DockerWorkspace`, `DatabaseCredentials`, and `DockerVolumes`.
+Lifecycle locks cover preparation and start/stop operations. JSON and YAML saves
+remain coordinated in `JsonStateStore` so failures preserve the previous state.
+The simulation engine lives in `tests/demo_engine.py`.
+
+Split modules when they gain independent reasons to change. Review files above
+roughly 400 lines and functions above 100 lines; these are review signals, not
+hard limits. Dockerfile generation has explicit ordered stages, and Compose
+assembly delegates database and agent storage definitions to separate helpers.
+Internal Python module paths changed in this reorganization; CLI commands,
+stored schema, profile revisions, and generated resource names remain compatible.
+
 You can keep definitions separate from your regular projects:
 
 ```bash
@@ -78,9 +104,9 @@ versions; fixtures do not feed the production catalog.
 ### A tool
 
 Declare the component and its runtime in
-[`catalog.py`](../src/brig/catalog.py). Add or reuse its version provider and
-requirement evaluation in [`versions.py`](../src/brig/versions.py) and
-[`compatibility.py`](../src/brig/compatibility.py).
+[`catalog.py`](../src/brig/components/catalog.py). Add or reuse its version provider and
+requirement evaluation in [`providers.py`](../src/brig/components/providers.py) and
+[`compatibility.py`](../src/brig/components/compatibility.py).
 
 Also add installation to the Dockerfile generator. Being selectable in the catalog
 does not automatically install a new tool. Test selection, compatibility, exact
@@ -90,7 +116,7 @@ version, absence when unselected, and real execution.
 
 Register it in the catalog, implement image generation, and define how it coexists
 with other runtimes. `RUNTIME_IMAGES` in
-[`dockerfile.py`](../src/brig/dockerfile.py) groups current templates, but runtime
+[`dockerfile.py`](../src/brig/docker/dockerfile.py) groups current templates, but runtime
 placement and libraries also require builder logic.
 
 Keep versions out of the static catalog. Include profiles using that runtime alone
@@ -99,9 +125,10 @@ an actual build.
 
 ### A service
 
-Declare it in the catalog and configure its image, data, and healthcheck in
-[`compose.py`](../src/brig/compose.py). Add initialization and connection variables
-to `service_environment`. If it needs a PHP driver, update `DATABASE_DRIVERS` in
+Declare it in the catalog and configure its image, data, healthcheck, and
+`service_environment` in [`services.py`](../src/brig/docker/services.py). Compose
+assembly and version-specific mount conventions live in
+[`compose.py`](../src/brig/docker/compose.py). If it needs a PHP driver, update `DATABASE_DRIVERS` in
 the generator.
 
 Check the image's mount point and differences between releases. Data must stay in
@@ -111,7 +138,7 @@ in profiles.
 
 ### An agent
 
-Add an `AgentIntegration` in [`agents.py`](../src/brig/agents.py) with its command,
+Add an `AgentIntegration` in [`agents.py`](../src/brig/components/agents.py) with its command,
 build stage, final-image instructions, runtime packages, and configuration path
 and environment variable, and optional history subdirectory. An adapter without installation instructions stays
 unavailable. The wizard, profile validation, image generator, and launcher use
@@ -125,7 +152,7 @@ projects and container recreation before making a new integration selectable.
 ## Change the engine
 
 The contract lives in [`engine.py`](../src/brig/engine.py). The real engine lives
-in [`docker_engine.py`](../src/brig/docker_engine.py). Separate file generation,
+in [`docker/engine.py`](../src/brig/docker/engine.py). Separate file generation,
 command execution, and coordination in `Application`.
 
 Keep Docker arguments as lists; do not build host shell commands from user names

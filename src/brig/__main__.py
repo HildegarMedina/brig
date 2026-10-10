@@ -1,3 +1,3 @@
-from brig.cli import main
+from brig.ui.cli import main
 
 raise SystemExit(main())
