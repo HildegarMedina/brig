@@ -612,6 +612,7 @@ class FakeScreen:
         self.size = size
         self.written = []
         self.drawn = []
+        self.positions = []
 
     def getmaxyx(self):
         return self.size
@@ -628,6 +629,7 @@ class FakeScreen:
     def addnstr(self, y, x, value, maximum, style):
         self.written.append(value[:maximum])
         self.drawn.append((value[:maximum], style))
+        self.positions.append((y, x, value[:maximum]))
 
 
 class TerminalTests(unittest.TestCase):
@@ -684,6 +686,7 @@ class TerminalTests(unittest.TestCase):
         from unittest.mock import Mock, patch
 
         with (
+            patch.dict("os.environ", {}, clear=True),
             patch("brig.ui.tui.terminal.curses.curs_set"),
             patch("brig.ui.tui.terminal.curses.has_colors", return_value=True),
             patch("brig.ui.tui.terminal.curses.start_color"),
@@ -697,6 +700,62 @@ class TerminalTests(unittest.TestCase):
             terminal = Terminal(Mock())
         init_pair.assert_any_call(2, curses.COLOR_RED, -1)
         self.assertEqual(terminal.error_style, curses.A_BOLD | (2 << 8))
+
+    def test_no_color_keeps_terminal_usable_without_initializing_colors(self):
+        from unittest.mock import Mock
+
+        with (
+            patch.dict("os.environ", {"NO_COLOR": ""}),
+            patch("brig.ui.tui.terminal.curses.curs_set"),
+            patch("brig.ui.tui.terminal.curses.start_color") as start_color,
+        ):
+            terminal = Terminal(Mock())
+        start_color.assert_not_called()
+        self.assertEqual(terminal.accent, curses.A_BOLD)
+
+    def test_color_initialization_failure_falls_back_to_basic_attributes(self):
+        from unittest.mock import Mock
+
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("brig.ui.tui.terminal.curses.curs_set"),
+            patch("brig.ui.tui.terminal.curses.has_colors", return_value=True),
+            patch("brig.ui.tui.terminal.curses.start_color", side_effect=curses.error),
+        ):
+            terminal = Terminal(Mock())
+        self.assertEqual(terminal.error_style, curses.A_BOLD)
+
+    def test_minimum_size_keeps_selection_error_and_keyboard_help_separate(self):
+        terminal = self.terminal([], size=(12, 45))
+        terminal.render(
+            "Runtimes",
+            ["python", "php", "node"],
+            "↑↓ move · space toggle · enter next · esc back",
+            selected=2,
+            error_message="Select a runtime.",
+        )
+        positions = terminal.screen.positions
+        selected_y = next(y for y, _, text in positions if "› node" in text)
+        error_y = next(y for y, _, text in positions if "Error:" in text)
+        help_y = next(y for y, _, text in positions if "space toggle" in text)
+        self.assertLess(selected_y, error_y)
+        self.assertLess(error_y, help_y)
+        self.assertTrue(any("esc back" in text for _, _, text in positions))
+        self.assertTrue(any("2-3 / 3" in text for _, _, text in positions))
+
+    def test_ascii_locale_uses_readable_navigation_symbols(self):
+        terminal = self.terminal([], size=(12, 45))
+        with patch("brig.ui.tui.terminal.locale.getencoding", return_value="ascii"):
+            terminal.render("Menu", ["Python"], "↑↓ move · enter select", selected=0)
+        self.assertTrue(any("> Python" in text for text in terminal.screen.written))
+        self.assertTrue(any("up/down move" in text for text in terminal.screen.written))
+        for text in terminal.screen.written:
+            text.encode("ascii")
+
+    def test_notice_can_scroll_to_last_line_on_minimum_terminal(self):
+        terminal = self.terminal([curses.KEY_DOWN] * 20 + ["\n"], size=(12, 45))
+        terminal.notice("Details", [f"Line {number}" for number in range(20)])
+        self.assertIn("  Line 19", terminal.screen.written)
 
     def test_version_search_filters_options(self):
         terminal = self.terminal(["/", "3", ".", "1", "1", "\n", "\n"])

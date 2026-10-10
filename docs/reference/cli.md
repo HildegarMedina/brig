@@ -130,6 +130,11 @@ back; Ctrl+C exits. Version selectors support searching with `/`. Ctrl+U clears
 an input field. The terminal needs at least 45 columns and 12 rows; 90 × 28 or
 larger makes details easier to read. Long views scroll with arrow keys.
 
+The interface uses the terminal's default background, highlights the current
+selection, and shows the visible range in long menus. Keyboard help wraps onto
+two lines on narrow terminals. Set `NO_COLOR=1` to disable colors; basic emphasis
+and selection remain available. Non-Unicode locales use ASCII navigation symbols.
+
 Validation errors are highlighted in red. **Shell** prepares the project and opens
 its terminal; leaving it returns to the menu. **View Dockerfile** displays the
 definition without starting Docker.

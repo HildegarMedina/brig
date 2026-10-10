@@ -1,6 +1,9 @@
 """Reusable curses rendering, input and terminal suspension."""
 
 import curses
+import locale
+import os
+import textwrap
 from collections.abc import Callable
 
 from brig.errors import BrigError, Cancelled
@@ -16,18 +19,53 @@ class Terminal:
             pass
         self.accent = curses.A_BOLD
         self.error_style = curses.A_BOLD
-        if curses.has_colors():
-            curses.start_color()
-            curses.use_default_colors()
-            curses.init_pair(1, curses.COLOR_CYAN, -1)
-            self.accent |= curses.color_pair(1)
-            curses.init_pair(2, curses.COLOR_RED, -1)
-            self.error_style |= curses.color_pair(2)
+        if "NO_COLOR" not in os.environ and curses.has_colors():
+            try:
+                curses.start_color()
+                background = -1
+                try:
+                    curses.use_default_colors()
+                except curses.error:
+                    background = curses.COLOR_BLACK
+                curses.init_pair(1, curses.COLOR_CYAN, background)
+                curses.init_pair(2, curses.COLOR_RED, background)
+                self.accent |= curses.color_pair(1)
+                self.error_style |= curses.color_pair(2)
+            except curses.error:
+                # Basic attributes still work on terminals with limited colors.
+                pass
+
+    @staticmethod
+    def _text(text: str) -> str:
+        encoding = locale.getencoding()
+        try:
+            text.encode(encoding)
+        except UnicodeEncodeError:
+            text = text.translate(
+                str.maketrans(
+                    {
+                        "↑": "up",
+                        "↓": "/down",
+                        "›": ">",
+                        "▏": "|",
+                        "×": "x",
+                        "·": "|",
+                        "—": "-",
+                        "→": "->",
+                    }
+                )
+            )
+            text = text.encode(encoding, errors="replace").decode(encoding)
+        return text
+
+    @staticmethod
+    def _capacity(height: int, error: bool = False) -> int:
+        return max(1, height - 9 - error)
 
     def _write(self, y: int, x: int, text: str, style: int = 0) -> None:
         height, width = self.screen.getmaxyx()
         if 0 <= y < height and 0 <= x < width - 1:
-            safe = "".join(c if c.isprintable() else " " for c in text)
+            safe = self._text("".join(c if c.isprintable() else " " for c in text))
             try:
                 self.screen.addnstr(y, x, safe, width - x - 1, style)
             except curses.error:
@@ -45,27 +83,43 @@ class Terminal:
     ) -> None:
         self.screen.erase()
         height, width = self.screen.getmaxyx()
-        self._write(1, 2, "brig", self.accent)
-        self._write(1, 10, "isolated project environments", curses.A_DIM)
+        self._write(1, 2, "[ brig ]", self.accent)
+        self._write(1, 12, "isolated project environments", curses.A_DIM)
         if height < 12 or width < 45:
             self._write(3, 1, "Resize terminal to at least 45 × 12.")
             self.screen.refresh()
             return
         self._write(3, 2, title, curses.A_BOLD)
-        capacity = max(1, height - 8 - bool(error_message))
+        self._write(4, 2, "-" * (width - 5), curses.A_DIM)
+        capacity = self._capacity(height, bool(error_message))
         offset = max(0, selected - capacity + 1)
+        if len(rows) > capacity:
+            position = (
+                f" {offset + 1}-{min(offset + capacity, len(rows))} / {len(rows)} "
+            )
+            self._write(4, width - len(position) - 3, position, curses.A_DIM)
         for index, row in enumerate(rows[offset : offset + capacity], offset):
             is_selected = index == selected
+            style = self.error_style if error_rows else 0
+            if is_selected:
+                style |= self.accent | curses.A_REVERSE
+            elif row.startswith("[x]"):
+                style |= self.accent
+            label = self._text(("› " if is_selected else "  ") + row)
             self._write(
                 5 + index - offset,
                 2,
-                ("› " if is_selected else "  ") + row,
-                (self.error_style if error_rows else 0)
-                | (curses.A_REVERSE if is_selected else 0),
+                label.ljust(width - 5) if is_selected else label,
+                style,
             )
         if error_message:
-            self._write(height - 3, 2, f"Error: {error_message}", self.error_style)
-        self._write(height - 2, 2, footer, curses.A_DIM)
+            self._write(height - 5, 2, f"Error: {error_message}", self.error_style)
+        self._write(height - 4, 2, "-" * (width - 5), curses.A_DIM)
+        help_lines = textwrap.wrap(
+            self._text(footer), width=width - 5, max_lines=2, placeholder="..."
+        )
+        for index, line in enumerate(help_lines):
+            self._write(height - 3 + index, 2, line, curses.A_DIM)
         self.screen.refresh()
 
     def loading(self, message: str) -> None:
@@ -110,7 +164,7 @@ class Terminal:
             if selected not in indices and indices:
                 selected = indices[0]
             position = indices.index(selected) if selected in indices else -1
-            footer = "↑↓ navigate · enter select · esc back"
+            footer = "↑↓ move · enter select · esc back"
             if searchable:
                 footer += " · / search"
             rows = [options[i] for i in indices] or [
@@ -149,7 +203,7 @@ class Terminal:
             self.render(
                 title,
                 rows,
-                "↑↓ navigate · space toggle · enter continue · esc cancel",
+                "↑↓ move · space toggle · enter next · esc back",
                 selected,
                 error_message=error,
             )
@@ -213,7 +267,7 @@ class Terminal:
         offset = 0
         while True:
             height, _ = self.screen.getmaxyx()
-            maximum = max(0, len(lines) - max(1, height - 8))
+            maximum = max(0, len(lines) - self._capacity(height))
             offset = min(offset, maximum)
             self.render(
                 title, lines[offset:], "↑↓ scroll · enter / esc close", error_rows=error
