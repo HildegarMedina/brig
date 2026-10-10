@@ -3,7 +3,8 @@
 ## Prepare the repository
 
 ```bash
-uv sync
+uv sync --locked
+uv run pre-commit install
 uv run brig --help
 uv run brig
 ```
@@ -50,15 +51,24 @@ Execution is still real; this is not a simulation mode.
 ## Local checks
 
 ```bash
-ruff check src tests
-ruff format --check src tests
-uv run python -m unittest discover -s tests
+uv run pre-commit run --all-files
+uv run python scripts/check_coverage.py
 ```
 
-`ruff` must be available in your development environment. The default suite needs
-neither Docker nor network access: it uses controlled providers and the simulation
-engine as test dependencies. Real engine boundary tests replace subprocess
-execution but generate real files in temporary directories.
+Development tools are installed by `uv sync --locked`. Install the Git hook once
+per clone with `uv run pre-commit install`. Every commit runs Ruff with automatic
+lint fixes and formatting, then runs all unit tests. If Ruff changes files, review
+and stage those changes before retrying the commit.
+
+The coverage check requires 100% line coverage across all of `src/brig`, without
+module exclusions. A failing test or coverage below 100% blocks the commit, even
+when only documentation changes. Run `uv run python scripts/check_coverage.py` to
+check the unit suite and coverage directly.
+
+Unit tests need neither Docker nor network access: they use controlled providers
+and the simulation engine as test dependencies. Real engine boundary tests replace
+subprocess execution but generate real files in temporary directories. Docker
+integration tests run separately using the command below.
 
 Tests cover behavior including profile snapshots, storage relationships, save
 failures, CLI options, wizard validation, selected installations, and data

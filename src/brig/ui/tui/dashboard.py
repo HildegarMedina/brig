@@ -1,6 +1,7 @@
 """Workspace navigation and dashboard actions, sharing existing application flows."""
 
 import curses
+from functools import partial
 from pathlib import Path
 
 from brig.application import Application
@@ -86,17 +87,16 @@ class Dashboard:
         elif item and section == "Projects" and key in ("s", "a", "o"):
             project = self.app.project(item.name)
             if key == "s":
-                action = lambda: (
-                    self.app.stop(item.name)
-                    if item.status == "running"
-                    else self.app.start(item.name)
+                action = partial(
+                    self.app.stop if item.status == "running" else self.app.start,
+                    item.name,
                 )
             elif key == "a":
-                action = lambda: self.app.run_agent(
-                    item.name, project.configuration.agent
+                action = partial(
+                    self.app.run_agent, item.name, project.configuration.agent
                 )
             else:
-                action = lambda: self.app.shell(item.name)
+                action = partial(self.app.shell, item.name)
             self.ui.external(action)
 
     def run(self, section: str = "Projects", *, read_only=False):

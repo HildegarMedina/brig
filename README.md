@@ -128,13 +128,23 @@ Start with the [documentation index](docs/README.md).
 ## Development
 
 ```bash
-uv sync
-ruff check src tests
-ruff format --check src tests
-uv run python -m unittest discover -s tests
+uv sync --locked
+uv run pre-commit install
+uv run pre-commit run --all-files
 ```
 
-The default suite does not require Docker. Enable the five real integration tests
+Every commit runs Ruff lint fixes, automatic formatting, and the complete unit
+suite. Test failures or line coverage below **100% of `src/brig`** block the commit.
+When Ruff changes files, review and stage those changes before retrying the commit.
+Install the hook once in each clone. Development tools are pinned in `uv.lock`.
+
+Run the coverage check directly with:
+
+```bash
+uv run python scripts/check_coverage.py
+```
+
+Unit tests do not require Docker. Enable the five real integration tests
 with:
 
 ```bash

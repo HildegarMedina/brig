@@ -7,3 +7,7 @@ dist/
 *.egg-info/
 .claude/
 .agents/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml

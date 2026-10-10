@@ -94,7 +94,7 @@ class ProfileViews:
                     )
                     == 1
                 ):
-                    raise Cancelled
+                    raise Cancelled from None
         if not versions:
             runtime = COMPONENTS[component.runtime]
             raise IncompatibleSelection(

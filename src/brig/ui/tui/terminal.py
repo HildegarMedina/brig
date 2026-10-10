@@ -5,6 +5,7 @@ import locale
 import os
 import textwrap
 from collections.abc import Callable
+from contextlib import suppress
 
 from brig.errors import BrigError, Cancelled
 
@@ -16,10 +17,8 @@ class Terminal:
         if "ESCDELAY" not in os.environ:
             # Distinguish Esc from arrow-key sequences without a one-second pause.
             curses.set_escdelay(100)
-        try:
+        with suppress(curses.error):
             curses.curs_set(0)
-        except curses.error:
-            pass
         self.accent = curses.A_BOLD
         self.error_style = curses.A_BOLD
         if "NO_COLOR" not in os.environ and curses.has_colors():
@@ -71,10 +70,8 @@ class Terminal:
         height, width = self.screen.getmaxyx()
         if 0 <= y < height and 0 <= x < width - 1:
             safe = self._text("".join(c if c.isprintable() else " " for c in text))
-            try:
+            with suppress(curses.error):
                 self.screen.addnstr(y, x, safe, width - x - 1, style)
-            except curses.error:
-                pass
 
     def render(
         self,
