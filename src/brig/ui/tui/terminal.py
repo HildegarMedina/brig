@@ -22,8 +22,6 @@ class Terminal:
             pass
         self.accent = curses.A_BOLD
         self.error_style = curses.A_BOLD
-        self.card_styles = (curses.A_BOLD,)
-        self.card_selection_style = curses.A_BOLD
         if "NO_COLOR" not in os.environ and curses.has_colors():
             try:
                 curses.start_color()
@@ -36,23 +34,6 @@ class Terminal:
                 curses.init_pair(2, curses.COLOR_RED, background)
                 self.accent |= curses.color_pair(1)
                 self.error_style |= curses.color_pair(2)
-                styles = []
-                for pair, color in enumerate(
-                    (
-                        curses.COLOR_CYAN,
-                        curses.COLOR_MAGENTA,
-                        curses.COLOR_BLUE,
-                        curses.COLOR_YELLOW,
-                        curses.COLOR_GREEN,
-                        curses.COLOR_RED,
-                    ),
-                    3,
-                ):
-                    curses.init_pair(pair, color, background)
-                    styles.append(curses.color_pair(pair))
-                self.card_styles = tuple(styles)
-                curses.init_pair(9, curses.COLOR_WHITE, background)
-                self.card_selection_style |= curses.color_pair(9)
             except curses.error:
                 # Basic attributes still work on terminals with limited colors.
                 pass
@@ -102,8 +83,6 @@ class Terminal:
         *,
         error_message: str | None = None,
         error_rows: bool = False,
-        row_styles: list[int] | None = None,
-        row_border_styles: list[int] | None = None,
     ) -> None:
         self.screen.erase()
         height, width = self.screen.getmaxyx()
@@ -124,27 +103,16 @@ class Terminal:
             self._write(4, width - len(position) - 3, position, curses.A_DIM)
         for index, row in enumerate(rows[offset : offset + capacity], offset):
             is_selected = index == selected
-            style = (
-                self.error_style
-                if error_rows
-                else (row_styles[index] if row_styles else 0)
-            )
-            if is_selected:
-                style |= self.accent | curses.A_REVERSE
-            elif row.startswith("[x]"):
+            style = self.error_style if error_rows else 0
+            if is_selected or row.startswith("[x]"):
                 style |= self.accent
             label = self._text(("› " if is_selected else "  ") + row)
             self._write(
                 5 + index - offset,
                 2,
-                label.ljust(width - 5) if is_selected else label,
+                label,
                 style,
             )
-            if row_border_styles and row_border_styles[index] and row:
-                border_style = row_border_styles[index]
-                y = 5 + index - offset
-                self._write(y, 4, row[0], border_style)
-                self._write(y, 4 + len(row) - 1, row[-1], border_style)
         if error_message:
             self._write(height - 5, 2, f"Error: {error_message}", self.error_style)
         self._write(height - 4, 2, "-" * (width - 5), curses.A_DIM)
@@ -183,6 +151,7 @@ class Terminal:
         default: int = 0,
         *,
         searchable: bool = False,
+        help_text: str | None = None,
     ) -> int:
         if not options:
             raise BrigError("No options available.")
@@ -197,7 +166,7 @@ class Terminal:
             if selected not in indices and indices:
                 selected = indices[0]
             position = indices.index(selected) if selected in indices else -1
-            footer = "↑↓ move · enter select · esc back"
+            footer = help_text or "↑↓ move · enter select · esc back"
             if searchable:
                 footer += " · / search"
             rows = [options[i] for i in indices] or [

@@ -7,8 +7,8 @@ from unittest.mock import patch
 
 from brig.application import Application
 from brig.errors import Cancelled
-from brig.ui.listings import list_records
-from brig.ui.tui.browser import browse_list, choose_card
+from brig.ui.listings import list_rows
+from brig.ui.tui.browser import browse_list, choose_list
 from brig.ui.tui.profiles import ProfileViews
 from brig.ui.tui.projects import ProjectViews
 from tests import test_tui
@@ -23,10 +23,10 @@ class BrowserTests(unittest.TestCase):
             with self.subTest(kind=kind):
                 ui = test_tui.TerminalTests().terminal([])
                 view = view_class(app, ui, Path("/tmp"))
-                records = list_records(app, kind)
+                records = list_rows(app, kind)
                 with (
                     patch(
-                        f"brig.ui.tui.{kind}s.choose_card",
+                        f"brig.ui.tui.{kind}s.choose_list",
                         side_effect=[len(records), Cancelled],
                     ) as chooser,
                     patch.object(view, f"{kind}_wizard") as create,
@@ -35,59 +35,34 @@ class BrowserTests(unittest.TestCase):
                 create.assert_called_once_with()
                 self.assertEqual(chooser.call_args_list[0].args[2][:-1], records)
                 self.assertEqual(
-                    chooser.call_args_list[0].args[2][-1], (f"+ Create {kind}", [])
+                    chooser.call_args_list[0].args[2][-1], f"+ Create {kind}"
                 )
 
-    def test_main_project_cards_keep_environment_management(self):
+    def test_main_project_lists_keep_environment_management(self):
         app = Application(MemoryStore(demo_state()), DemoEngine(), FakeVersionCatalog)
         ui = test_tui.TerminalTests().terminal([])
         view = ProjectViews(app, ui, Path("/tmp"))
         with (
-            patch("brig.ui.tui.projects.choose_card", side_effect=[1, Cancelled]),
+            patch("brig.ui.tui.projects.choose_list", side_effect=[1, Cancelled]),
             patch.object(view, "project_detail") as detail,
         ):
             view.projects()
         detail.assert_called_once_with(app.state.projects[1].name)
 
-    def test_selection_changes_only_card_border_without_background_highlight(self):
+    def test_selection_uses_a_marker_without_background_highlight(self):
         ui = test_tui.TerminalTests().terminal(["\n"], size=(24, 100))
-        ui.accent = 1 << 8
-        ui.card_styles = (3 << 8,)
-        ui.card_selection_style = curses.A_BOLD | (9 << 8)
-        choose_card(
-            ui, "Profiles", [("first", ["Version 1"]), ("second", ["Version 2"])], 0
-        )
-        for text, style in ui.screen.drawn:
-            self.assertFalse(style & curses.A_REVERSE)
-            if "first" in text or "second" in text or "Version" in text:
-                self.assertEqual(style, 0)
-        borders = [(text, style) for text, style in ui.screen.drawn if "┌" in text]
-        self.assertEqual(borders[0][1], ui.card_selection_style)
-        self.assertEqual(borders[1][1], ui.card_styles[0])
-        self.assertIn(("│", ui.card_selection_style), ui.screen.drawn)
+        choose_list(ui, "Profiles", ["first · version 1", "second · version 2"], 0)
+        selected = [
+            (text, style) for text, style in ui.screen.drawn if "› first" in text
+        ]
+        self.assertEqual(len(selected), 1)
+        self.assertFalse(selected[0][1] & curses.A_REVERSE)
+        self.assertTrue(selected[0][0].endswith("version 1"))
 
-    def test_border_selection_moves_with_arrow_keys(self):
+    def test_lists_navigate_and_show_keyboard_controls(self):
         ui = test_tui.TerminalTests().terminal([curses.KEY_DOWN, "\n"])
-        ui.card_styles = (3 << 8,)
-        ui.card_selection_style = curses.A_BOLD | (9 << 8)
-        choose_card(
-            ui, "Profiles", [("first", ["Version 1"]), ("second", ["Version 2"])], 0
-        )
-        borders = [style for text, style in ui.screen.drawn if "┌" in text]
-        self.assertEqual(
-            borders,
-            [
-                ui.card_selection_style,
-                ui.card_styles[0],
-                ui.card_styles[0],
-                ui.card_selection_style,
-            ],
-        )
-
-    def test_cards_navigate_and_show_keyboard_controls(self):
-        ui = test_tui.TerminalTests().terminal([curses.KEY_DOWN, "\n"])
-        result = choose_card(
-            ui, "Profiles", [("first", ["Version 1"]), ("second", ["Version 2"])], 0
+        result = choose_list(
+            ui, "Profiles", ["first · version 1", "second · version 2"], 0
         )
         self.assertEqual(result, 1)
         self.assertTrue(
@@ -97,10 +72,10 @@ class BrowserTests(unittest.TestCase):
             )
         )
 
-    def test_pagination_keeps_last_card_reachable(self):
+    def test_pagination_keeps_last_row_reachable(self):
         ui = test_tui.TerminalTests().terminal([curses.KEY_UP, "\n"], size=(16, 45))
-        result = choose_card(
-            ui, "Profiles", [(f"profile-{i}", [f"Version {i}"]) for i in range(12)], 0
+        result = choose_list(
+            ui, "Profiles", [f"profile-{i} · version {i}" for i in range(12)], 0
         )
         self.assertEqual(result, 11)
         self.assertTrue(any("profile-11" in row for row in ui.screen.written))
@@ -108,9 +83,7 @@ class BrowserTests(unittest.TestCase):
     def test_small_terminal_can_select_using_compact_menu(self):
         ui = test_tui.TerminalTests().terminal([curses.KEY_DOWN, "\n"], size=(12, 45))
         self.assertEqual(
-            choose_card(
-                ui, "Profiles", [("first", ["Version 1"]), ("second", ["Version 2"])], 0
-            ),
+            choose_list(ui, "Profiles", ["first · version 1", "second · version 2"], 0),
             1,
         )
 

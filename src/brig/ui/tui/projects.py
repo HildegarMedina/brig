@@ -5,9 +5,9 @@ from pathlib import Path
 from brig.application import Application
 from brig.components.agents import AGENTS
 from brig.errors import BrigError, Cancelled
-from brig.ui.listings import list_records
+from brig.ui.listings import list_rows
 from brig.ui.presentation import configuration_lines, project_lines
-from brig.ui.tui.browser import choose_card
+from brig.ui.tui.browser import choose_list
 from brig.ui.tui.terminal import Terminal
 
 
@@ -59,8 +59,8 @@ class ProjectViews:
         while True:
             try:
                 projects = self.app.state.projects
-                records = list_records(self.app, "project") + [("+ Create project", [])]
-                index = choose_card(
+                records = list_rows(self.app, "project") + ["+ Create project"]
+                index = choose_list(
                     self.ui, "Projects", records, min(selected, len(records) - 1)
                 )
                 selected = index

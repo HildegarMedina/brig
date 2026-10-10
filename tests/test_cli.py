@@ -15,6 +15,33 @@ from tests.fakes import FakeVersionCatalog, demo_state
 
 
 class CliTests(unittest.TestCase):
+    def test_interactive_lists_open_the_shared_browser(self):
+        for command in ("profile", "project"):
+            output, errors = io.StringIO(), io.StringIO()
+            with (
+                self.subTest(command=command),
+                redirect_stdout(output),
+                redirect_stderr(errors),
+                patch("sys.stdin.isatty", return_value=True),
+                patch.object(output, "isatty", return_value=True),
+                patch("brig.ui.cli.launch", return_value=True) as launch,
+            ):
+                status = main(["--data-dir", str(self.data), command, "list"])
+            self.assertEqual(status, 0)
+            self.assertEqual((output.getvalue(), errors.getvalue()), ("", ""))
+            self.assertEqual(launch.call_args.args[2], f"{command}-list")
+
+    def test_noninteractive_lists_are_compact_without_cards_or_color_codes(self):
+        JsonStateStore(self.data).save(demo_state())
+        for command in ("profile", "project"):
+            status, output, errors = self.command(command, "list")
+            self.assertEqual(status, 0)
+            self.assertEqual(errors, "")
+            self.assertEqual(len(output.splitlines()), 2)
+            self.assertIn("version", output)
+            self.assertNotIn("┌", output)
+            self.assertNotIn("\033", output)
+
     def setUp(self):
         self.directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.directory.cleanup)

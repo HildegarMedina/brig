@@ -16,9 +16,9 @@ from brig.components.providers import source_label
 from brig.errors import BrigError, Cancelled, IncompatibleSelection
 from brig.models import ProfileRevision
 from brig.persistence.profile_yaml import profile_path
-from brig.ui.listings import list_records
+from brig.ui.listings import list_rows
 from brig.ui.presentation import configuration_lines
-from brig.ui.tui.browser import choose_card
+from brig.ui.tui.browser import choose_list
 from brig.ui.tui.terminal import Terminal
 
 
@@ -243,8 +243,8 @@ class ProfileViews:
         while True:
             try:
                 profiles = self.app.state.profiles
-                records = list_records(self.app, "profile") + [("+ Create profile", [])]
-                index = choose_card(
+                records = list_rows(self.app, "profile") + ["+ Create profile"]
+                index = choose_list(
                     self.ui, "Profiles", records, min(selected, len(records) - 1)
                 )
                 selected = index
