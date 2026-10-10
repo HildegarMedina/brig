@@ -3,29 +3,36 @@
 from dataclasses import dataclass, field
 
 
+@dataclass(frozen=True)
+class ProfileParent:
+    profile: str
+    version: int
+
+
 @dataclass
-class ProfileRevision:
+class ProfileVersion:
     number: int
     runtimes: dict[str, str]
     tools: dict[str, str]
     services: dict[str, str]
     agent: str = "claude"
     agents: list[str] | None = None
+    extends: ProfileParent | None = None
 
     @property
     def selected_agents(self) -> list[str]:
-        # Legacy revisions keep their YAML unchanged and select their one agent.
+        # Legacy versions keep their YAML unchanged and select their one agent.
         return [self.agent] if self.agents is None else list(self.agents)
 
 
 @dataclass
 class Profile:
     name: str
-    revisions: list[ProfileRevision]
+    versions: list[ProfileVersion]
 
     @property
-    def latest(self) -> ProfileRevision:
-        return self.revisions[-1]
+    def latest(self) -> ProfileVersion:
+        return self.versions[-1]
 
 
 @dataclass
@@ -34,7 +41,7 @@ class Project:
     name: str
     path: str | None
     profile: str
-    configuration: ProfileRevision
+    configuration: ProfileVersion
     running: bool = False
 
 

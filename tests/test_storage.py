@@ -8,7 +8,7 @@ from unittest.mock import patch
 
 from brig.application import Application
 from brig.errors import BrigError
-from brig.models import Profile, ProfileRevision
+from brig.models import Profile, ProfileVersion
 from brig.persistence.profile_yaml import profile_path, render_profile
 from brig.persistence.store import JsonStateStore, default_data_directory
 from tests.demo_engine import DemoEngine
@@ -24,7 +24,7 @@ class StorageTests(unittest.TestCase):
     def test_missing_state_returns_none(self):
         self.assertIsNone(self.store.load())
 
-    def test_deleting_profile_removes_all_yaml_revisions_and_allows_recreation(self):
+    def test_deleting_profile_removes_all_yaml_versions_and_allows_recreation(self):
         app = Application(self.store, DemoEngine(), FakeVersionCatalog)
         app.save_profile("custom", {"php": "8.3.15"}, {}, {})
         app.save_profile("custom", {"php": "8.2.27"}, {}, {}, editing=True)
@@ -79,7 +79,7 @@ class StorageTests(unittest.TestCase):
         replace = os.replace
 
         def fail_state_and_restore(source, destination):
-            if destination in (self.store.path, document.parent):
+            if destination in (self.store.path, document.parent.parent):
                 raise OSError("write failure")
             replace(source, destination)
 
@@ -92,12 +92,14 @@ class StorageTests(unittest.TestCase):
             app.delete_profile("custom")
         self.assertEqual(self.store.path.read_bytes(), original)
         staged = list(
-            self.store.path.parent.glob(".delete-profile-*/revisions/revision-1.yaml")
+            self.store.path.parent.glob(
+                ".delete-profile-*/versions/versions/version-1.yaml"
+            )
         )
         self.assertEqual(len(staged), 1)
         self.assertEqual(staged[0].read_bytes(), contents)
 
-    def test_round_trip_includes_revisions_and_project_snapshots(self):
+    def test_round_trip_includes_versions_and_project_snapshots(self):
         state = demo_state()
         self.store.save(state)
         self.assertEqual(self.store.load(), state)
@@ -124,10 +126,10 @@ class StorageTests(unittest.TestCase):
             lambda data: data["projects"][0].update(name="bad\x1bname"),
             lambda data: data["projects"][0].update(profile="unknown"),
             lambda data: data["projects"][0].update(running="yes"),
-            lambda data: data["profiles"][0].update(revisions=[]),
+            lambda data: data["profiles"][0].update(versions=[]),
             lambda data: data["projects"][0]["configuration"].update(number=99),
             lambda data: data["projects"][0].update(path="relative/path"),
-            lambda data: data["profiles"][0]["revisions"][0].update(
+            lambda data: data["profiles"][0]["versions"][0].update(
                 runtimes={"php": "latest"}
             ),
         ):
@@ -166,7 +168,7 @@ class StorageTests(unittest.TestCase):
         with patch.dict("os.environ", {"XDG_DATA_HOME": "/tmp/brig-unit-data"}):
             self.assertEqual(default_data_directory(), Path("/tmp/brig-unit-data/brig"))
 
-    def test_profile_creation_produces_readable_yaml_and_keeps_previous_revision(self):
+    def test_profile_creation_produces_readable_yaml_and_keeps_previous_version(self):
         app = Application(self.store, DemoEngine(), FakeVersionCatalog)
         app.save_profile(
             "custom",
@@ -186,7 +188,7 @@ class StorageTests(unittest.TestCase):
     def test_loading_pinned_release_does_not_contact_version_sources(self):
         state = demo_state()
         state.profiles.append(
-            Profile("future", [ProfileRevision(1, {"python": "3.99.1"}, {}, {})])
+            Profile("future", [ProfileVersion(1, {"python": "3.99.1"}, {}, {})])
         )
         self.store.save(state)
         with patch(
@@ -195,13 +197,11 @@ class StorageTests(unittest.TestCase):
         ):
             self.assertEqual(self.store.load(), state)
 
-    def test_failed_state_commit_removes_new_yaml_revision(self):
+    def test_failed_state_commit_removes_new_yaml_version(self):
         state = demo_state()
         self.store.save(state)
         original = self.store.path.read_bytes()
-        state.profiles[0].revisions.append(
-            ProfileRevision(2, {"php": "8.3.15"}, {}, {})
-        )
+        state.profiles[0].versions.append(ProfileVersion(2, {"php": "8.3.15"}, {}, {}))
         import os
 
         replace = os.replace
@@ -224,6 +224,6 @@ class StorageTests(unittest.TestCase):
         name = '../../bad: "name"'
         path = profile_path(self.store.path.parent, name, 1)
         self.assertTrue(path.is_relative_to(self.store.path.parent / "profiles"))
-        contents = render_profile(name, ProfileRevision(1, {"php": "8.3.15"}, {}, {}))
+        contents = render_profile(name, ProfileVersion(1, {"php": "8.3.15"}, {}, {}))
         self.assertIn('name: "../../bad: \\"name\\""', contents)
         self.assertIn("tools: {}", contents)

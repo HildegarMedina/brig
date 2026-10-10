@@ -25,8 +25,8 @@ class InteractiveApp:
     def profiles(self) -> None:
         self.profile_views.profiles()
 
-    def profile_wizard(self, name: str | None = None) -> None:
-        self.profile_views.profile_wizard(name)
+    def profile_wizard(self, name: str | None = None, **options) -> None:
+        self.profile_views.profile_wizard(name, **options)
 
     def delete_profile(self, name: str) -> None:
         self.profile_views.delete_profile(name)
@@ -45,7 +45,14 @@ class InteractiveApp:
 
 
 def launch(
-    app: Application, directory: Path, action: str = "home", name: str | None = None
+    app: Application,
+    directory: Path,
+    action: str = "home",
+    name: str | None = None,
+    *,
+    base: str | None = None,
+    base_version: int | None = None,
+    update_base: bool = False,
 ) -> bool:
     def run(screen):
         interactive = InteractiveApp(app, Terminal(screen), directory)
@@ -56,9 +63,15 @@ def launch(
                     read_only=True,
                 )
             elif action == "profile-create":
-                interactive.profile_wizard()
+                if base is not None or base_version is not None:
+                    interactive.profile_wizard(base=base, base_version=base_version)
+                else:
+                    interactive.profile_wizard()
             elif action == "profile-edit":
-                interactive.profile_wizard(name)
+                if update_base:
+                    interactive.profile_wizard(name, update_base=True)
+                else:
+                    interactive.profile_wizard(name)
             elif action == "profile-delete":
                 interactive.delete_profile(name)
             elif action == "project-create":

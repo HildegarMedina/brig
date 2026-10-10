@@ -11,7 +11,7 @@ from uuid import uuid4
 
 from brig.components.versions import LiveVersionCatalog
 from brig.docker.engine import DockerEngine
-from brig.models import Profile, ProfileRevision, Project, State
+from brig.models import Profile, ProfileVersion, Project, State
 from brig.persistence.store import JsonStateStore
 
 
@@ -30,7 +30,7 @@ class DockerLifecycleTests(unittest.TestCase):
         self.other_id = uuid4().hex
         self.addCleanup(self.temporary.cleanup)
         self.addCleanup(self.remove_resources)
-        revision = ProfileRevision(
+        version = ProfileVersion(
             1,
             {"python": os.environ.get("BRIG_TEST_PYTHON", "3.14.8")},
             {},
@@ -41,7 +41,7 @@ class DockerLifecycleTests(unittest.TestCase):
             "integration-project",
             str(self.source),
             "integration-profile",
-            revision,
+            version,
         )
         other_source = self.directory / "other"
         other_source.mkdir()
@@ -50,10 +50,10 @@ class DockerLifecycleTests(unittest.TestCase):
             "other-project",
             str(other_source),
             "integration-profile",
-            revision,
+            version,
         )
         JsonStateStore(self.data).save(
-            State([Profile("integration-profile", [revision])], [project, other])
+            State([Profile("integration-profile", [version])], [project, other])
         )
 
     def remove_resources(self):
@@ -239,9 +239,9 @@ class DockerLifecycleTests(unittest.TestCase):
             os.environ.get("BRIG_TEST_PLAYWRIGHT")
             or LiveVersionCatalog().compatible_versions("playwright", runtimes)[0]
         )
-        revision = ProfileRevision(2, runtimes, {"playwright": version}, {})
-        state.profiles[0].revisions.append(revision)
-        state.projects[0].configuration = revision
+        version = ProfileVersion(2, runtimes, {"playwright": version}, {})
+        state.profiles[0].versions.append(version)
+        state.projects[0].configuration = version
         store.save(state)
         result = self.brig(
             "run",
@@ -252,7 +252,7 @@ class DockerLifecycleTests(unittest.TestCase):
             'node --version; claude --version; test -w "$CLAUDE_CONFIG_DIR"; test "$(stat -c %a "$CLAUDE_CONFIG_DIR")" = 700',
         )
         self.assertIn("Claude Code", result.stdout)
-        self.assertIn("v" + revision.runtimes["node"], result.stdout)
+        self.assertIn("v" + version.runtimes["node"], result.stdout)
         browser = self.brig(
             "run",
             "integration-project",
@@ -332,7 +332,7 @@ class DockerLifecycleTests(unittest.TestCase):
     def test_all_database_adapters_and_php_connections(self):
         store = JsonStateStore(self.data)
         state = store.load()
-        revision = ProfileRevision(
+        version = ProfileVersion(
             2,
             {"php": os.environ.get("BRIG_TEST_PHP", "8.5.11")},
             {"composer": "2.10.3"},
@@ -344,8 +344,8 @@ class DockerLifecycleTests(unittest.TestCase):
                 "redis": "7.4.2",
             },
         )
-        state.profiles[0].revisions.append(revision)
-        state.projects[0].configuration = revision
+        state.profiles[0].versions.append(version)
+        state.projects[0].configuration = version
         store.save(state)
         self.brig("up", "--project", "integration-project")
         code = """
@@ -403,7 +403,7 @@ class DockerLifecycleTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual(mongo.returncode, 0, mongo.stderr)
-        for name in revision.services:
+        for name in version.services:
             container = self.inspect("container", f"brig-{self.project_id}-{name}")
             self.assertEqual(container["State"]["Health"]["Status"], "healthy")
             self.assertFalse(container["HostConfig"]["PortBindings"])

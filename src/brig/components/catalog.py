@@ -79,6 +79,7 @@ def validate_selection(
     agent: str,
     *,
     versions: VersionCatalog | None = None,
+    inherited: set[str] | frozenset[str] = frozenset(),
 ) -> None:
     """Validate stored shape offline; verify new selections against a live snapshot."""
     if not runtimes:
@@ -106,11 +107,15 @@ def validate_selection(
     if versions is not None:
         for selections in (runtimes, tools, services):
             for name, version in selections.items():
+                if name in inherited:
+                    continue
                 if version not in versions.versions(name):
                     raise BrigError(
                         f"{name} {version} is not available from its version source."
                     )
         for name, version in tools.items():
+            if name in inherited:
+                continue
             issue = versions.compatibility_issue(name, version, runtimes)
             if issue:
                 raise BrigError(issue)

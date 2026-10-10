@@ -28,7 +28,7 @@ class Dashboard:
                     profile.name,
                     f"version {profile.latest.number}",
                     ", ".join(profile.latest.runtimes),
-                    f"{len(profile.revisions)} saved versions",
+                    f"{len(profile.versions)} saved versions",
                     configuration_lines(profile.latest),
                 )
                 for profile in self.app.state.profiles

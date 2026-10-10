@@ -13,9 +13,10 @@ from brig.components.versions import LiveVersionCatalog
 from brig.docker.dockerfile import render_dockerfile
 from brig.engine import EnvironmentEngine
 from brig.errors import BrigError
-from brig.models import Profile, ProfileRevision, Project, State
+from brig.models import Profile, ProfileParent, ProfileVersion, Project, State
 from brig.persistence.export import write_dockerfile
 from brig.persistence.store import StateStore
+from brig.profile_inheritance import resolve_base, would_cycle
 
 
 class Application:
@@ -86,14 +87,53 @@ class Application:
         runtimes: dict[str, str],
         tools: dict[str, str],
         services: dict[str, str],
-        agent: str = "claude",
+        agent: str | None = None,
         *,
         editing: bool = False,
         catalog: VersionCatalog | None = None,
         agents: list[str] | None = None,
+        base: str | None = None,
+        base_version: int | None = None,
+        update_base: bool = False,
     ) -> Profile:
         name = self.validate_profile_name(name, editing=editing)
+        parent = self.profile(name).latest.extends if editing else None
+        if base is not None:
+            base_profile = self.profile(base)
+            parent = ProfileParent(
+                base_profile.name,
+                base_profile.latest.number if base_version is None else base_version,
+            )
+        elif base_version is not None:
+            raise BrigError("A base version requires a base profile.")
+        if update_base:
+            if parent is None:
+                raise BrigError("This profile does not inherit a base profile.")
+            parent = ProfileParent(
+                parent.profile, self.profile(parent.profile).latest.number
+            )
+        if parent and would_cycle(self.state.profiles, name, parent.profile):
+            raise BrigError("Profile inheritance cannot contain cycles.")
+        inherited = resolve_base(self.state.profiles, parent) if parent else None
+        runtimes, tools, services = dict(runtimes), dict(tools), dict(services)
+        if inherited:
+            for selections, pinned in (
+                (runtimes, inherited.runtimes),
+                (tools, inherited.tools),
+                (services, inherited.services),
+            ):
+                for component, version in pinned.items():
+                    if component in selections and selections[component] != version:
+                        raise BrigError(f"Inherited {component} cannot be overridden.")
+                    selections[component] = version
+        agent = (
+            agent if agent is not None else inherited.agent if inherited else "claude"
+        )
         selected_agents = [agent] if agents is None else agents
+        if inherited:
+            selected_agents = list(
+                dict.fromkeys([*inherited.selected_agents, *selected_agents])
+            )
         validate_agents(selected_agents, agent)
         validate_selection(
             runtimes,
@@ -101,6 +141,11 @@ class Application:
             services,
             agent,
             versions=catalog if catalog is not None else self.catalog_factory(),
+            inherited=set(inherited.runtimes)
+            | set(inherited.tools)
+            | set(inherited.services)
+            if inherited
+            else frozenset(),
         )
         candidate = deepcopy(self.state)
         if editing:
@@ -109,14 +154,15 @@ class Application:
         else:
             profile = Profile(name, [])
             candidate.profiles.append(profile)
-        profile.revisions.append(
-            ProfileRevision(
-                len(profile.revisions) + 1,
+        profile.versions.append(
+            ProfileVersion(
+                len(profile.versions) + 1,
                 dict(runtimes),
                 dict(tools),
                 dict(services),
                 agent,
                 list(selected_agents),
+                parent,
             )
         )
         self._commit(candidate)
@@ -132,6 +178,18 @@ class Application:
         if projects:
             raise BrigError(
                 f"Cannot delete profile '{profile.name}'. Used by projects: {', '.join(projects)}."
+            )
+        children = [
+            child.name
+            for child in self.state.profiles
+            if any(
+                version.extends and version.extends.profile == profile.name
+                for version in child.versions
+            )
+        ]
+        if children:
+            raise BrigError(
+                f"Cannot delete profile '{profile.name}'. Inherited by profiles: {', '.join(children)}."
             )
         return profile
 

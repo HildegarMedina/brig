@@ -10,8 +10,9 @@ and Redis. Claude Code, Codex, and OpenCode are available agents.
 ## How it works
 
 - **Profile:** a readable YAML definition of your environment. Available versions
-  are fetched when you choose components; your selections are saved as a revision.
-- **Project:** a local folder with a snapshot of a profile revision. Editing the
+  are fetched when you choose components; your selections are saved as a version.
+  Profiles can inherit a fixed version of another profile and add components.
+- **Project:** a local folder with a snapshot of a profile version. Editing the
   profile does not automatically change existing projects.
 - **Run:** Brig generates the Docker configuration, builds a missing image, starts
   the selected services, and opens a terminal inside the project's container.

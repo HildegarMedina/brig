@@ -11,7 +11,7 @@ from typing import Protocol
 from brig.errors import BrigError
 from brig.models import Profile, State
 from brig.persistence.codec import SCHEMA_VERSION, decode_state
-from brig.persistence.profile_yaml import profile_path, render_profile
+from brig.persistence.profile_yaml import legacy_profile, profile_path, render_profile
 
 
 class StateStore(Protocol):
@@ -51,20 +51,28 @@ class JsonStateStore:
         created_documents = []
         try:
             self.path.parent.mkdir(parents=True, exist_ok=True)
-            # Immutable revision documents are prepared before committing state.
+            # Immutable version documents are prepared before committing state.
             # Existing documents are never replaced during project operations.
             for profile in state.profiles:
-                for revision in profile.revisions:
+                for version in profile.versions:
                     document = profile_path(
-                        self.path.parent, profile.name, revision.number
+                        self.path.parent, profile.name, version.number
                     )
-                    contents = render_profile(profile.name, revision)
+                    contents = render_profile(profile.name, version)
                     if document.exists():
                         if document.read_text(encoding="utf-8") != contents:
                             raise OSError(
-                                f"Profile revision document was modified: {document}"
+                                f"Profile version document was modified: {document}"
                             )
                         continue
+                    legacy, expected = legacy_profile(
+                        self.path.parent, profile.name, version
+                    )
+                    if (
+                        legacy.exists()
+                        and legacy.read_text(encoding="utf-8") != expected
+                    ):
+                        raise OSError(f"Legacy profile document was modified: {legacy}")
                     document.parent.mkdir(parents=True, exist_ok=True)
                     with tempfile.NamedTemporaryFile(
                         mode="w",
@@ -104,16 +112,16 @@ class JsonStateStore:
                 temporary.unlink(missing_ok=True)
 
     def delete_profile(self, state: State, profile: Profile) -> None:
-        directory = profile_path(self.path.parent, profile.name, 1).parent
+        directory = profile_path(self.path.parent, profile.name, 1).parent.parent
         temporary = None
         committed = False
         try:
-            # Move revision files aside before committing state. A failed save
-            # restores the complete directory, including all previous revisions.
+            # Move version files aside before committing state. A failed save
+            # restores the complete directory, including all previous versions.
             temporary = Path(
                 tempfile.mkdtemp(dir=self.path.parent, prefix=".delete-profile-")
             )
-            staged = temporary / "revisions"
+            staged = temporary / "versions"
             moved = False
             if directory.exists():
                 os.replace(directory, staged)
@@ -127,7 +135,7 @@ class JsonStateStore:
                         os.replace(staged, directory)
                     except OSError as error:
                         raise BrigError(
-                            f"Deletion failed and revisions could not be restored. Original YAML files are preserved at {staged}: {error}"
+                            f"Deletion failed and versions could not be restored. Original YAML files are preserved at {staged}: {error}"
                         ) from error
                 raise
         except OSError as error:
@@ -136,6 +144,6 @@ class JsonStateStore:
             ) from error
         finally:
             if temporary is not None and (
-                committed or not (temporary / "revisions").exists()
+                committed or not (temporary / "versions").exists()
             ):
                 shutil.rmtree(temporary, ignore_errors=True)

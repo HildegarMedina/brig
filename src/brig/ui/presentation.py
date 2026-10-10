@@ -1,11 +1,15 @@
 """Plain text summaries shared by both user interfaces."""
 
 from brig.application import Application
-from brig.models import ProfileRevision, Project
+from brig.models import ProfileVersion, Project
 
 
-def configuration_lines(configuration: ProfileRevision) -> list[str]:
+def configuration_lines(configuration: ProfileVersion) -> list[str]:
     lines = [f"Version    {configuration.number}"]
+    if configuration.extends:
+        lines.append(
+            f"Inherits   {configuration.extends.profile} · version {configuration.extends.version}"
+        )
     for label, selections in (
         ("Runtimes", configuration.runtimes),
         ("Tools", configuration.tools),

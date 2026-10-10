@@ -16,7 +16,7 @@ from brig.docker.compose import compose_definition
 from brig.docker.dockerfile import render_dockerfile
 from brig.docker.workspace import DockerWorkspace
 from brig.errors import BrigError
-from brig.persistence.codec import _revision, decode_state
+from brig.persistence.codec import _version, decode_state
 from brig.persistence.profile_yaml import profile_path
 from brig.persistence.store import JsonStateStore
 from tests import test_docker_engine
@@ -231,7 +231,7 @@ class BoundaryTests(unittest.TestCase):
     def test_dockerfile_rejects_invalid_versions_and_missing_runtime_builders(self):
         project = demo_state().projects[0]
         project.configuration.number = 0
-        with self.assertRaisesRegex(BrigError, "invalid profile revision"):
+        with self.assertRaisesRegex(BrigError, "invalid profile version"):
             render_dockerfile(project)
         project.configuration.number = 1
         with (
@@ -275,13 +275,13 @@ class BoundaryTests(unittest.TestCase):
             ):
                 decode_state(raw)
         for field, value, message in (
-            ("number", 0, "revision number"),
+            ("number", 0, "version number"),
             ("tools", [], "version mapping"),
         ):
             raw = asdict(demo_state().profiles[0].latest)
             raw[field] = value
             with self.assertRaisesRegex(ValueError, message):
-                _revision(raw)
+                _version(raw)
 
     def test_storage_read_errors_and_modified_yaml_preserve_originals(self):
         with tempfile.TemporaryDirectory() as folder:

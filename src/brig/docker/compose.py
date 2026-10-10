@@ -67,10 +67,13 @@ def yaml_document(value, indent=0) -> str:
 def compose_definition(
     project: Project, image: str, uid: int, gid: int, *, agent_volumes=None
 ) -> dict:
-    revision = project.configuration
-    validate_agents(revision.selected_agents, revision.agent)
+    configuration = project.configuration
+    validate_agents(configuration.selected_agents, configuration.agent)
     validate_selection(
-        revision.runtimes, revision.tools, revision.services, revision.agent
+        configuration.runtimes,
+        configuration.tools,
+        configuration.services,
+        configuration.agent,
     )
     if not project.path or not Path(project.path).is_dir():
         raise BrigError(
@@ -106,7 +109,7 @@ def compose_definition(
     volumes = {"home": {"name": f"{prefix}-home", "labels": labels}}
     add_agent_storage(project, services, volumes, labels, uid, agent_volumes)
     dependencies = {}
-    for name, version in sorted(revision.services.items()):
+    for name, version in sorted(configuration.services.items()):
         add_database_service(services, volumes, name, version, prefix, labels)
         dependencies[name] = {"condition": "service_healthy"}
     if dependencies:
@@ -169,8 +172,8 @@ def add_database_service(services, volumes, name, version, prefix, labels) -> No
 
 
 def add_agent_storage(project, services, volumes, labels, uid, agent_volumes) -> None:
-    revision = project.configuration
-    for agent in sorted(revision.selected_agents):
+    configuration = project.configuration
+    for agent in sorted(configuration.selected_agents):
         integration = AGENTS[agent]
         if not integration.config_directory:
             continue

@@ -16,7 +16,7 @@ from brig.components.agents import AGENTS, validate_agents
 from brig.docker.compose import compose_definition
 from brig.docker.dockerfile import render_dockerfile
 from brig.errors import BrigError
-from brig.models import ProfileRevision
+from brig.models import ProfileVersion
 from brig.persistence.profile_yaml import profile_path
 from brig.persistence.store import JsonStateStore
 from brig.ui.tui import InteractiveApp
@@ -42,9 +42,9 @@ class AgentTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             store = JsonStateStore(Path(folder))
             app = Application(store, DemoEngine(), FakeVersionCatalog)
-            # Simulate a schema-1 revision from before the agent list existed.
+            # Simulate a schema-1 version from before the agent list existed.
             app.save_profile("legacy", {"python": "3.12.8"}, {}, {})
-            app.state.profiles[0].revisions[0].agents = None
+            app.state.profiles[0].versions[0].agents = None
             document = profile_path(Path(folder), "legacy", 1)
             document.unlink()
             store.save(app.state)
@@ -70,9 +70,9 @@ class AgentTests(unittest.TestCase):
                 choices=[0, 1],
             )
             InteractiveApp(app, terminal, Path(folder) / "data").profile_wizard()
-            revision = app.profile("both-agents").latest
-            self.assertEqual(revision.selected_agents, ["claude", "codex"])
-            self.assertEqual(revision.agent, "codex")
+            version = app.profile("both-agents").latest
+            self.assertEqual(version.selected_agents, ["claude", "codex"])
+            self.assertEqual(version.agent, "codex")
             self.assertEqual(store.load(), app.state)
             contents = profile_path(Path(folder) / "data", "both-agents", 1).read_text()
             self.assertIn('agents:\n  - "claude"\n  - "codex"', contents)
@@ -100,11 +100,11 @@ class AgentTests(unittest.TestCase):
     def test_corrupt_stored_agent_selection_is_rejected(self):
         from dataclasses import asdict
 
-        from brig.persistence.codec import _revision
+        from brig.persistence.codec import _version
 
-        raw = asdict(ProfileRevision(1, {"python": "3.12.8"}, {}, {}, agents=[]))
+        raw = asdict(ProfileVersion(1, {"python": "3.12.8"}, {}, {}, agents=[]))
         with self.assertRaisesRegex(BrigError, "at least one agent"):
-            _revision(raw)
+            _version(raw)
 
     def test_native_adapters_only_install_selected_agents_for_each_runtime(self):
         with tempfile.TemporaryDirectory() as folder:

@@ -26,7 +26,7 @@ class ComposeTests(unittest.TestCase):
         self.project.path = self.folder.name
 
     def test_services_have_pinned_images_healthchecks_and_persistent_private_data(self):
-        definition = compose_definition(self.project, "brig-test:revision", 1234, 4321)
+        definition = compose_definition(self.project, "brig-test:version", 1234, 4321)
         dev = definition["services"]["dev"]
         self.assertEqual(dev["build"]["args"], {"BRIG_UID": "1234", "BRIG_GID": "4321"})
         self.assertEqual(dev["volumes"][0]["source"], self.project.path)

@@ -16,8 +16,9 @@ brig/
 ├── state.json
 ├── profiles/
 │   └── profile-ENCODED_NAME/
-│       ├── revision-1.yaml
-│       └── revision-2.yaml
+│       └── versions/
+│           ├── version-1.yaml
+│           └── version-2.yaml
 └── runtime/
     └── brig-PROJECT_ID/
         ├── credentials.json
@@ -32,24 +33,40 @@ brig/
 
 ## Definitions
 
-`state.json` contains the storage schema, profiles, revision history, project
+`state.json` contains the storage schema, profiles, version history, project
 registrations, and their snapshots. A project's ID identifies its resources; its
 name selects it from the CLI.
 
-Profile folder names are encoded and use the `profile-` prefix. Each revision
-produces a separate YAML document with versions written as strings. YAML documents
+Profile folder names are encoded and use the `profile-` prefix. Each version
+produces a separate YAML document under `versions/`, with component releases
+written as strings. YAML documents
 support reading and sharing, but importing them or applying manual edits to state
 is not implemented.
 
+New state and YAML documents use schema version 2. Profiles store their history
+as `versions`; YAML uses `version: N`. The reader accepts schema 1 state. At the
+next successful save, Brig writes schema 2 and creates documents in the new
+layout, checking any original YAML before copying it. Original legacy YAML files
+are retained unchanged. Keep a backup before switching to an older Brig release,
+which cannot read the newer schema.
+
+Inherited profile versions include an `extends` reference with a base profile
+name and a fixed version number. They also retain the full resolved configuration
+for portable review and existing project snapshots. Loading validates references,
+cycles, and preservation of inherited selections offline. A base cannot be deleted
+while any saved child version references it. Updating the base of a child is an
+explicit operation that creates a new child version; Docker does not resolve
+profile inheritance at runtime.
+
 Loading validates the schema and profile/project relationships without internet.
 An incompatible or corrupt file produces an error and is not silently replaced.
-State and YAML writes use temporary files. If saving a revision fails, its newly
+State and YAML writes use temporary files. If saving a version fails, its newly
 created documents are removed.
 
 ## Engine artifacts
 
 The engine generates a directory per Dockerfile and UID/GID hash. Dockerfile
-labels include the project name, profile, and revision. Applying another revision
+labels include the project name, profile, and version. Applying another version
 may produce a different image and directory.
 
 The build context excludes every file except the Dockerfile. `compose.yaml` uses

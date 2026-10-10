@@ -36,7 +36,7 @@ roughly 400 lines and functions above 100 lines; these are review signals, not
 hard limits. Dockerfile generation has explicit ordered stages, and Compose
 assembly delegates database and agent storage definitions to separate helpers.
 Internal Python module paths changed in this reorganization; CLI commands,
-stored schema, profile revisions, and generated resource names remain compatible.
+stored schema, profile versions, and generated resource names remain compatible.
 
 You can keep definitions separate from your regular projects:
 
@@ -159,8 +159,8 @@ and environment variable, and optional history subdirectory. An adapter without 
 unavailable. The wizard, profile validation, image generator, and launcher use
 this registry, so adding an adapter does not require a new CLI command.
 
-Profile revisions store `agents` and a default `agent`. Validate that the default
-is selected, preserve project snapshots, and keep old single-agent revisions and
+Profile versions store `agents` and a default `agent`. Validate that the default
+is selected, preserve project snapshots, and keep old single-agent versions and
 their immutable YAML readable. Verify actual execution and persistence across
 projects and container recreation before making a new integration selectable.
 

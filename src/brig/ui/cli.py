@@ -30,10 +30,16 @@ def parser() -> argparse.ArgumentParser:
     profiles = commands.add_parser(
         "profile", help="manage reusable environment profiles"
     ).add_subparsers(dest="action", required=True)
-    profiles.add_parser("create", help="open the profile creation wizard")
+    creation = profiles.add_parser("create", help="open the profile creation wizard")
+    creation.add_argument("--base", metavar="PROFILE", help="inherit a profile")
+    creation.add_argument(
+        "--base-version", type=int, metavar="VERSION", help="pin a base version"
+    )
     profiles.add_parser("list", help="list profiles")
-    profiles.add_parser("edit", help="create a new profile version").add_argument(
-        "name"
+    edition = profiles.add_parser("edit", help="create a new profile version")
+    edition.add_argument("name")
+    edition.add_argument(
+        "--update-base", action="store_true", help="inherit the latest base version"
     )
     deletion = profiles.add_parser(
         "delete", help="delete an unused profile and its YAML versions"
@@ -193,7 +199,13 @@ def main(argv: list[str] | None = None) -> int:
             return (
                 0
                 if launch(
-                    app, args.data_dir.expanduser(), action, getattr(args, "name", None)
+                    app,
+                    args.data_dir.expanduser(),
+                    action,
+                    getattr(args, "name", None),
+                    base=getattr(args, "base", None),
+                    base_version=getattr(args, "base_version", None),
+                    update_base=getattr(args, "update_base", False),
                 )
                 else 1
             )

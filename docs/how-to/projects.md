@@ -103,6 +103,30 @@ Configure your application to use these variables. Brig does not modify its
 `.env` file. PHP receives PDO MySQL for MySQL/MariaDB and PDO PostgreSQL for
 PostgreSQL. PHP extensions for MongoDB and Redis are not installed automatically.
 
+## Create an inherited profile
+
+```bash
+brig profile create --base python-dev --base-version 1
+```
+
+Name the new profile and select its additional components. The wizard shows the
+base configuration separately and offers only runtimes, tools, services, and
+agents that are not inherited. You can also run `brig profile create` and choose
+the base interactively. A child may inherit another child; cycles are rejected.
+
+Changing `python-dev` leaves the child pinned to version 1. To explicitly adopt
+the latest base version:
+
+```bash
+brig profile edit my-child-profile --update-base
+```
+
+Review the inherited configuration and the child's own additions, then save its
+new version. Projects still require their usual explicit `project update`.
+Inherited components cannot be removed or overridden in the child. A profile
+referenced as a base by any saved child version cannot be deleted; remove its
+dependent child profiles first, after their projects no longer reference them.
+
 ## Update a profile used by a project
 
 ```bash
@@ -112,8 +136,8 @@ brig project update my-api
 brig run my-api
 ```
 
-Editing a profile creates another revision. The project keeps its previous
-revision until you run `project update`, which adopts the latest revision of its
+Editing a profile creates another version. The project keeps its previous
+version until you run `project update`, which adopts the latest version of its
 profile. The next execution generates the corresponding configuration.
 
 Changing a service's major version when it has persistent data requires a data

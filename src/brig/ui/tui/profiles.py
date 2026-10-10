@@ -1,4 +1,4 @@
-"""Interactive profile selection, revisions and deletion."""
+"""Interactive profile selection, versions and deletion."""
 
 from pathlib import Path
 
@@ -14,11 +14,13 @@ from brig.components.catalog import (
 )
 from brig.components.providers import source_label
 from brig.errors import BrigError, Cancelled, IncompatibleSelection
-from brig.models import ProfileRevision
+from brig.models import ProfileVersion
 from brig.persistence.profile_yaml import profile_path
+from brig.profile_inheritance import resolve_base
 from brig.ui.listings import list_rows
 from brig.ui.presentation import configuration_lines
 from brig.ui.tui.browser import choose_list
+from brig.ui.tui.profile_inheritance import choose_parent, local_defaults
 from brig.ui.tui.terminal import Terminal
 
 
@@ -140,7 +142,14 @@ class ProfileViews:
         )
         runtimes[required] = self._select_version(required, {}, live)
 
-    def profile_wizard(self, name: str | None = None) -> None:
+    def profile_wizard(
+        self,
+        name: str | None = None,
+        *,
+        base: str | None = None,
+        base_version: int | None = None,
+        update_base: bool = False,
+    ) -> None:
         editing = name is not None
         existing = self.app.profile(name).latest if editing else None
         title = "Edit profile" if editing else "Create profile"
@@ -151,55 +160,97 @@ class ProfileViews:
                 required_message="Profile name is required. Enter a name to continue.",
                 validator=self.app.validate_profile_name,
             )
-        runtime_defaults = existing.runtimes if existing else {}
-        tool_defaults = existing.tools if existing else {}
-        while True:
-            runtimes = self._select_versions(
-                f"{title} · 2/6 · runtimes",
-                RUNTIMES,
-                runtime_defaults,
-                live,
-                required_message="Select a runtime with Space to continue.",
+        parent = choose_parent(
+            self.app,
+            self.ui,
+            existing,
+            base=base,
+            base_version=base_version,
+            update_base=update_base,
+        )
+        inherited = resolve_base(self.app.state.profiles, parent) if parent else None
+        pinned_runtimes = inherited.runtimes if inherited else {}
+        pinned_tools = inherited.tools if inherited else {}
+        pinned_services = inherited.services if inherited else {}
+        if inherited:
+            self.ui.notice(
+                "Inherited configuration",
+                [
+                    *configuration_lines(inherited),
+                    "Only additional components are selectable.",
+                ],
             )
+        defaults = local_defaults(self.app, existing)
+        runtime_defaults = defaults.runtimes if defaults else {}
+        tool_defaults = defaults.tools if defaults else {}
+        while True:
+            runtimes = {
+                **pinned_runtimes,
+                **self._select_versions(
+                    f"{title} · 2/6 · runtimes",
+                    {
+                        n: item
+                        for n, item in RUNTIMES.items()
+                        if n not in pinned_runtimes
+                    },
+                    runtime_defaults,
+                    live,
+                    required_message=None
+                    if inherited
+                    else "Select a runtime with Space to continue.",
+                ),
+            }
             runtime_defaults = runtimes
             available_tools = {
                 n: t
                 for n, t in TOOLS.items()
-                if t.runtime in runtimes or n == "playwright"
+                if n not in pinned_tools
+                and (t.runtime in runtimes or n == "playwright")
             }
             try:
-                tools = self._select_versions(
-                    f"{title} · 3/6 · tools · compatible versions only",
-                    available_tools,
-                    {n: v for n, v in tool_defaults.items() if n in available_tools},
-                    live,
-                    runtimes=runtimes,
-                )
+                tools = {
+                    **pinned_tools,
+                    **self._select_versions(
+                        f"{title} · 3/6 · tools · compatible versions only",
+                        available_tools,
+                        {
+                            n: v
+                            for n, v in tool_defaults.items()
+                            if n in available_tools
+                        },
+                        live,
+                        runtimes=runtimes,
+                    ),
+                }
                 break
             except IncompatibleSelection as error:
                 self.ui.notice(
                     "Choose a compatible runtime and tools", [str(error)], error=True
                 )
-        services = self._select_versions(
-            f"{title} · 4/6 · databases and caches",
-            SERVICES,
-            existing.services if existing else {},
-            live,
-        )
-        agents, agent = self._select_agents(title, existing)
-        revision = ProfileRevision(
+        services = {
+            **pinned_services,
+            **self._select_versions(
+                f"{title} · 4/6 · databases and caches",
+                {n: item for n, item in SERVICES.items() if n not in pinned_services},
+                defaults.services if defaults else {},
+                live,
+            ),
+        }
+        agents, agent = self._select_agents(title, defaults, inherited)
+        version = ProfileVersion(
             existing.number + 1 if existing else 1,
             runtimes,
             tools,
             services,
             agent,
             agents,
+            parent,
         )
         if not self.ui.confirm(
             f"{title} · 6/6 · review",
             [
                 f"Name       {name}",
-                *configuration_lines(revision),
+                *configuration_lines(version),
                 "",
                 "Existing projects keep their current version.",
             ],
@@ -214,6 +265,8 @@ class ProfileViews:
             agents=agents,
             editing=editing,
             catalog=live,
+            base=parent.profile if parent else None,
+            base_version=parent.version if parent else None,
         )
         self.ui.notice(
             "Profile saved",
@@ -229,7 +282,7 @@ class ProfileViews:
             f"Delete profile '{profile.name}'",
             [
                 f"Name       {profile.name}",
-                f"Versions   {len(profile.revisions)}",
+                f"Versions   {len(profile.versions)}",
                 "All versions and their YAML files will be deleted.",
             ],
             action="Delete profile",
@@ -269,33 +322,53 @@ class ProfileViews:
                 self.ui.notice("Could not complete action", [str(error)], error=True)
 
     def _select_agents(
-        self, title: str, existing: ProfileRevision | None
+        self,
+        title: str,
+        existing: ProfileVersion | None,
+        inherited: ProfileVersion | None = None,
     ) -> tuple[list[str], str]:
         available_agents = {
             name: integration
             for name, integration in AGENTS.items()
             if integration.available
+            and (inherited is None or name not in inherited.selected_agents)
         }
         agent_options = {
             f"{name} · {integration.name}": name
             for name, integration in available_agents.items()
         }
-        selected_options = self.ui.multiple(
-            f"{title} · 5/6 · agents",
-            list(agent_options),
-            {
-                option
-                for option, agent in agent_options.items()
-                if agent in (existing.selected_agents if existing else ["claude"])
-            },
-            required_message="Select at least one agent with Space to continue.",
+        selected_options = (
+            self.ui.multiple(
+                f"{title} · 5/6 · agents",
+                list(agent_options),
+                {
+                    option
+                    for option, agent in agent_options.items()
+                    if agent
+                    in (
+                        existing.selected_agents
+                        if existing
+                        else []
+                        if inherited
+                        else ["claude"]
+                    )
+                },
+                required_message=None
+                if inherited
+                else "Select at least one agent with Space to continue.",
+            )
+            if agent_options
+            else []
         )
-        agents = [agent_options[option] for option in selected_options]
+        agents = (inherited.selected_agents if inherited else []) + [
+            agent_options[option] for option in selected_options
+        ]
         agent = agents[0]
         if len(agents) > 1:
+            reference = existing or inherited
             default = (
-                agents.index(existing.agent)
-                if existing and existing.agent in agents
+                agents.index(reference.agent)
+                if reference and reference.agent in agents
                 else 0
             )
             agent = agents[

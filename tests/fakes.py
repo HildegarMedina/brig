@@ -4,7 +4,7 @@ from copy import deepcopy
 from uuid import uuid4
 
 from brig.errors import BrigError
-from brig.models import Profile, ProfileRevision, Project, State
+from brig.models import Profile, ProfileVersion, Project, State
 
 
 class FakeVersionCatalog:
@@ -72,11 +72,11 @@ class MemoryStore:
 
 
 def demo_state() -> State:
-    web = ProfileRevision(
+    web = ProfileVersion(
         1, {"php": "8.3.15"}, {"composer": "2.8.5"}, {"postgresql": "17.2"}
     )
-    python = ProfileRevision(1, {"python": "3.11.11"}, {"uv": "0.5.24"}, {})
-    python_new = ProfileRevision(
+    python = ProfileVersion(1, {"python": "3.11.11"}, {"uv": "0.5.24"}, {})
+    python_new = ProfileVersion(
         2, {"python": "3.12.8"}, {"uv": "0.5.24"}, {"redis": "7.4.2"}
     )
     return State(

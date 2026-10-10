@@ -4,56 +4,63 @@ from pathlib import Path
 
 from brig.components.agents import validate_agents
 from brig.components.catalog import validate_selection
-from brig.models import Profile, ProfileRevision, Project, State
+from brig.models import Profile, ProfileParent, ProfileVersion, Project, State
+from brig.profile_inheritance import validate_relationships
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
-def _revision(raw: dict) -> ProfileRevision:
-    revision = ProfileRevision(**raw)
-    if type(revision.number) is not int or revision.number < 1:
-        raise ValueError("Invalid revision number")
-    for mapping in (revision.runtimes, revision.tools, revision.services):
+def _version(raw: dict) -> ProfileVersion:
+    record = dict(raw)
+    if record.get("extends") is not None:
+        record["extends"] = ProfileParent(**record["extends"])
+    version = ProfileVersion(**record)
+    if type(version.number) is not int or version.number < 1:
+        raise ValueError("Invalid version number")
+    for mapping in (version.runtimes, version.tools, version.services):
         if not isinstance(mapping, dict) or not all(
             isinstance(k, str) and isinstance(v, str) for k, v in mapping.items()
         ):
             raise ValueError("Invalid version mapping")
-    validate_selection(
-        revision.runtimes, revision.tools, revision.services, revision.agent
-    )
+    validate_selection(version.runtimes, version.tools, version.services, version.agent)
     validate_agents(
-        [revision.agent] if revision.agents is None else revision.agents,
-        revision.agent,
+        [version.agent] if version.agents is None else version.agents,
+        version.agent,
     )
-    return revision
+    return version
 
 
 def decode_state(raw: dict) -> State:
     if set(raw) != {"schema_version", "profiles", "projects"}:
         raise ValueError("Invalid state fields")
-    if (
-        type(raw["schema_version"]) is not int
-        or raw["schema_version"] != SCHEMA_VERSION
+    if type(raw["schema_version"]) is not int or raw["schema_version"] not in (
+        1,
+        SCHEMA_VERSION,
     ):
         raise ValueError("Unsupported schema version")
     if not isinstance(raw["profiles"], list) or not isinstance(raw["projects"], list):
         raise TypeError("Profiles and projects must be lists")
     profiles = []
     for item in raw["profiles"]:
-        if set(item) != {"name", "revisions"}:
+        field = (
+            "revisions"
+            if raw["schema_version"] == 1 and "revisions" in item
+            else "versions"
+        )
+        if set(item) != {"name", field}:
             raise ValueError("Invalid profile fields")
-        revisions = [_revision(r) for r in item["revisions"]]
-        if [r.number for r in revisions] != list(
-            range(1, len(revisions) + 1)
-        ) or not revisions:
-            raise ValueError("Invalid revision history")
-        profiles.append(Profile(item["name"], revisions))
+        versions = [_version(r) for r in item[field]]
+        if [r.number for r in versions] != list(
+            range(1, len(versions) + 1)
+        ) or not versions:
+            raise ValueError("Invalid version history")
+        profiles.append(Profile(item["name"], versions))
     projects = []
     for item in raw["projects"]:
         if set(item) != {"id", "name", "path", "profile", "configuration", "running"}:
             raise ValueError("Invalid project fields")
         record = dict(item)
-        record["configuration"] = _revision(record["configuration"])
+        record["configuration"] = _version(record["configuration"])
         project = Project(**record)
         if not isinstance(project.id, str) or not project.id:
             raise ValueError("Invalid project ID")
@@ -81,9 +88,10 @@ def decode_state(raw: dict) -> State:
     paths = [p.path for p in projects if p.path is not None]
     if len(set(paths)) != len(paths):
         raise ValueError("Duplicate project paths")
+    validate_relationships(profiles)
     by_name = {p.name: p for p in profiles}
     for project in projects:
         profile = by_name.get(project.profile)
-        if profile is None or project.configuration not in profile.revisions:
-            raise ValueError("Project references an unknown profile revision")
+        if profile is None or project.configuration not in profile.versions:
+            raise ValueError("Project references an unknown profile version")
     return State(profiles, projects)

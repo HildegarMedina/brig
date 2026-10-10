@@ -18,7 +18,7 @@ notice. At least one runtime is required; tools
 and services are optional. A profile can select several runtimes and services.
 
 Profiles select an `agents` list and a default `agent` from that list. Existing
-revisions containing only `agent` select that one agent automatically. Claude Code,
+versions containing only `agent` select that one agent automatically. Claude Code,
 Codex, and OpenCode can be selected individually or together.
 
 Selected agents use their official native installers, without requiring Node.js.
@@ -140,9 +140,9 @@ This example uses illustrative versions; the wizard shows releases available
 when you create or edit the profile:
 
 ```yaml
-schema_version: 1
+schema_version: 2
 name: "web-dev"
-revision: 1
+version: 1
 runtimes:
   php: "8.3.15"
 tools:
@@ -157,5 +157,18 @@ agent: "claude"
 ```
 
 This file is a readable snapshot, not a Docker Compose file. Changes create a
-new revision without modifying the previous one. Projects retain their snapshots
+new version without modifying the previous one. Projects retain their snapshots
 until explicitly updated.
+
+An inherited version additionally identifies its base:
+
+```yaml
+extends:
+  profile: "base-python"
+  version: 2
+```
+
+The remaining sections contain the resolved configuration, including inherited
+components and the child's additions. The wizard hides inherited installations
+from selection. Existing pinned inherited releases are kept without refetching
+them; only new additions are checked against available releases.

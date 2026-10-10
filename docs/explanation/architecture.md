@@ -1,24 +1,31 @@
 # How the system works
 
 Brig separates environment definitions from execution. A profile describes
-components; a project pins a revision and a folder; the engine turns that
+components; a project pins a version and a folder; the engine turns that
 definition into a Docker environment owned by that project.
 
-## Profiles, revisions, and projects
+## Profiles, versions, and projects
 
 A **profile** is reusable. It defines runtimes, tools, services, and a default
-agent. Creating or editing a profile saves a revision with concrete versions. Its
-YAML document makes that revision readable and shareable.
+agent. Creating or editing a profile saves a version with concrete versions. Its
+YAML document makes that version readable and shareable.
 
 A **project** registers an existing folder and an independent snapshot of a
-profile revision. Two projects can use the same profile while retaining different
-revisions. Editing the profile does not change its projects. `brig project update`
-applies the latest revision to a stopped project.
+profile version. Two projects can use the same profile while retaining different
+versions. Editing the profile does not change its projects. `brig project update`
+applies the latest version to a stopped project.
+
+Profile inheritance belongs to definition creation and storage. Each child
+version pins one base version, includes its selections, and adds local components.
+Base updates create new child versions only when requested. Relationships are
+validated against cycles and protected deletion, including historical versions.
+Projects receive the full configuration snapshot, so Docker executes the same
+configuration flow for independent and inherited profiles.
 
 ```mermaid
 flowchart LR
-    Profile[Profile] --> R1[Revision 1]
-    Profile --> R2[Revision 2]
+    Profile[Profile] --> R1[Version 1]
+    Profile --> R2[Version 2]
     R1 --> A[Project A: folder and snapshot]
     R2 --> B[Project B: folder and snapshot]
     A --> EA[Docker environment for A]
@@ -26,7 +33,7 @@ flowchart LR
 ```
 
 The application loads `state.json`. It contains profile history and project
-snapshots. YAML documents are written alongside revisions, but the engine does
+snapshots. YAML documents are written alongside versions, but the engine does
 not reread them or apply manual edits.
 
 ## What happens during `brig run my-api`
@@ -131,7 +138,7 @@ flowchart TD
 
 | Layer | Responsibility |
 | --- | --- |
-| `models` | Profiles, revisions, projects, and state records |
+| `models` | Profiles, versions, projects, and state records |
 | `components/` | Component/agent definitions, upstream providers, and declared requirements |
 | `persistence/` | State decoding, JSON/YAML transactions, and file export |
 | `application` | Creation, updates, deletion, and engine coordination |

@@ -88,6 +88,10 @@ class ScriptedTerminal:
         self.messages.append(("Loading", [message]))
 
     def choose(self, *args, **kwargs):
+        if args[0] == "Base profile":
+            # Existing flow fixtures create standalone profiles unless explicitly
+            # testing inheritance with a terminal that selects a base.
+            return 0
         self.version_choices.append((args, kwargs))
         return next(self.choices)
 
@@ -564,7 +568,7 @@ class WizardTests(unittest.TestCase):
         )
         InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard("python_dev")
         self.assertEqual(self.app.profile("python_dev").latest.number, 3)
-        self.assertEqual(self.app.profile("python_dev").revisions[1], original)
+        self.assertEqual(self.app.profile("python_dev").versions[1], original)
         self.assertEqual(self.app.state.projects, projects)
         self.assertEqual(
             len(

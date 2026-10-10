@@ -61,7 +61,7 @@ with `latest`.
 
 Read the Docker output. Resolve the network, availability, or architecture issue
 and run `brig run my-api` again. If you need another version, edit the profile
-and apply its new revision to the stopped project.
+and apply its new version to the stopped project.
 
 ## A service never becomes healthy
 

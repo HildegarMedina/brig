@@ -9,7 +9,7 @@ from unittest.mock import patch
 from brig.application import Application
 from brig.docker.dockerfile import render_dockerfile
 from brig.errors import BrigError
-from brig.models import ProfileRevision, Project, State
+from brig.models import ProfileVersion, Project, State
 from brig.persistence.export import write_dockerfile
 from tests.demo_engine import DemoEngine
 from tests.fakes import FakeVersionCatalog, MemoryStore
@@ -21,7 +21,7 @@ def php_project(services=None):
         "laravel-project",
         None,
         "laravel",
-        ProfileRevision(1, {"php": "8.3.15"}, {"composer": "2.8.5"}, services or {}),
+        ProfileVersion(1, {"php": "8.3.15"}, {"composer": "2.8.5"}, services or {}),
     )
 
 

@@ -80,7 +80,7 @@ brig project init
 Use `my-api` as the project name, the current folder, and the `python-dev` profile.
 The name must use `kebab-case`: lowercase letters, numbers, and single hyphens
 between words. The wizard registers the folder and a snapshot of the profile
-revision; it does not create application code.
+version; it does not create application code.
 
 ```bash
 brig project show my-api

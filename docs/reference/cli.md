@@ -9,21 +9,35 @@ brig --version
 ```
 
 Without a command, Brig opens the terminal interface. `--data-dir` must appear
-before the command and changes the directory for definitions, revisions, and
+before the command and changes the directory for definitions, versions, and
 engine artifacts.
 
 ## Profiles
 
 | Command | Effect |
 | --- | --- |
-| `brig profile create` | Wizard to save the first version |
+| `brig profile create [--base PROFILE] [--base-version VERSION]` | Wizard to save the first version, optionally inheriting a base |
 | `brig profile list` | List names and latest versions |
-| `brig profile edit NAME` | Wizard that creates another version |
+| `brig profile edit NAME [--update-base]` | Wizard that creates another version; optionally use the latest base version |
 | `brig profile delete NAME [--yes]` | Delete an unreferenced profile and its YAML documents |
 
 Creating and editing require an interactive terminal and internet to fetch
 selected components. Save confirmations default to **Save**. Deletion confirmations
 default to **Cancel**; `--yes` confirms directly.
+
+Profile creation offers an independent profile or an existing base profile and
+version. `--base` preselects the base; `--base-version` requires `--base`. The
+wizard shows inherited configuration for review and offers only components and
+agents not already inherited. Inherited components cannot be deselected or
+overridden. Additional tools can use inherited runtimes.
+
+Inheritance pins a saved base version and supports chains. Editing a base never
+changes a child automatically. Edit a child with `--update-base` to adopt its
+base's latest version, preserving the child's own additions; normal editing
+offers an explicit Keep/Update choice if a newer base exists. This saves a new
+child version, and existing projects retain their snapshots. Self-inheritance and
+cycles are rejected. A base referenced by any saved child version cannot be
+deleted, including with `--yes`.
 
 ## Projects
 
@@ -99,7 +113,7 @@ brig agent [AGENT] [--project NAME]
 Builds a missing image, starts the selected project, and launches its selected
 agent inside the development container at `/workspace`. An interactive terminal
 is required. Omitting `AGENT` uses the profile's default agent. Only agents in the
-project's pinned revision can be launched.
+project's pinned version can be launched.
 
 ```bash
 brig agent codex --project my-api
@@ -155,8 +169,9 @@ handle editing and deletion. Status is refreshed on entry, on `r`, and after act
 `brig profile list` and `brig project list` open the same dashboard for that
 section when both input and output are interactive. These views are read-only:
 Enter opens details and Esc exits. Redirected output retains a compact text list.
-Profile version numbers continue the existing numbering; stored files keep their
-format and require no migration.
+Profile version numbers continue the existing numbering. New documents use
+`versions/version-N.yaml`; older state and YAML documents remain compatible
+through the storage layer described in [storage](storage.md).
 
 Arrow keys navigate; Enter selects; Space toggles multiple selections; Esc goes
 back; Ctrl+C exits. Version selectors support searching with `/`. Ctrl+U clears

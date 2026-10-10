@@ -4,7 +4,7 @@ import os
 import unittest
 
 from brig.docker.engine import DockerEngine
-from brig.models import ProfileRevision
+from brig.models import ProfileVersion
 from brig.persistence.store import JsonStateStore
 from tests.integration import test_lifecycle
 
@@ -40,7 +40,7 @@ class AgentLifecycleTests(unittest.TestCase):
     def test_native_agents_share_credentials_and_keep_project_state(self):
         store = JsonStateStore(self.data)
         state = store.load()
-        revision = ProfileRevision(
+        version = ProfileVersion(
             2,
             {"python": os.environ.get("BRIG_TEST_PYTHON", "3.14.8")},
             {},
@@ -48,11 +48,11 @@ class AgentLifecycleTests(unittest.TestCase):
             agent="codex",
             agents=["claude", "codex", "opencode"],
         )
-        state.profiles[0].revisions.append(revision)
+        state.profiles[0].versions.append(version)
         for project in state.projects:
-            project.configuration = revision
+            project.configuration = version
         store.save(state)
-        for agent in revision.selected_agents:
+        for agent in version.selected_agents:
             result = self.brig(
                 "run", "integration-project", "--command", agent, "--version"
             )
