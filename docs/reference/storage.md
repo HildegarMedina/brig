@@ -65,6 +65,37 @@ connections received by the development container. Generated files have mode
 state editing still does not coordinate all writers: use one session at a time
 when creating, editing, or deleting definitions.
 
+## Project context and attachments
+
+Each project's existing `/workspace` mount exposes its local context folder:
+
+```text
+PROJECT_FOLDER/
+└── .brig/
+    └── context/
+        ├── .gitignore
+        ├── design-notes.md
+        └── attachments/
+            └── brig-UNIQUE_ID/
+                └── screenshot.png
+```
+
+`brig project attach NAME FILE [FILE ...]` creates independent copies and prints
+their `/workspace/.brig/context/attachments/…` paths. No new Docker mount, image
+build, or state-schema migration is needed. Files belong to this project and are
+accessible to its agents through the normal writable workspace mount.
+
+`attachments/` is reserved for disposable copies. `project detach NAME` and a
+successful project shutdown remove that directory while preserving original
+source files and permanent context such as `design-notes.md`. Leaving an agent
+or shell does not trigger cleanup. Files have no timed expiry; clean up explicitly
+after an interrupted session. Removing files does not remove agent history.
+
+The first attachment creates context's `.gitignore` with `*` if none exists,
+without changing the project's main `.gitignore`. Existing context ignore rules
+and tracked files are kept. Context paths that are symlinks or non-directories
+are rejected to avoid copying or removing files outside the reserved location.
+
 ## Docker resources
 
 Names use the `brig-PROJECT_ID` prefix:

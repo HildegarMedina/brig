@@ -44,6 +44,44 @@ use `--command bash -lc 'your command'`.
 The program works at `/workspace` and uses the container user. Finishing the
 program keeps the environment running.
 
+## Share images and context with an agent
+
+From a host terminal, attach one or more local files:
+
+```bash
+brig project attach my-api ~/Downloads/design.png ~/Documents/requirements.txt
+```
+
+Brig keeps the originals and prints the paths to independent copies, for example:
+
+```text
+/workspace/.brig/context/attachments/brig-EXAMPLE/design.png
+/workspace/.brig/context/attachments/brig-OTHER/requirements.txt
+```
+
+Use the actual returned path in your agent's prompt: "Build the interface using
+the image at `/workspace/.brig/context/attachments/brig-EXAMPLE/design.png`."
+Files are available immediately through the existing project mount, including
+when Claude, Codex, or OpenCode is already running. Supported document and image
+formats depend on the agent. Attaching a file does not submit it to the chat.
+
+To keep reusable context, place it directly in your project's `.brig/context/`
+folder, outside the reserved `attachments/` directory. The first attachment
+creates a `.gitignore` inside the context folder that ignores its contents;
+existing context ignore rules are preserved. Already tracked files remain tracked.
+
+Remove all attachment copies when finished:
+
+```bash
+brig project detach my-api
+```
+
+A successful `brig down --project my-api` also cleans attachments. Leaving an
+agent or shell keeps the environment and attachments available. Original files
+and permanent context remain untouched. Cleanup does not erase content already
+stored in an agent conversation. After an interrupted session, use `detach` or
+`down` explicitly to clean up.
+
 ## Use the profile's databases
 
 Services are reachable by name within the project's network:
@@ -105,7 +143,8 @@ brig down --project my-api
 brig project delete my-api
 ```
 
-`down` removes containers and the network while preserving volumes. Deleting a
+`down` removes containers, the network, and attachment copies while preserving
+volumes and permanent context. Deleting a
 project removes its Brig registration but keeps its folder, profile, runtime
 artifacts, and volumes. The deletion check queries Docker, including services
 left running after a failed startup.

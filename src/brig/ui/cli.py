@@ -50,6 +50,14 @@ def parser() -> argparse.ArgumentParser:
     projects.add_parser("init", help="register a local folder using a wizard")
     projects.add_parser("list", help="list projects")
     projects.add_parser("show", help="show project configuration").add_argument("name")
+    attach = projects.add_parser(
+        "attach", help="copy local context files and print their container paths"
+    )
+    attach.add_argument("name", help="registered project name")
+    attach.add_argument("files", type=Path, nargs="+", metavar="FILE")
+    projects.add_parser(
+        "detach", help="remove the project's attachment copies, keeping originals"
+    ).add_argument("name")
     dockerfile = projects.add_parser(
         "dockerfile", help="render the project's development Dockerfile"
     )
@@ -137,6 +145,10 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             return app.delete_profile(args.name)
         return profile_list(app)
     if args.command == "project":
+        if args.action == "attach":
+            return app.attach(args.name, args.files)
+        if args.action == "detach":
+            return app.detach(args.name)
         if args.action == "dockerfile":
             return app.project_dockerfile(args.name, Path.cwd(), args.output)
         if args.action == "delete":

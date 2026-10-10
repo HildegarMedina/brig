@@ -125,6 +125,17 @@ Start with the [documentation index](docs/README.md).
 - [Reference: components and versions](docs/reference/components.md).
 - [Troubleshooting](docs/how-to/troubleshooting.md).
 
+Share a local screenshot or document with a project's agent from the host:
+
+```bash
+brig project attach my-api ~/Downloads/design.png
+```
+
+Give the printed `/workspace/.brig/context/attachments/…` path to the agent.
+Copies are available without restarting the container. Remove them with
+`brig project detach my-api`; `brig down --project my-api` also cleans attachments.
+Original files are preserved. See [project context](docs/how-to/projects.md#share-images-and-context-with-an-agent).
+
 ## Development
 
 ```bash

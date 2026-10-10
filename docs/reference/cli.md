@@ -35,6 +35,8 @@ default to **Cancel**; `--yes` confirms directly.
 | `brig project update NAME` | Adopt the latest profile version when the environment is stopped |
 | `brig project delete NAME [--yes]` | Remove a stopped project's registration |
 | `brig project dockerfile [NAME] [--output FILE]` | Display or export its Dockerfile |
+| `brig project attach NAME FILE [FILE ...]` | Copy local files into project context and print their container paths |
+| `brig project detach NAME` | Remove all attachment copies for the project; preserve originals |
 
 `project init` is interactive. New profile and project names must contain 1–64
 ASCII characters in `kebab-case`: start with a lowercase letter and use lowercase
@@ -44,6 +46,19 @@ automatically. Existing profiles can still be edited without renaming them.
 
 Dockerfile export does not query Docker or version providers and never overwrites
 an existing file. Without a name, it resolves the current folder.
+
+`attach` accepts regular files, including images and documents. Run it from the
+host with a registered project name; relative file paths refer to your current
+directory. It works before startup and while an agent is running, without Docker,
+internet, or a container restart. Each file receives a unique directory, so
+repeated filenames do not overwrite earlier attachments. Output is one container
+path per file. Give that path to the agent; Brig does not inject a chat message.
+
+`detach` removes the reserved `.brig/context/attachments/` directory. A successful
+`brig down` also removes those copies. Leaving a shell or agent keeps them until
+`detach` or `down`; exiting the CLI or an unexpected shutdown does not expire
+them. Permanent context stored elsewhere in `.brig/context/` stays intact.
+Removing a copy does not erase content already read or saved by an agent.
 
 ## Run a project
 

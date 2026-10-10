@@ -6,6 +6,7 @@ from copy import deepcopy
 from pathlib import Path
 from uuid import uuid4
 
+from brig.attachments import attach_files, detach_files
 from brig.components.agents import validate_agent, validate_agents
 from brig.components.catalog import VersionCatalog, validate_selection
 from brig.components.versions import LiveVersionCatalog
@@ -210,7 +211,15 @@ class Application:
             return "unknown (Docker unavailable)"
 
     def stop(self, name: str) -> str:
-        return self._set_running(name, False)
+        message = self._set_running(name, False)
+        detach_files(self.project(name))
+        return message
+
+    def attach(self, name: str, files: list[Path]) -> str:
+        return attach_files(self.project(name), files)
+
+    def detach(self, name: str) -> str:
+        return detach_files(self.project(name))
 
     def run_agent(self, name: str, agent: str) -> str:
         validate_agent(agent)
