@@ -125,6 +125,11 @@ launchers. Existing projects do not need a new profile revision for this change.
 
 ## Terminal interface
 
+`brig profile list` and `brig project list` display a colored card for each record
+in a terminal, including its configuration. Project cards also show status and
+folder. Colors cycle across records. `NO_COLOR=1` disables colors, basic terminals
+use ASCII borders, and redirected output retains the compact text listing.
+
 Arrow keys navigate; Enter selects; Space toggles multiple selections; Esc goes
 back; Ctrl+C exits. Version selectors support searching with `/`. Ctrl+U clears
 an input field. The terminal needs at least 45 columns and 12 rows; 90 × 28 or

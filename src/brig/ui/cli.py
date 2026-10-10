@@ -10,6 +10,7 @@ from brig.application import Application
 from brig.docker.engine import DockerEngine
 from brig.errors import BrigError
 from brig.persistence.store import JsonStateStore, default_data_directory
+from brig.ui.listings import profile_list, project_list
 from brig.ui.presentation import project_lines
 from brig.ui.tui import launch
 
@@ -127,26 +128,14 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
     if args.command == "profile":
         if args.action == "delete":
             return app.delete_profile(args.name)
-        return (
-            "\n".join(
-                f"{p.name} · revision {p.latest.number}" for p in app.state.profiles
-            )
-            or "No profiles. Use 'brig profile create'."
-        )
+        return profile_list(app)
     if args.command == "project":
         if args.action == "dockerfile":
             return app.project_dockerfile(args.name, Path.cwd(), args.output)
         if args.action == "delete":
             return app.delete_project(args.name)
         if args.action == "list":
-            return (
-                "\n".join(
-                    f"{p.name} · {p.profile} r{p.configuration.number} · "
-                    f"{app.project_status(p)}"
-                    for p in app.state.projects
-                )
-                or "No projects. Use 'brig project init'."
-            )
+            return project_list(app)
         if args.action == "show":
             return "\n".join(project_lines(app, app.project(args.name)))
         return app.update_project(args.name)
