@@ -13,7 +13,8 @@
 | Document databases | MongoDB |
 | Cache and key/value stores | Redis |
 
-Only tools for selected runtimes appear. At least one runtime is required; tools
+Tools for selected runtimes appear, plus Playwright with its Node.js dependency
+notice. At least one runtime is required; tools
 and services are optional. A profile can select several runtimes and services.
 
 Profiles select an `agents` list and a default `agent` from that list. Existing

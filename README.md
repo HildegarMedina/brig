@@ -83,6 +83,11 @@ Each selected agent's login and global configuration persist across projects for
 the same host user and Brig data directory. Conversation files are stored per project.
 New projects reuse the login; you do not need to sign in for each one.
 
+Agents run with full tool permissions inside the container, including when you
+launch them directly from its shell. They can edit files and run commands without
+permission approvals. Docker provides the isolation boundary; edits to the
+mounted project folder are reflected on the host.
+
 Type `exit` in Bash to return to your machine. The environment keeps running.
 From the host, you can open the default agent or another selected agent:
 

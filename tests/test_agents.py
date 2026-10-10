@@ -1,5 +1,10 @@
 """Extensible agent selection, installation and persisted profile snapshots."""
 
+import json
+import os
+import shlex
+import subprocess
+import sys
 import tempfile
 import unittest
 from dataclasses import replace
@@ -144,7 +149,74 @@ class AgentTests(unittest.TestCase):
                                     if isinstance(mount, dict)
                                 )
                             )
-                        self.assertNotIn("dangerously-bypass", dockerfile)
+
+    def test_container_launchers_enable_full_permissions_and_forward_arguments(self):
+        with tempfile.TemporaryDirectory() as folder:
+            directory = Path(folder)
+            binary = directory / "agent-stub"
+            binary.write_text(
+                f"#!{sys.executable}\n"
+                "import json, os, sys\n"
+                "print(json.dumps({'args': sys.argv[1:], "
+                "'permission': os.environ.get('OPENCODE_PERMISSION')}))\n"
+            )
+            binary.chmod(0o755)
+            for agent, integration in AGENTS.items():
+                with self.subTest(agent=agent):
+                    instruction = next(
+                        line
+                        for line in integration.image
+                        if f" > /usr/local/bin/{agent} " in line
+                    )
+                    arguments = shlex.split(instruction.removeprefix("RUN "))
+                    script = "\n".join(arguments[2 : arguments.index(">")]) + "\n"
+                    executable = shlex.split(
+                        next(
+                            line
+                            for line in script.splitlines()
+                            if line.startswith("exec ")
+                        )
+                    )[1]
+                    script = script.replace(executable, shlex.quote(str(binary)))
+                    script = script.replace(
+                        "/home/brig/.local/state", str(directory / "state")
+                    )
+                    launcher = directory / f"{agent}-launcher"
+                    launcher.write_text(script)
+                    environment = dict(os.environ, OPENCODE_PERMISSION='{"*":"ask"}')
+                    result = subprocess.run(
+                        ["/bin/sh", str(launcher), "--example", "literal ; $HOME"],
+                        env=environment,
+                        text=True,
+                        capture_output=True,
+                        check=True,
+                    )
+                    observed = json.loads(result.stdout)
+                    self.assertEqual(
+                        observed["args"][-2:], ["--example", "literal ; $HOME"]
+                    )
+                    if agent == "claude":
+                        self.assertIn(
+                            "--dangerously-skip-permissions", observed["args"]
+                        )
+                        settings_index = observed["args"].index("--settings") + 1
+                        self.assertEqual(
+                            json.loads(observed["args"][settings_index]),
+                            {"skipDangerousModePermissionPrompt": True},
+                        )
+                    elif agent == "codex":
+                        self.assertIn(
+                            "--dangerously-bypass-approvals-and-sandbox",
+                            observed["args"],
+                        )
+                        self.assertIn(
+                            'cli_auth_credentials_store="file"', observed["args"]
+                        )
+                    else:
+                        self.assertIn("--auto", observed["args"])
+                        self.assertEqual(
+                            json.loads(observed["permission"]), {"*": "allow"}
+                        )
 
     def test_unimplemented_registry_adapter_remains_unavailable(self):
         future = replace(AGENTS["codex"], stage=(), image=())

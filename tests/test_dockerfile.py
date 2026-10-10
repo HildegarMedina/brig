@@ -87,7 +87,7 @@ class DockerfileTests(unittest.TestCase):
             [line for line in contents.splitlines() if line.startswith("COPY")],
             [
                 "COPY --from=composer_binary /usr/bin/composer /usr/local/bin/composer",
-                "COPY --from=claude_binary /usr/local/bin/claude /usr/local/bin/claude",
+                "COPY --from=claude_binary /usr/local/bin/claude /opt/brig-claude/claude",
             ],
         )
         self.assertNotIn("composer install", contents)
@@ -144,7 +144,7 @@ class DockerfileTests(unittest.TestCase):
                 self.assertIn("bash /tmp/install-claude.sh stable", contents)
                 self.assertIn("cp -L /root/.local/bin/claude", contents)
                 self.assertIn(
-                    "COPY --from=claude_binary /usr/local/bin/claude /usr/local/bin/claude",
+                    "COPY --from=claude_binary /usr/local/bin/claude /opt/brig-claude/claude",
                     contents,
                 )
                 self.assertIn("ENV DISABLE_AUTOUPDATER=1", contents)

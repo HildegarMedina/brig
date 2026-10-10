@@ -99,6 +99,30 @@ Signing out affects that agent's shared login. Brig does not copy host credentia
 or perform authentication. Conversation directories and conversation databases
 use project-specific storage; see [storage](storage.md).
 
+Brig's container launchers enable full tool permissions by default for both
+`brig agent` and direct `claude`, `codex`, or `opencode` commands in the shell:
+
+| Agent | Container launcher setting |
+| --- | --- |
+| Claude Code | `--dangerously-skip-permissions` and inline `skipDangerousModePermissionPrompt: true` settings |
+| Codex | `--dangerously-bypass-approvals-and-sandbox` |
+| OpenCode | `--auto` and `OPENCODE_PERMISSION='{"*":"allow"}'` |
+
+These settings disable routine tool permission approvals and Claude's initial
+bypass-mode acknowledgement. Authentication, provider setup, and questions about
+an ambiguous task can still require your input. Restrictions enforced by the
+agent itself or an organization still apply. Docker
+provides the isolation boundary; agents can change the mounted project files.
+The launchers apply settings at runtime without rewriting shared user configs.
+
+See [Claude CLI permissions](https://code.claude.com/docs/en/cli-reference),
+[Codex approvals and security](https://learn.chatgpt.com/docs/agent-approvals-security),
+and [OpenCode permissions](https://opencode.ai/docs/permissions/).
+
+After updating Brig, run `brig down --project NAME` followed by `brig run NAME`
+from the host. The changed Dockerfile selects a new image and regenerates the
+launchers. Existing projects do not need a new profile revision for this change.
+
 ## Terminal interface
 
 Arrow keys navigate; Enter selects; Space toggles multiple selections; Esc goes

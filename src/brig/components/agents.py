@@ -56,7 +56,16 @@ AGENTS = {
         ),
         image=(
             "# Keep the agent executable outside persistent configuration volumes.",
-            "COPY --from=claude_binary /usr/local/bin/claude /usr/local/bin/claude",
+            "COPY --from=claude_binary /usr/local/bin/claude /opt/brig-claude/claude",
+            command_wrapper(
+                "claude",
+                (
+                    "/opt/brig-claude/claude",
+                    "--dangerously-skip-permissions",
+                    "--settings",
+                    '{"skipDangerousModePermissionPrompt":true}',
+                ),
+            ),
             "ENV DISABLE_AUTOUPDATER=1",
             "",
         ),
@@ -85,6 +94,7 @@ AGENTS = {
                 "codex",
                 (
                     "/opt/brig-codex/packages/standalone/current/bin/codex",
+                    "--dangerously-bypass-approvals-and-sandbox",
                     "-c",
                     'cli_auth_credentials_store="file"',
                     "-c",
@@ -123,8 +133,11 @@ AGENTS = {
             "ENV OPENCODE_DISABLE_AUTOUPDATE=1",
             command_wrapper(
                 "opencode",
-                ("/opt/brig-opencode/opencode",),
-                prepare=("mkdir -p /home/brig/.local/state/opencode",),
+                ("/opt/brig-opencode/opencode", "--auto"),
+                prepare=(
+                    "mkdir -p /home/brig/.local/state/opencode",
+                    """export OPENCODE_PERMISSION='{"*":"allow"}'""",
+                ),
             ),
             "",
         ),
