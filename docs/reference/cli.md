@@ -17,6 +17,7 @@ engine artifacts.
 | Command | Effect |
 | --- | --- |
 | `brig profile create [--base PROFILE] [--base-version VERSION]` | Wizard to save the first version, optionally inheriting a base |
+| `brig profile import PATH [PATH ...]` | Import YAML files or folders with their histories and bases |
 | `brig profile list` | List names and latest versions |
 | `brig profile edit NAME [--update-base]` | Wizard that creates another version; optionally use the latest base version |
 | `brig profile delete NAME [--yes]` | Delete an unreferenced profile and its YAML documents |
@@ -38,6 +39,22 @@ offers an explicit Keep/Update choice if a newer base exists. This saves a new
 child version, and existing projects retain their snapshots. Self-inheritance and
 cycles are rejected. A base referenced by any saved child version cannot be
 deleted, including with `--yes`.
+
+`profile import` is noninteractive and works offline. Relative paths refer to
+where you run the command; `~` paths are expanded. Directories are scanned
+recursively for `.yaml` and `.yml` files, including uppercase extensions. Each
+file represents one version. Brig sorts versions and validates the complete
+batch before saving it. Supply base documents explicitly or include them in the
+folder; Brig does not fetch or search for missing bases elsewhere.
+
+New profiles require a complete history starting at version 1; existing profiles
+can receive their next versions. Identical saved versions are skipped. A changed
+configuration at an existing version, a name differing only in case, missing
+history, invalid inheritance, or invalid YAML rejects the entire batch. Names
+and version numbers are preserved; accepted legacy names follow the storage
+rules rather than the new-name wizard restrictions. The result reports imported
+and already-present versions. Projects keep their snapshots.
+See [import profiles](../how-to/import-profiles.md) for examples and file limits.
 
 ## Projects
 

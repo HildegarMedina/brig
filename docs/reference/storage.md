@@ -39,9 +39,10 @@ name selects it from the CLI.
 
 Profile folder names are encoded and use the `profile-` prefix. Each version
 produces a separate YAML document under `versions/`, with component releases
-written as strings. YAML documents
-support reading and sharing, but importing them or applying manual edits to state
-is not implemented.
+written as strings. Share copies of these documents and import them with
+`brig profile import PATH [PATH ...]`. Files and folders are supported, including
+complete histories and inherited profiles. Manual edits to `state.json` are not
+an import workflow; see [import profiles](../how-to/import-profiles.md).
 
 New state and YAML documents use schema version 2. Profiles store their history
 as `versions`; YAML uses `version: N`. The reader accepts schema 1 state. At the
@@ -61,7 +62,10 @@ profile inheritance at runtime.
 Loading validates the schema and profile/project relationships without internet.
 An incompatible or corrupt file produces an error and is not silently replaced.
 State and YAML writes use temporary files. If saving a version fails, its newly
-created documents are removed.
+created documents are removed. Import validates the complete batch before a
+single save, preserving previous definitions on validation or save failure.
+Existing versions cannot be overwritten. Imported schema 1 YAML is accepted and
+written in the current schema 2 format; source files remain unchanged.
 
 ## Engine artifacts
 

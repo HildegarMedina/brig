@@ -16,7 +16,7 @@ from brig.docker.compose import compose_definition
 from brig.docker.dockerfile import render_dockerfile
 from brig.docker.workspace import DockerWorkspace
 from brig.errors import BrigError
-from brig.persistence.codec import _version, decode_state
+from brig.persistence.codec import decode_profile_version, decode_state
 from brig.persistence.profile_yaml import profile_path
 from brig.persistence.store import JsonStateStore
 from tests import test_docker_engine
@@ -281,7 +281,7 @@ class BoundaryTests(unittest.TestCase):
             raw = asdict(demo_state().profiles[0].latest)
             raw[field] = value
             with self.assertRaisesRegex(ValueError, message):
-                _version(raw)
+                decode_profile_version(raw)
 
     def test_storage_read_errors_and_modified_yaml_preserve_originals(self):
         with tempfile.TemporaryDirectory() as folder:

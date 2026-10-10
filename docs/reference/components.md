@@ -156,6 +156,10 @@ agents:
 agent: "claude"
 ```
 
+Import this YAML with `brig profile import FILE`. For an inherited profile, also
+provide its base history unless those versions are already saved locally. See
+[import profiles](../how-to/import-profiles.md) for the required fields and limits.
+
 This file is a readable snapshot, not a Docker Compose file. Changes create a
 new version without modifying the previous one. Projects retain their snapshots
 until explicitly updated.

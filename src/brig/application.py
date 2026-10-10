@@ -15,8 +15,10 @@ from brig.engine import EnvironmentEngine
 from brig.errors import BrigError
 from brig.models import Profile, ProfileParent, ProfileVersion, Project, State
 from brig.persistence.export import write_dockerfile
+from brig.persistence.profile_reader import read_profiles
 from brig.persistence.store import StateStore
 from brig.profile_inheritance import resolve_base, would_cycle
+from brig.profiles.importing import merge_profiles
 
 
 class Application:
@@ -167,6 +169,12 @@ class Application:
         )
         self._commit(candidate)
         return profile
+
+    def import_profiles(self, paths: list[Path]) -> str:
+        candidate, added, unchanged = merge_profiles(self.state, read_profiles(paths))
+        if added:
+            self._commit(candidate)
+        return f"Imported {added} profile versions; {unchanged} already present. Projects were kept unchanged."
 
     def profile_for_deletion(self, name: str) -> Profile:
         profile = self.profile(name)

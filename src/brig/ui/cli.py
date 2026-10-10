@@ -36,6 +36,10 @@ def parser() -> argparse.ArgumentParser:
         "--base-version", type=int, metavar="VERSION", help="pin a base version"
     )
     profiles.add_parser("list", help="list profiles")
+    importing = profiles.add_parser(
+        "import", help="import profile YAML files or folders, including bases"
+    )
+    importing.add_argument("paths", type=Path, nargs="+", metavar="PATH")
     edition = profiles.add_parser("edit", help="create a new profile version")
     edition.add_argument("name")
     edition.add_argument(
@@ -147,6 +151,8 @@ def _interactive_action(args: argparse.Namespace) -> str | None:
 
 def dispatch(app: Application, args: argparse.Namespace) -> str:
     if args.command == "profile":
+        if args.action == "import":
+            return app.import_profiles(args.paths)
         if args.action == "delete":
             return app.delete_profile(args.name)
         return profile_list(app)

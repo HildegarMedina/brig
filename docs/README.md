@@ -10,6 +10,7 @@ terminal inside its development container.
 | --- | --- |
 | Create and run your first project | [Your first project](tutorials/first-project.md) |
 | Start, stop, update, or delete a definition | [Manage projects](how-to/projects.md) |
+| Share YAML profiles or import a saved history | [Import profiles](how-to/import-profiles.md) |
 | Resolve a Docker, version, or terminal error | [Troubleshooting](how-to/troubleshooting.md) |
 | Understand how profiles, projects, and Docker fit together | [Architecture and execution flow](explanation/architecture.md) |
 | Look up commands and options | [Command reference](reference/cli.md) |
@@ -30,8 +31,8 @@ machine, while conversation files have a separate volume per project.
 The repository installer checks Docker, Compose, and daemon access; on supported
 Debian and Ubuntu hosts it installs missing Docker dependencies. Installing
 application dependencies, starting HTTP servers, and publishing application ports
-are not implemented. Profile YAML files can be read and shared;
-importing them is not implemented.
+are not implemented. Profile YAML files can be shared and imported, including
+version histories and pinned base profiles, without Docker or internet.
 
 ## Maintaining this documentation
 

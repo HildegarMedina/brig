@@ -21,7 +21,8 @@ actual release numbers belong to version providers.
 | `ui/` | CLI argument handling and shared text summaries |
 | `ui/tui/` | Terminal widgets, profile flows, project flows, and top-level navigation |
 | `components/` | Component/agent registries, upstream providers, and compatibility |
-| `persistence/` | State decoding, JSON/YAML transactions, and file export |
+| `persistence/` | Shared offline validation, safe YAML reading, JSON/YAML transactions, and file export |
+| `profiles/` | Immutable version merging and whole-batch import validation |
 | `docker/` | Definition generation, Docker execution, workspace files, credentials, and volumes |
 
 `InteractiveApp` delegates feature flows to `ProfileViews` and `ProjectViews`.
@@ -30,6 +31,13 @@ actual release numbers belong to version providers.
 Lifecycle locks cover preparation and start/stop operations. JSON and YAML saves
 remain coordinated in `JsonStateStore` so failures preserve the previous state.
 The simulation engine lives in `tests/demo_engine.py`.
+
+Profile imports reuse the state codec and inheritance validation. The YAML reader
+uses a restricted PyYAML SafeLoader, rejects duplicate keys and aliases, and
+limits each document to 1 MiB. The merge operates on a copied state; Application
+commits only after the complete candidate passes offline validation. Tests cover
+portable history, inherited dependencies, conflicts, idempotency, and rollback
+when committing state fails. Import never queries Docker or version providers.
 
 Split modules when they gain independent reasons to change. Review files above
 roughly 400 lines and functions above 100 lines; these are review signals, not
@@ -50,8 +58,8 @@ Execution is still real; this is not a simulation mode.
 ## Local checks
 
 ```bash
-uv run pre-commit run --all-files
-uv run python scripts/check_coverage.py
+uv run --locked pre-commit run --all-files
+uv run --locked python scripts/check_coverage.py
 ```
 
 Run `./scripts/install_pre_commit.sh` once per clone. The script requires `uv`,
@@ -62,7 +70,7 @@ and stage those changes before retrying the commit.
 
 The coverage check requires 100% line coverage across all of `src/brig`, without
 module exclusions. A failing test or coverage below 100% blocks the commit, even
-when only documentation changes. Run `uv run python scripts/check_coverage.py` to
+when only documentation changes. Run `uv run --locked python scripts/check_coverage.py` to
 check the unit suite and coverage directly.
 
 Unit tests need neither Docker nor network access: they use controlled providers

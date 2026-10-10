@@ -118,12 +118,29 @@ Inside a registered folder, `brig run` selects that project automatically. Run
 Brig currently prepares the environment. Application dependency installation,
 HTTP server startup, and application port publishing require manual setup.
 
+## Share and import profiles
+
+Copy saved profile YAML files or their folders to another machine, then import:
+
+```bash
+brig profile import ./shared-profiles/
+brig profile list
+```
+
+Import preserves names, version history, and pinned inheritance. Include the base
+profiles and their referenced versions, unless they are already saved locally.
+For a new profile, include its history starting at version 1. Identical versions
+are skipped; conflicting versions are rejected without changing your profiles.
+Existing projects keep their configuration. Import works without Docker or internet.
+See [import profiles](docs/how-to/import-profiles.md) for examples.
+
 ## Documentation
 
 Start with the [documentation index](docs/README.md).
 
 - [Tutorial: your first project](docs/tutorials/first-project.md).
 - [How-to: manage projects](docs/how-to/projects.md).
+- [How-to: import profiles](docs/how-to/import-profiles.md).
 - [Explanation: architecture and execution flow](docs/explanation/architecture.md).
 - [Reference: commands](docs/reference/cli.md).
 - [Reference: storage and persistence](docs/reference/storage.md).
@@ -140,32 +157,3 @@ Give the printed `/workspace/.brig/context/attachments/…` path to the agent.
 Copies are available without restarting the container. Remove them with
 `brig project detach my-api`; `brig down --project my-api` also cleans attachments.
 Original files are preserved. See [project context](docs/how-to/projects.md#share-images-and-context-with-an-agent).
-
-## Development
-
-```bash
-./scripts/install_pre_commit.sh
-```
-
-Every commit runs Ruff lint fixes, automatic formatting, and the complete unit
-suite. Test failures or line coverage below **100% of `src/brig`** block the commit.
-When Ruff changes files, review and stage those changes before retrying the commit.
-Run the installation script once in each clone. It installs the development tools
-from `uv.lock`, activates the Git hook, and checks all files. It requires `uv`.
-To repeat the checks, run `uv run --locked pre-commit run --all-files`.
-
-Run the coverage check directly with:
-
-```bash
-uv run python scripts/check_coverage.py
-```
-
-Unit tests do not require Docker. Enable the five real integration tests
-with:
-
-```bash
-BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle tests.integration.test_agents -v
-```
-
-See [development and maintenance](docs/development.md) for the code architecture,
-testing, and how to add components.

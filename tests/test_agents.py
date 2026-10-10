@@ -100,11 +100,11 @@ class AgentTests(unittest.TestCase):
     def test_corrupt_stored_agent_selection_is_rejected(self):
         from dataclasses import asdict
 
-        from brig.persistence.codec import _version
+        from brig.persistence.codec import decode_profile_version
 
         raw = asdict(ProfileVersion(1, {"python": "3.12.8"}, {}, {}, agents=[]))
         with self.assertRaisesRegex(BrigError, "at least one agent"):
-            _version(raw)
+            decode_profile_version(raw)
 
     def test_native_adapters_only_install_selected_agents_for_each_runtime(self):
         with tempfile.TemporaryDirectory() as folder:

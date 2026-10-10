@@ -10,7 +10,7 @@ from brig.profile_inheritance import validate_relationships
 SCHEMA_VERSION = 2
 
 
-def _version(raw: dict) -> ProfileVersion:
+def decode_profile_version(raw: dict) -> ProfileVersion:
     record = dict(raw)
     if record.get("extends") is not None:
         record["extends"] = ProfileParent(**record["extends"])
@@ -28,6 +28,16 @@ def _version(raw: dict) -> ProfileVersion:
         version.agent,
     )
     return version
+
+
+def validate_name(name: str) -> None:
+    if (
+        not isinstance(name, str)
+        or not name.strip()
+        or len(name) > 64
+        or any(ord(char) < 32 or ord(char) == 127 for char in name)
+    ):
+        raise ValueError("Invalid name")
 
 
 def decode_state(raw: dict) -> State:
@@ -49,7 +59,7 @@ def decode_state(raw: dict) -> State:
         )
         if set(item) != {"name", field}:
             raise ValueError("Invalid profile fields")
-        versions = [_version(r) for r in item[field]]
+        versions = [decode_profile_version(r) for r in item[field]]
         if [r.number for r in versions] != list(
             range(1, len(versions) + 1)
         ) or not versions:
@@ -60,7 +70,7 @@ def decode_state(raw: dict) -> State:
         if set(item) != {"id", "name", "path", "profile", "configuration", "running"}:
             raise ValueError("Invalid project fields")
         record = dict(item)
-        record["configuration"] = _version(record["configuration"])
+        record["configuration"] = decode_profile_version(record["configuration"])
         project = Project(**record)
         if not isinstance(project.id, str) or not project.id:
             raise ValueError("Invalid project ID")
@@ -73,14 +83,8 @@ def decode_state(raw: dict) -> State:
         projects.append(project)
     for records in (profiles, projects):
         names = [r.name for r in records]
-        if any(
-            not isinstance(n, str)
-            or not n.strip()
-            or len(n) > 64
-            or any(ord(c) < 32 or ord(c) == 127 for c in n)
-            for n in names
-        ):
-            raise ValueError("Invalid name")
+        for name in names:
+            validate_name(name)
         if len({n.casefold() for n in names}) != len(names):
             raise ValueError("Duplicate names")
     if len({p.id for p in projects}) != len(projects):
