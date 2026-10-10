@@ -13,6 +13,9 @@ class Terminal:
     def __init__(self, screen):
         self.screen = screen
         screen.keypad(True)
+        if "ESCDELAY" not in os.environ:
+            # Distinguish Esc from arrow-key sequences without a one-second pause.
+            curses.set_escdelay(100)
         try:
             curses.curs_set(0)
         except curses.error:

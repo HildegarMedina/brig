@@ -134,6 +134,8 @@ The interface uses the terminal's default background, highlights the current
 selection, and shows the visible range in long menus. Keyboard help wraps onto
 two lines on narrow terminals. Set `NO_COLOR=1` to disable colors; basic emphasis
 and selection remain available. Non-Unicode locales use ASCII navigation symbols.
+Esc waits 100 ms to distinguish it from arrow-key sequences. Set `ESCDELAY` to
+another delay in milliseconds if your terminal connection needs more time.
 
 Validation errors are highlighted in red. **Shell** prepares the project and opens
 its terminal; leaving it returns to the menu. **View Dockerfile** displays the
