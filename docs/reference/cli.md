@@ -132,6 +132,8 @@ to select, Enter to view details, and Esc to return or exit. Details include the
 full configuration and project folder. The selected card has a bright white
 border; text keeps its normal background. Without colors, the border uses bold.
 Small terminals use a compact menu.
+The main `brig` menu uses the same cards for Profiles and Projects, with an
+additional creation card and the existing profile and project management actions.
 Colors cycle across records. `NO_COLOR=1` disables colors and non-Unicode locales
 use ASCII borders. Redirected output retains a compact, noninteractive listing.
 Profile version numbers continue the existing numbering; stored files keep their

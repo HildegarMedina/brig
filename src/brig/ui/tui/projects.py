@@ -5,7 +5,9 @@ from pathlib import Path
 from brig.application import Application
 from brig.components.agents import AGENTS
 from brig.errors import BrigError, Cancelled
+from brig.ui.listings import list_records
 from brig.ui.presentation import configuration_lines, project_lines
+from brig.ui.tui.browser import choose_card
 from brig.ui.tui.terminal import Terminal
 
 
@@ -53,14 +55,15 @@ class ProjectViews:
         )
 
     def projects(self) -> None:
+        selected = 0
         while True:
             try:
                 projects = self.app.state.projects
-                options = [
-                    f"{p.name} · {p.profile} v{p.configuration.number} · {self.app.project_status(p)}"
-                    for p in projects
-                ] + ["+ Create project"]
-                index = self.ui.choose("Projects", options)
+                records = list_records(self.app, "project") + [("+ Create project", [])]
+                index = choose_card(
+                    self.ui, "Projects", records, min(selected, len(records) - 1)
+                )
+                selected = index
                 if index == len(projects):
                     self.project_wizard()
                 else:

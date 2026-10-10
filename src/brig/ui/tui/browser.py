@@ -5,6 +5,7 @@ import os
 
 from brig.application import Application
 from brig.errors import Cancelled
+from brig.ui.listings import list_records
 from brig.ui.presentation import configuration_lines, project_lines
 from brig.ui.tui.terminal import Terminal
 
@@ -82,18 +83,7 @@ def browse_list(app: Application, ui: Terminal, kind: str) -> None:
         return
     selected = 0
     while True:
-        records = [
-            (
-                entry.name,
-                [f"Version {entry.latest.number}"]
-                if profiles
-                else [
-                    f"Status {app.project_status(entry)}",
-                    f"Profile {entry.profile} · version {entry.configuration.number}",
-                ],
-            )
-            for entry in entries
-        ]
+        records = list_records(app, kind)
         selected = choose_card(ui, title, records, selected)
         entry = entries[selected]
         ui.notice(
