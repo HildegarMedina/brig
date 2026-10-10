@@ -128,15 +128,15 @@ Start with the [documentation index](docs/README.md).
 ## Development
 
 ```bash
-uv sync --locked
-uv run pre-commit install
-uv run pre-commit run --all-files
+./scripts/install_pre_commit.sh
 ```
 
 Every commit runs Ruff lint fixes, automatic formatting, and the complete unit
 suite. Test failures or line coverage below **100% of `src/brig`** block the commit.
 When Ruff changes files, review and stage those changes before retrying the commit.
-Install the hook once in each clone. Development tools are pinned in `uv.lock`.
+Run the installation script once in each clone. It installs the development tools
+from `uv.lock`, activates the Git hook, and checks all files. It requires `uv`.
+To repeat the checks, run `uv run --locked pre-commit run --all-files`.
 
 Run the coverage check directly with:
 

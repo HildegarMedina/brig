@@ -316,7 +316,18 @@ class UiPathTests(unittest.TestCase):
             ),
         ):
             self.assertEqual(DashboardRenderer(ui).styles["focus"], ui.accent)
-        renderer = DashboardRenderer(ui)
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            patch("brig.ui.tui.dashboard_render.curses.has_colors", return_value=False),
+        ):
+            renderer = DashboardRenderer(ui)
+            self.assertEqual(renderer.styles["focus"], ui.accent)
+        with (
+            patch.dict("os.environ", {"NO_COLOR": ""}),
+            patch("brig.ui.tui.dashboard_render.curses.has_colors") as has_colors,
+        ):
+            self.assertEqual(DashboardRenderer(ui).styles["focus"], ui.accent)
+            has_colors.assert_not_called()
         with patch("brig.ui.tui.terminal.locale.getencoding", return_value="ascii"):
             renderer.box(1, 1, 3, 10)
         self.assertTrue(any("+--------+" in row for row in ui.screen.written))

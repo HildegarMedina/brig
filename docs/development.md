@@ -3,8 +3,7 @@
 ## Prepare the repository
 
 ```bash
-uv sync --locked
-uv run pre-commit install
+./scripts/install_pre_commit.sh
 uv run brig --help
 uv run brig
 ```
@@ -55,8 +54,9 @@ uv run pre-commit run --all-files
 uv run python scripts/check_coverage.py
 ```
 
-Development tools are installed by `uv sync --locked`. Install the Git hook once
-per clone with `uv run pre-commit install`. Every commit runs Ruff with automatic
+Run `./scripts/install_pre_commit.sh` once per clone. The script requires `uv`,
+installs locked development dependencies, installs the Git hook, and runs all
+checks. Every commit runs Ruff with automatic
 lint fixes and formatting, then runs all unit tests. If Ruff changes files, review
 and stage those changes before retrying the commit.
 
