@@ -71,4 +71,4 @@ def render_cards(records: list[tuple[str, list[str]]], plain: str) -> str:
                 )
         lines.append(border(bottom_left + horizontal * (width - 2) + bottom_right))
         cards.append("\n".join(lines))
-    return "\n\n".join(cards)
+    return "\n".join(cards)

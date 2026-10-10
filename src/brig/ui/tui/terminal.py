@@ -23,6 +23,7 @@ class Terminal:
         self.accent = curses.A_BOLD
         self.error_style = curses.A_BOLD
         self.card_styles = (curses.A_BOLD,)
+        self.card_selection_style = curses.A_BOLD
         if "NO_COLOR" not in os.environ and curses.has_colors():
             try:
                 curses.start_color()
@@ -50,6 +51,8 @@ class Terminal:
                     curses.init_pair(pair, color, background)
                     styles.append(curses.color_pair(pair))
                 self.card_styles = tuple(styles)
+                curses.init_pair(9, curses.COLOR_WHITE, background)
+                self.card_selection_style |= curses.color_pair(9)
             except curses.error:
                 # Basic attributes still work on terminals with limited colors.
                 pass
@@ -100,6 +103,7 @@ class Terminal:
         error_message: str | None = None,
         error_rows: bool = False,
         row_styles: list[int] | None = None,
+        row_border_styles: list[int] | None = None,
     ) -> None:
         self.screen.erase()
         height, width = self.screen.getmaxyx()
@@ -136,6 +140,11 @@ class Terminal:
                 label.ljust(width - 5) if is_selected else label,
                 style,
             )
+            if row_border_styles and row_border_styles[index] and row:
+                border_style = row_border_styles[index]
+                y = 5 + index - offset
+                self._write(y, 4, row[0], border_style)
+                self._write(y, 4 + len(row) - 1, row[-1], border_style)
         if error_message:
             self._write(height - 5, 2, f"Error: {error_message}", self.error_style)
         self._write(height - 4, 2, "-" * (width - 5), curses.A_DIM)

@@ -129,7 +129,9 @@ launchers. Existing projects do not need a new profile version for this change.
 and output are interactive. Profiles show only their name and latest version;
 projects show their name, status, and profile with its pinned version. Use Up/Down
 to select, Enter to view details, and Esc to return or exit. Details include the
-full configuration and project folder. Small terminals use a compact menu.
+full configuration and project folder. The selected card has a bright white
+border; text keeps its normal background. Without colors, the border uses bold.
+Small terminals use a compact menu.
 Colors cycle across records. `NO_COLOR=1` disables colors and non-Unicode locales
 use ASCII borders. Redirected output retains a compact, noninteractive listing.
 Profile version numbers continue the existing numbering; stored files keep their

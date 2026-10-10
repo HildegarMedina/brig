@@ -22,9 +22,9 @@ def choose_card(
                 [f"{name} · {' · '.join(details)}" for name, details in records],
                 selected,
             )
-        per_page = max(1, (capacity + 1) // (card_height + 1))
+        per_page = max(1, capacity // card_height)
         start = selected // per_page * per_page
-        rows, styles = [], []
+        rows, styles, border_styles = [], [], []
         card_width = min(68, width - 9)
         colors = getattr(ui, "card_styles", (ui.accent,))
         borders = "┌─┐│└┘"
@@ -34,6 +34,8 @@ def choose_card(
         for index in range(start, min(start + per_page, len(records))):
             name, details = records[index]
             color = colors[index % len(colors)]
+            if index == selected:
+                color = getattr(ui, "card_selection_style", curses.A_BOLD)
             labels = [name, *details]
             card = [top + horizontal * (card_width - 2) + right]
             for label in labels:
@@ -46,17 +48,14 @@ def choose_card(
                 )
             card.append(bottom + horizontal * (card_width - 2) + bottom_right)
             rows.extend(card)
-            styles.extend(
-                [color | (curses.A_BOLD if index == selected else 0)] * len(card)
-            )
-            rows.append("")
-            styles.append(0)
+            styles.extend([color, *[0] * len(labels), color])
+            border_styles.extend([0, *[color] * len(labels), 0])
         ui.render(
             f"{title} · {selected + 1}/{len(records)}",
-            rows[:-1],
+            rows,
             "↑↓ move · enter details · esc exit",
-            selected=(selected - start) * (card_height + 1) + 1,
-            row_styles=styles[:-1],
+            row_styles=styles,
+            row_border_styles=border_styles,
         )
         key = ui.key()
         if key in ("\x1b", "q"):

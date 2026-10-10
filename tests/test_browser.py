@@ -13,6 +13,41 @@ from tests.fakes import FakeVersionCatalog, MemoryStore, demo_state
 
 
 class BrowserTests(unittest.TestCase):
+    def test_selection_changes_only_card_border_without_background_highlight(self):
+        ui = test_tui.TerminalTests().terminal(["\n"], size=(24, 100))
+        ui.accent = 1 << 8
+        ui.card_styles = (3 << 8,)
+        ui.card_selection_style = curses.A_BOLD | (9 << 8)
+        choose_card(
+            ui, "Profiles", [("first", ["Version 1"]), ("second", ["Version 2"])], 0
+        )
+        for text, style in ui.screen.drawn:
+            self.assertFalse(style & curses.A_REVERSE)
+            if "first" in text or "second" in text or "Version" in text:
+                self.assertEqual(style, 0)
+        borders = [(text, style) for text, style in ui.screen.drawn if "┌" in text]
+        self.assertEqual(borders[0][1], ui.card_selection_style)
+        self.assertEqual(borders[1][1], ui.card_styles[0])
+        self.assertIn(("│", ui.card_selection_style), ui.screen.drawn)
+
+    def test_border_selection_moves_with_arrow_keys(self):
+        ui = test_tui.TerminalTests().terminal([curses.KEY_DOWN, "\n"])
+        ui.card_styles = (3 << 8,)
+        ui.card_selection_style = curses.A_BOLD | (9 << 8)
+        choose_card(
+            ui, "Profiles", [("first", ["Version 1"]), ("second", ["Version 2"])], 0
+        )
+        borders = [style for text, style in ui.screen.drawn if "┌" in text]
+        self.assertEqual(
+            borders,
+            [
+                ui.card_selection_style,
+                ui.card_styles[0],
+                ui.card_styles[0],
+                ui.card_selection_style,
+            ],
+        )
+
     def test_cards_navigate_and_show_keyboard_controls(self):
         ui = test_tui.TerminalTests().terminal([curses.KEY_DOWN, "\n"])
         result = choose_card(
