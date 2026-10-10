@@ -11,6 +11,7 @@ from unittest.mock import patch
 from brig.application import Application
 from brig.components.catalog import COMPONENTS
 from brig.components.versions import LiveVersionCatalog
+from brig.docker.dockerfile import render_dockerfile
 from brig.errors import BrigError, Cancelled
 from brig.ui.tui import InteractiveApp, Terminal
 from tests.demo_engine import DemoEngine
@@ -69,7 +70,9 @@ class ScriptedTerminal:
                     or option.startswith(f"{name} · ")
                     or (
                         name in COMPONENTS
-                        and option.endswith(f" · {COMPONENTS[name].label}")
+                        and option.startswith(
+                            f"{COMPONENTS[name].category} · {COMPONENTS[name].label}"
+                        )
                     )
                 ),
                 name,
@@ -112,6 +115,125 @@ class WizardTests(unittest.TestCase):
         self.assertEqual(profile.latest.runtimes, {"python": "3.12.8", "php": "8.2.27"})
         self.assertEqual(profile.latest.tools, {"uv": "0.5.24", "composer": "2.8.5"})
         self.assertEqual(profile.latest.services, {"redis": "7.4.2"})
+
+    def test_playwright_is_visible_but_optional_without_node(self):
+        for runtime in ("python", "php"):
+            with self.subTest(runtime=runtime):
+                catalog = FakeVersionCatalog()
+                self.app.catalog_factory = lambda catalog=catalog: catalog
+                terminal = ScriptedTerminal(
+                    inputs=[f"{runtime}-browser-options"],
+                    multiples=[[runtime], [], []],
+                    choices=[0],
+                )
+                InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+                _, options, defaults = terminal.selections[1]
+                playwright = next(
+                    option for option in options if "Playwright" in option
+                )
+                self.assertIn("also installs Node.js (required)", playwright)
+                self.assertNotIn(playwright, defaults)
+                configuration = self.app.profile(f"{runtime}-browser-options").latest
+                self.assertEqual(list(configuration.runtimes), [runtime])
+                self.assertNotIn("playwright", configuration.tools)
+                self.assertNotIn("node", catalog.calls)
+                self.assertNotIn("playwright", catalog.calls)
+
+    def test_playwright_adds_node_and_filters_versions_for_python_profile(self):
+        def source(url):
+            if url.endswith("library/python"):
+                return "Tags: 3.14.8\nArchitectures: amd64"
+            if url == "https://registry.npmjs.org/playwright":
+                return json.dumps(
+                    {
+                        "versions": {
+                            "1.50.1": {
+                                "dist": {"tarball": "url"},
+                                "engines": {"node": ">=22"},
+                            },
+                            "1.51.1": {
+                                "dist": {"tarball": "url"},
+                                "engines": {"node": ">=26"},
+                            },
+                        }
+                    }
+                )
+            return node_release_source(url)
+
+        self.app.catalog_factory = lambda: LiveVersionCatalog(source)
+        terminal = ScriptedTerminal(
+            inputs=["python-browser"],
+            multiples=[["python"], ["playwright"], []],
+            choices=[0, 1, 0],
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        configuration = self.app.profile("python-browser").latest
+        self.assertEqual(configuration.runtimes, {"python": "3.14.8", "node": "24.2.0"})
+        self.assertEqual(configuration.tools, {"playwright": "1.50.1"})
+        self.assertEqual(terminal.version_choices[2][0][1], ["1.50.1 · Stable"])
+        explanation = next(
+            lines for title, lines in terminal.messages if "requires Node.js" in title
+        )
+        self.assertTrue(any("will also be installed" in line for line in explanation))
+        with tempfile.TemporaryDirectory() as folder:
+            project = self.app.create_project(
+                "python-browser-project", Path(folder), "python-browser"
+            )
+            dockerfile = render_dockerfile(project)
+        self.assertIn("FROM python:3.14.8-bookworm", dockerfile)
+        self.assertIn("FROM node:24.2.0-bookworm AS node_runtime", dockerfile)
+        self.assertIn("npm install --global playwright@1.50.1", dockerfile)
+
+    def test_playwright_reuses_selected_node_without_another_version_prompt(self):
+        terminal = ScriptedTerminal(
+            inputs=["node-browser"],
+            multiples=[["node"], ["playwright"], []],
+            choices=[1, 0],
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(
+            self.app.profile("node-browser").latest.runtimes, {"node": "20.18.2"}
+        )
+        self.assertEqual(len(terminal.version_choices), 2)
+        self.assertFalse(
+            any(
+                "also installs Node.js" in option
+                for option in terminal.selections[1][1]
+            )
+        )
+        self.assertFalse(
+            any("requires Node.js" in title for title, _ in terminal.messages)
+        )
+
+    def test_cancelling_added_node_version_keeps_state_unchanged(self):
+        before = deepcopy(self.app.state)
+        terminal = ScriptedTerminal(
+            inputs=["cancel-browser"],
+            multiples=[["python"], ["playwright"]],
+            choices=[0],
+        )
+        choose = terminal.choose
+
+        def cancel_node(title, *args, **kwargs):
+            if title.startswith("Node.js version"):
+                raise Cancelled
+            return choose(title, *args, **kwargs)
+
+        terminal.choose = cancel_node
+        with self.assertRaises(Cancelled):
+            InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(self.app.state, before)
+
+    def test_declining_review_does_not_save_added_node_or_playwright(self):
+        before = deepcopy(self.app.state)
+        terminal = ScriptedTerminal(
+            inputs=["declined-browser"],
+            multiples=[["python"], ["playwright"], []],
+            choices=[0, 0, 0],
+            confirmed=False,
+        )
+        InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard()
+        self.assertEqual(self.app.state, before)
 
     def test_project_deletion_can_cancel_then_confirm(self):
         before = deepcopy(self.app.state)

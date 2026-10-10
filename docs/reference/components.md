@@ -122,8 +122,12 @@ container or start applications based on folder contents.
 
 ## Profile format
 
-Select Playwright under Browser automation when Node.js is selected. Its versions
-are fetched from npm and filtered against the selected Node.js version. The image
+Playwright is always shown under Browser automation, including in Python and PHP
+profiles, and is unselected by default in new profiles. Its label explains that
+Node.js will also be installed when it is missing. Selecting Playwright adds
+Node.js to the profile and asks you to choose its version. Existing runtimes
+remain selected. Its versions are fetched from npm
+and filtered against the selected Node.js version. The image
 installs the exact package, its matching Chromium binaries, and Linux dependencies.
 Browsers live under `/opt/brig-playwright/browsers`, outside persistent home
 volumes. Run `playwright --help`, `playwright screenshot URL screenshot.png`, or

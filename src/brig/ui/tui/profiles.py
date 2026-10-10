@@ -39,7 +39,15 @@ class ProfileViews:
         if not catalog:
             return {}
         options = {
-            f"{item.category} · {item.label}": name for name, item in catalog.items()
+            f"{item.category} · {item.label}"
+            + (
+                " · also installs Node.js (required)"
+                if name == "playwright"
+                and runtimes is not None
+                and "node" not in runtimes
+                else ""
+            ): name
+            for name, item in catalog.items()
         }
         chosen = self.ui.multiple(
             title,
@@ -50,57 +58,85 @@ class ProfileViews:
         names = [options[label] for label in chosen]
         result = {}
         for name in names:
-            component = catalog[name]
-            while True:
-                self.ui.loading(
-                    f"Fetching {component.label} versions from {source_label(component)}…"
-                )
-                try:
-                    versions = list(
-                        live.compatible_versions(name, runtimes)
-                        if component.runtime and runtimes is not None
-                        else live.versions(name)
-                    )
-                    break
-                except BrigError as error:
-                    self.ui.notice(
-                        "Version source unavailable", [str(error)], error=True
-                    )
-                    if (
-                        self.ui.choose(
-                            "Try fetching versions again?",
-                            ["Retry", "Cancel profile"],
-                            default=1,
-                        )
-                        == 1
-                    ):
-                        raise Cancelled
-            if not versions:
-                runtime = COMPONENTS[component.runtime]
-                raise IncompatibleSelection(
-                    f"No verified {component.label} version supports {runtime.label} {runtimes[component.runtime]}. Choose a different runtime version or deselect this tool."
-                )
-            if name in defaults and defaults[name] not in versions:
-                self.ui.notice(
-                    "Choose an available version",
-                    [
-                        f"Previously selected {component.label} {defaults[name]} is unavailable or incompatible with the selected runtime.",
-                        "Select a compatible published version. Existing revisions remain unchanged.",
-                    ],
-                )
-            default = (
-                versions.index(defaults[name])
-                if defaults.get(name) in versions
-                else versions.index(live.preferred_version(name, versions))
-            )
-            index = self.ui.choose(
-                f"{component.label} version · {source_label(component)}",
-                [live.label(name, version) for version in versions],
-                default,
-                searchable=True,
-            )
-            result[name] = versions[index]
+            if runtimes is not None:
+                self._ensure_tool_runtime(name, runtimes, live)
+            result[name] = self._select_version(name, defaults, live, runtimes)
         return result
+
+    def _select_version(
+        self,
+        name: str,
+        defaults: dict[str, str],
+        live: VersionCatalog,
+        runtimes: dict[str, str] | None = None,
+    ) -> str:
+        component = COMPONENTS[name]
+        while True:
+            self.ui.loading(
+                f"Fetching {component.label} versions from {source_label(component)}…"
+            )
+            try:
+                versions = list(
+                    live.compatible_versions(name, runtimes)
+                    if component.runtime and runtimes is not None
+                    else live.versions(name)
+                )
+                break
+            except BrigError as error:
+                self.ui.notice("Version source unavailable", [str(error)], error=True)
+                if (
+                    self.ui.choose(
+                        "Try fetching versions again?",
+                        ["Retry", "Cancel profile"],
+                        default=1,
+                    )
+                    == 1
+                ):
+                    raise Cancelled
+        if not versions:
+            runtime = COMPONENTS[component.runtime]
+            raise IncompatibleSelection(
+                f"No verified {component.label} version supports {runtime.label} {runtimes[component.runtime]}. Choose a different runtime version or deselect this tool."
+            )
+        if name in defaults and defaults[name] not in versions:
+            self.ui.notice(
+                "Choose an available version",
+                [
+                    f"Previously selected {component.label} {defaults[name]} is unavailable or incompatible with the selected runtime.",
+                    "Select a compatible published version. Existing revisions remain unchanged.",
+                ],
+            )
+        default = (
+            versions.index(defaults[name])
+            if defaults.get(name) in versions
+            else versions.index(live.preferred_version(name, versions))
+        )
+        index = self.ui.choose(
+            f"{component.label} version · {source_label(component)}",
+            [live.label(name, version) for version in versions],
+            default,
+            searchable=True,
+        )
+        return versions[index]
+
+    def _ensure_tool_runtime(
+        self, name: str, runtimes: dict[str, str], live: VersionCatalog
+    ) -> None:
+        component = TOOLS[name]
+        required = component.runtime
+        if required is None or required in runtimes:
+            return
+        runtime = RUNTIMES[required]
+        self.ui.notice(
+            f"{component.label} requires {runtime.label}",
+            [
+                f"Brig installs {component.label} through npm.",
+                f"{runtime.label} will also be installed because it is required.",
+                "Your project can keep using Python or PHP.",
+                f"Choose the {runtime.label} version next.",
+            ],
+        )
+        runtimes[required] = self._select_version(required, {}, live)
 
     def profile_wizard(self, name: str | None = None) -> None:
         editing = name is not None
@@ -124,12 +160,16 @@ class ProfileViews:
                 required_message="Select a runtime with Space to continue.",
             )
             runtime_defaults = runtimes
-            compatible_tools = {n: t for n, t in TOOLS.items() if t.runtime in runtimes}
+            available_tools = {
+                n: t
+                for n, t in TOOLS.items()
+                if t.runtime in runtimes or n == "playwright"
+            }
             try:
                 tools = self._select_versions(
                     f"{title} · 3/6 · tools · compatible versions only",
-                    compatible_tools,
-                    {n: v for n, v in tool_defaults.items() if n in compatible_tools},
+                    available_tools,
+                    {n: v for n, v in tool_defaults.items() if n in available_tools},
                     live,
                     runtimes=runtimes,
                 )

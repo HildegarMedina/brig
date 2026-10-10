@@ -22,7 +22,10 @@ own containers, network, and data volumes.
 
 Git, Bash, curl, jq, and ripgrep are included. Selecting a database also installs
 its command-line client in the development environment.
-Select Playwright with a Node.js runtime to add Chromium browser automation.
+Playwright is an optional tool for Chromium browser automation, also available
+with Python or PHP profiles. When Node.js is missing, its option explains that
+Node.js will also be installed. Selecting Playwright adds Node.js to the profile
+and asks you to choose its version.
 
 ## Install
 
