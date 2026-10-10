@@ -10,6 +10,7 @@ terminal inside its development container.
 | --- | --- |
 | Create and run your first project | [Your first project](tutorials/first-project.md) |
 | Start, stop, update, or delete a definition | [Manage projects](how-to/projects.md) |
+| Choose English, Spanish, or Portuguese | [Language settings](how-to/languages.md) |
 | Share YAML profiles or import a saved history | [Import profiles](how-to/import-profiles.md) |
 | Resolve a Docker, version, or terminal error | [Troubleshooting](how-to/troubleshooting.md) |
 | Understand how profiles, projects, and Docker fit together | [Architecture and execution flow](explanation/architecture.md) |

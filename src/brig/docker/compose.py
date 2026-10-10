@@ -8,13 +8,14 @@ from brig.components.agents import AGENTS, validate_agents
 from brig.components.catalog import validate_selection
 from brig.docker.services import SERVICES
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Project
 
 
 def project_prefix(project: Project) -> str:
     # Stored IDs are validated as strings; never use an unchecked ID as a path.
     if not re.fullmatch(r"[a-zA-Z0-9][a-zA-Z0-9_-]{0,63}", project.id):
-        raise BrigError("Cannot use this project with Docker: invalid project ID.")
+        raise BrigError(tr("Cannot use this project with Docker: invalid project ID."))
     return f"brig-{project.id.lower()}"
 
 
@@ -77,7 +78,9 @@ def compose_definition(
     )
     if not project.path or not Path(project.path).is_dir():
         raise BrigError(
-            f"Project folder is missing: {project.path or '(not registered)'}. Register an existing folder with 'brig project init'."
+            tr(
+                "Project folder is missing: {value0}. Register an existing folder with 'brig project init'."
+            ).format(value0=project.path or "(not registered)")
         )
     prefix = project_prefix(project)
     labels = {"org.brig.project-id": project.id}

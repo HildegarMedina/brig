@@ -6,6 +6,8 @@ from pathlib import Path
 
 from brig.application import Application
 from brig.errors import BrigError, Cancelled
+from brig.i18n import LANGUAGES, current_language, resolve_language, set_language, tr
+from brig.i18n.preferences import load_language, save_language
 from brig.models import Project
 from brig.ui.presentation import configuration_lines, project_lines
 from brig.ui.tui.dashboard_render import DashboardItem, DashboardRenderer
@@ -26,27 +28,31 @@ class Dashboard:
             return [
                 DashboardItem(
                     profile.name,
-                    f"version {profile.latest.number}",
+                    tr("version {value0}").format(value0=profile.latest.number),
                     ", ".join(profile.latest.runtimes),
-                    f"{len(profile.versions)} saved versions",
+                    tr("{value0} saved versions").format(value0=len(profile.versions)),
                     configuration_lines(profile.latest),
                 )
                 for profile in self.app.state.profiles
             ]
         return [
             DashboardItem(
-                "Workspace settings",
-                "local",
-                "Docker Compose",
+                tr("Workspace settings"),
+                tr("local"),
+                tr("Docker Compose"),
                 str(self.directory),
                 [
-                    f"Engine     {'Demo' if self.app.engine.simulated else 'Docker Compose'}",
-                    f"Data       {self.directory}",
-                    "Language   English",
+                    tr("Engine     {value0}").format(
+                        value0="Demo" if self.app.engine.simulated else "Docker Compose"
+                    ),
+                    tr("Data       {value0}").format(value0=self.directory),
+                    tr("Language   {language}").format(
+                        language=LANGUAGES[current_language()]
+                    ),
                     "",
-                    "Profiles pin published runtime and tool versions.",
-                    "Project updates are explicit; stop before applying them.",
-                    "NO_COLOR disables color. Esc responds in 100 ms.",
+                    tr("Profiles pin published runtime and tool versions."),
+                    tr("Project updates are explicit; stop before applying them."),
+                    tr("NO_COLOR disables color. Esc responds in 100 ms."),
                 ],
             )
         ]
@@ -56,20 +62,33 @@ class Dashboard:
         return DashboardItem(
             project.name,
             status,
-            f"{project.profile} · version {project.configuration.number}",
-            project.path or "No folder mounted",
+            tr("{value0} · version {value1}").format(
+                value0=project.profile, value1=project.configuration.number
+            ),
+            project.path or tr("No folder mounted"),
             project_lines(self.app, project, status=status),
         )
 
     def open(self, section: str, item: DashboardItem, read_only: bool):
-        if read_only or section == "Settings":
+        if read_only:
             self.ui.notice(item.name, item.details)
+        elif section == "Settings":
+            saved = load_language(self.directory)
+            codes = ["auto", *LANGUAGES]
+            selected = self.ui.choose(
+                tr("Interface language"),
+                [tr("Automatic"), *LANGUAGES.values()],
+                default=codes.index(saved or "auto"),
+            )
+            code = codes[selected]
+            save_language(self.directory, code)
+            set_language(resolve_language(saved=None if code == "auto" else code))
         elif section == "Projects":
             self.views.project_detail(item.name)
         else:
             try:
                 action = self.ui.choose(
-                    item.name, ["Edit profile", "Delete profile", "Back"]
+                    item.name, [tr("Edit profile"), tr("Delete profile"), tr("Back")]
                 )
                 if action == 0:
                     self.views.profile_wizard(item.name)
@@ -108,14 +127,18 @@ class Dashboard:
             selected = min(positions[section], max(0, len(items) - 1))
             positions[section] = selected
             footer = (
-                "↑↓ move · Enter details · Esc exit · r refresh"
+                tr("↑↓ move · Enter details · Esc exit · r refresh")
                 if read_only
                 else (
-                    "←→ tabs · ↑↓ move · Enter actions · c create · r refresh · Esc exit"
+                    tr(
+                        "←→ tabs · ↑↓ move · Enter actions · c create · r refresh · Esc exit"
+                    )
                 )
             )
             if not read_only and section == "Projects":
-                footer = "←→ tabs · ↑↓ move · Enter actions · c new · s start/stop · a agent · o shell · r refresh · Esc exit"
+                footer = tr(
+                    "←→ tabs · ↑↓ move · Enter actions · c new · s start/stop · a agent · o shell · r refresh · Esc exit"
+                )
             self.renderer.draw(
                 list(self.sections),
                 tab,
@@ -162,5 +185,5 @@ class Dashboard:
                     pass
                 except BrigError as error:
                     self.ui.notice(
-                        "Could not complete action", [str(error)], error=True
+                        tr("Could not complete action"), [str(error)], error=True
                     )

@@ -273,11 +273,17 @@ class UiPathTests(unittest.TestCase):
             patch.object(dashboard.app, "run_agent", return_value="") as agent,
             patch.object(dashboard.app, "shell", return_value="") as shell,
             patch.object(dashboard.ui, "notice") as notice,
+            patch.object(dashboard.ui, "choose", side_effect=Cancelled) as choose,
         ):
             dashboard.run()
         agent.assert_called_once_with("website", "claude")
         shell.assert_called_once_with("website")
-        self.assertEqual(notice.call_args.args[0], "Workspace settings")
+        choose.assert_called_once_with(
+            "Interface language",
+            ["Automatic", "English", "Español", "Português"],
+            default=0,
+        )
+        notice.assert_not_called()
         for error in (Cancelled(), BrigError("failed")):
             dashboard = case.dashboard(["c", "\x1b"])
             dashboard.views.project_wizard.side_effect = error

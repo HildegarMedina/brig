@@ -7,6 +7,7 @@ from urllib.request import Request, urlopen
 
 from brig.components.catalog import COMPONENTS, Component
 from brig.components.compatibility import ReleaseInfo
+from brig.i18n import tr
 
 MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 
@@ -21,7 +22,7 @@ def fetch_text(url: str) -> str:
     with urlopen(request, timeout=10) as response:
         data = response.read(MAX_RESPONSE_BYTES + 1)
     if len(data) > MAX_RESPONSE_BYTES:
-        raise ValueError("Version response is too large")
+        raise ValueError(tr("Version response is too large"))
     return data.decode("utf-8")
 
 
@@ -80,8 +81,8 @@ def source_label(component: Component) -> str:
     return {
         "docker": "Docker Official Images",
         "pypi": "PyPI",
-        "npm": "npm registry",
-        "composer": "Composer releases",
+        "npm": tr("npm registry"),
+        "composer": tr("Composer releases"),
     }[component.provider]
 
 

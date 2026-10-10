@@ -13,6 +13,7 @@ from brig.components.versions import LiveVersionCatalog
 from brig.docker.dockerfile import render_dockerfile
 from brig.engine import EnvironmentEngine
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Profile, ProfileParent, ProfileVersion, Project, State
 from brig.persistence.export import write_dockerfile
 from brig.persistence.profile_reader import read_profiles
@@ -40,13 +41,13 @@ class Application:
         for profile in self.state.profiles:
             if profile.name.casefold() == name.casefold():
                 return profile
-        raise BrigError(f"Unknown profile: {name}.")
+        raise BrigError(tr("Unknown profile: {value0}.").format(value0=name))
 
     def project(self, name: str) -> Project:
         for project in self.state.projects:
             if project.name.casefold() == name.casefold():
                 return project
-        raise BrigError(f"Unknown project: {name}.")
+        raise BrigError(tr("Unknown project: {value0}.").format(value0=name))
 
     def resolve_project(self, name: str | None, directory: Path) -> Project:
         if name:
@@ -60,7 +61,9 @@ class Application:
         if matches:
             return max(matches, key=lambda p: len(Path(p.path).parts))
         raise BrigError(
-            "No project found for this folder. Use --project <name> or 'brig project init'."
+            tr(
+                "No project found for this folder. Use --project <name> or 'brig project init'."
+            )
         )
 
     def validate_profile_name(self, name: str, *, editing: bool = False) -> str:
@@ -71,7 +74,11 @@ class Application:
         if not editing and any(
             p.name.casefold() == name.casefold() for p in self.state.profiles
         ):
-            raise BrigError(f"Profile '{name}' already exists. Choose another name.")
+            raise BrigError(
+                tr("Profile '{value0}' already exists. Choose another name.").format(
+                    value0=name
+                )
+            )
         return self._validate_name(name)
 
     def validate_project_name(self, name: str) -> str:
@@ -80,7 +87,11 @@ class Application:
             project.name.casefold() == name.casefold()
             for project in self.state.projects
         ):
-            raise BrigError(f"Project '{name}' already exists. Choose another name.")
+            raise BrigError(
+                tr("Project '{value0}' already exists. Choose another name.").format(
+                    value0=name
+                )
+            )
         return self._validate_name(name)
 
     def save_profile(
@@ -107,15 +118,15 @@ class Application:
                 base_profile.latest.number if base_version is None else base_version,
             )
         elif base_version is not None:
-            raise BrigError("A base version requires a base profile.")
+            raise BrigError(tr("A base version requires a base profile."))
         if update_base:
             if parent is None:
-                raise BrigError("This profile does not inherit a base profile.")
+                raise BrigError(tr("This profile does not inherit a base profile."))
             parent = ProfileParent(
                 parent.profile, self.profile(parent.profile).latest.number
             )
         if parent and would_cycle(self.state.profiles, name, parent.profile):
-            raise BrigError("Profile inheritance cannot contain cycles.")
+            raise BrigError(tr("Profile inheritance cannot contain cycles."))
         inherited = resolve_base(self.state.profiles, parent) if parent else None
         runtimes, tools, services = dict(runtimes), dict(tools), dict(services)
         if inherited:
@@ -126,7 +137,11 @@ class Application:
             ):
                 for component, version in pinned.items():
                     if component in selections and selections[component] != version:
-                        raise BrigError(f"Inherited {component} cannot be overridden.")
+                        raise BrigError(
+                            tr("Inherited {value0} cannot be overridden.").format(
+                                value0=component
+                            )
+                        )
                     selections[component] = version
         agent = (
             agent if agent is not None else inherited.agent if inherited else "claude"
@@ -174,7 +189,9 @@ class Application:
         candidate, added, unchanged = merge_profiles(self.state, read_profiles(paths))
         if added:
             self._commit(candidate)
-        return f"Imported {added} profile versions; {unchanged} already present. Projects were kept unchanged."
+        return tr(
+            "Imported {value0} profile versions; {value1} already present. Projects were kept unchanged."
+        ).format(value0=added, value1=unchanged)
 
     def profile_for_deletion(self, name: str) -> Profile:
         profile = self.profile(name)
@@ -185,7 +202,9 @@ class Application:
         ]
         if projects:
             raise BrigError(
-                f"Cannot delete profile '{profile.name}'. Used by projects: {', '.join(projects)}."
+                tr(
+                    "Cannot delete profile '{value0}'. Used by projects: {value1}."
+                ).format(value0=profile.name, value1=", ".join(projects))
             )
         children = [
             child.name
@@ -197,7 +216,9 @@ class Application:
         ]
         if children:
             raise BrigError(
-                f"Cannot delete profile '{profile.name}'. Inherited by profiles: {', '.join(children)}."
+                tr(
+                    "Cannot delete profile '{value0}'. Inherited by profiles: {value1}."
+                ).format(value0=profile.name, value1=", ".join(children))
             )
         return profile
 
@@ -209,15 +230,19 @@ class Application:
         ]
         self.store.delete_profile(candidate, profile)
         self.state = candidate
-        return f"Deleted profile '{profile.name}' and all its versions."
+        return tr("Deleted profile '{value0}' and all its versions.").format(
+            value0=profile.name
+        )
 
     def create_project(self, name: str, path: Path, profile_name: str) -> Project:
         name = self.validate_project_name(name)
         directory = path.expanduser().resolve()
         if not directory.is_dir():
-            raise BrigError(f"Project folder does not exist: {directory}")
+            raise BrigError(
+                tr("Project folder does not exist: {value0}").format(value0=directory)
+            )
         if any(p.path == str(directory) for p in self.state.projects):
-            raise BrigError("This folder is already registered as a project.")
+            raise BrigError(tr("This folder is already registered as a project."))
         profile = self.profile(profile_name)
         project = Project(
             uuid4().hex, name, str(directory), profile.name, deepcopy(profile.latest)
@@ -235,13 +260,15 @@ class Application:
         if output is None:
             return contents
         destination = write_dockerfile(output, contents)
-        return f"Dockerfile exported to {destination}"
+        return tr("Dockerfile exported to {value0}").format(value0=destination)
 
     def project_for_deletion(self, name: str) -> Project:
         project = self.project(name)
         if self.engine.has_running_resources(project):
             raise BrigError(
-                f"Cannot delete running project '{project.name}'. Stop it first with 'brig down --project {project.name}'."
+                tr(
+                    "Cannot delete running project '{value0}'. Stop it first with 'brig down --project {value1}'."
+                ).format(value0=project.name, value1=project.name)
             )
         return project
 
@@ -252,20 +279,26 @@ class Application:
             item for item in candidate.projects if item.id != project.id
         ]
         self._commit(candidate)
-        return f"Deleted project '{project.name}' from Brig. Its local folder and profile were kept."
+        return tr(
+            "Deleted project '{value0}' from Brig. Its local folder and profile were kept."
+        ).format(value0=project.name)
 
     def update_project(self, name: str) -> str:
         project = self.project(name)
         latest = self.profile(project.profile).latest
         if latest.number == project.configuration.number:
-            return f"{project.name} already uses the latest profile version."
+            return tr("{value0} already uses the latest profile version.").format(
+                value0=project.name
+            )
         if self.engine.has_running_resources(project):
-            raise BrigError("Stop the project before applying a profile update.")
+            raise BrigError(tr("Stop the project before applying a profile update."))
         candidate = deepcopy(self.state)
         target = next(p for p in candidate.projects if p.id == project.id)
         target.configuration = deepcopy(latest)
         self._commit(candidate)
-        return f"Updated {project.name} to profile version {latest.number}."
+        return tr("Updated {value0} to profile version {value1}.").format(
+            value0=project.name, value1=latest.number
+        )
 
     def start(self, name: str) -> str:
         return self._set_running(name, True)
@@ -292,7 +325,9 @@ class Application:
         project = self.project(name)
         if agent not in project.configuration.selected_agents:
             raise BrigError(
-                f"Agent '{agent}' is not selected in this project's profile."
+                tr(
+                    "Agent '{value0}' is not selected in this project's profile."
+                ).format(value0=agent)
             )
         self.engine.validate_shell()
         self.start(name)
@@ -321,6 +356,8 @@ class Application:
         name = name.strip()
         if len(name) > 64 or not re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*", name):
             raise BrigError(
-                "Use kebab-case, e.g. laravel-project: a-z, 0-9 and single -; start with a letter. Max 64 chars."
+                tr(
+                    "Use kebab-case, e.g. laravel-project: a-z, 0-9 and single -; start with a letter. Max 64 chars."
+                )
             )
         return name

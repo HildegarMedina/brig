@@ -5,6 +5,7 @@ import json
 from brig.components.agents import AGENTS, validate_agents
 from brig.components.catalog import validate_selection
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Project
 
 # Runtime builders can be extended without changing the CLI or application.
@@ -59,9 +60,15 @@ def render_dockerfile(project: Project) -> str:
     )
     unsupported = set(configuration.runtimes) - RUNTIME_IMAGES.keys()
     if unsupported:
-        raise BrigError(f"No Dockerfile builder for: {', '.join(sorted(unsupported))}.")
+        raise BrigError(
+            tr("No Dockerfile builder for: {value0}.").format(
+                value0=", ".join(sorted(unsupported))
+            )
+        )
     if type(configuration.number) is not int or configuration.number < 1:
-        raise BrigError("Cannot generate a Dockerfile from an invalid profile version.")
+        raise BrigError(
+            tr("Cannot generate a Dockerfile from an invalid profile version.")
+        )
 
     integrations = [AGENTS[name] for name in sorted(configuration.selected_agents)]
     lines = [

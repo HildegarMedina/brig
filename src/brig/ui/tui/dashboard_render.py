@@ -6,6 +6,7 @@ import textwrap
 import unicodedata
 from dataclasses import dataclass
 
+from brig.i18n import tr
 from brig.ui.tui.terminal import Terminal
 
 
@@ -97,14 +98,16 @@ class DashboardRenderer:
     ):
         height, width = self.ui.screen.getmaxyx()
         if width < 88 or height < 24:
-            rows = [f"{item.name} · {item.status} · {item.summary}" for item in items]
+            rows = [
+                f"{item.name} · {tr(item.status)} · {item.summary}" for item in items
+            ]
             self.ui.render(
-                tabs[tab],
+                tr(tabs[tab]),
                 rows
                 or [
-                    "No records yet."
+                    tr("No records yet.")
                     if read_only
-                    else "No records yet. Press c to create."
+                    else tr("No records yet. Press c to create.")
                 ],
                 footer,
                 selected if items else -1,
@@ -113,10 +116,13 @@ class DashboardRenderer:
         self.ui.screen.erase()
         self.box(1, 2, 3, width - 4)
         self.write(2, 4, "brig", 8, self.ui.accent)
-        self.write(2, 13, "Isolated development workspaces", width - 28, curses.A_DIM)
-        self.write(2, width - 13, "WORKSPACE", 9, self.styles["focus"])
+        self.write(
+            2, 13, tr("Isolated development workspaces"), width - 28, curses.A_DIM
+        )
+        self.write(2, width - 13, tr("WORKSPACE"), 9, self.styles["focus"])
         x = 4
         for index, label in enumerate(tabs):
+            label = tr(label)
             if read_only and index != tab:
                 continue
             text = f"[ {label} ]" if index == tab else f"  {label}  "
@@ -140,25 +146,29 @@ class DashboardRenderer:
                 y + 1, 4, item.name, sidebar - 4, curses.A_BOLD if focused else 0
             )
             state_style = self.styles.get(item.status, self.styles["border"])
-            self.write(y + 2, 4, f"● {item.status}", sidebar - 4, state_style)
+            self.write(y + 2, 4, f"● {tr(item.status)}", sidebar - 4, state_style)
             self.write(y + 3, 4, item.summary, sidebar - 4)
             self.write(y + 4, 4, item.context, sidebar - 4, curses.A_DIM)
         if not items:
             self.box(7, 2, 6, sidebar)
-            self.write(9, 4, "Your workspace starts here", sidebar - 4, curses.A_BOLD)
+            self.write(
+                9, 4, tr("Your workspace starts here"), sidebar - 4, curses.A_BOLD
+            )
             self.write(
                 10,
                 4,
-                "Create a record with brig"
+                tr("Create a record with brig")
                 if read_only
-                else "Press c to create a record",
+                else tr("Press c to create a record"),
                 sidebar - 4,
                 curses.A_DIM,
             )
         self.write(
             height - 5,
             4,
-            f"{selected + 1 if items else 0} / {len(items)} records",
+            tr("{value0} / {value1} records").format(
+                value0=selected + 1 if items else 0, value1=len(items)
+            ),
             sidebar - 4,
             curses.A_DIM,
         )
@@ -169,7 +179,7 @@ class DashboardRenderer:
         self.write(
             8,
             panel_x + 2,
-            item.name if item else "Welcome to Brig",
+            item.name if item else tr("Welcome to Brig"),
             panel_width - 4,
             curses.A_BOLD,
         )
@@ -177,12 +187,12 @@ class DashboardRenderer:
             item.details
             if item
             else [
-                "Create a profile to choose your runtimes, tools and agents.",
-                "Then register a project folder to get started.",
+                tr("Create a profile to choose your runtimes, tools and agents."),
+                tr("Then register a project folder to get started."),
             ]
         )
         available = height - 17
-        overview = "OVERVIEW"
+        overview = tr("OVERVIEW")
         if len(details) > available:
             overview += f"  {detail_offset + 1}-{min(detail_offset + available, len(details))} / {len(details)}"
         self.write(9, panel_x + 2, overview, panel_width - 4, self.styles["focus"])
@@ -190,11 +200,11 @@ class DashboardRenderer:
             details[detail_offset : detail_offset + available], 11
         ):
             self.write(row, panel_x + 2, line, panel_width - 4)
-        actions = "Enter  details" if read_only else "Enter  actions"
+        actions = tr("Enter  details") if read_only else tr("Enter  actions")
         self.write(
             height - 6,
             panel_x + 2,
-            actions + "   PgUp/PgDn  scroll",
+            actions + tr("   PgUp/PgDn  scroll"),
             panel_width - 4,
             curses.A_DIM,
         )

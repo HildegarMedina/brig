@@ -14,6 +14,7 @@ from brig.components.catalog import (
 )
 from brig.components.providers import source_label
 from brig.errors import BrigError, Cancelled, IncompatibleSelection
+from brig.i18n import tr
 from brig.models import ProfileVersion
 from brig.persistence.profile_yaml import profile_path
 from brig.profile_inheritance import resolve_base
@@ -43,9 +44,9 @@ class ProfileViews:
         if not catalog:
             return {}
         options = {
-            f"{item.category} · {item.label}"
+            f"{tr(item.category)} · {item.label}"
             + (
-                " · also installs Node.js (required)"
+                tr(" · also installs Node.js (required)")
                 if name == "playwright"
                 and runtimes is not None
                 and "node" not in runtimes
@@ -77,7 +78,9 @@ class ProfileViews:
         component = COMPONENTS[name]
         while True:
             self.ui.loading(
-                f"Fetching {component.label} versions from {source_label(component)}…"
+                tr("Fetching {value0} versions from {value1}…").format(
+                    value0=component.label, value1=source_label(component)
+                )
             )
             try:
                 versions = list(
@@ -87,11 +90,13 @@ class ProfileViews:
                 )
                 break
             except BrigError as error:
-                self.ui.notice("Version source unavailable", [str(error)], error=True)
+                self.ui.notice(
+                    tr("Version source unavailable"), [str(error)], error=True
+                )
                 if (
                     self.ui.choose(
-                        "Try fetching versions again?",
-                        ["Retry", "Cancel profile"],
+                        tr("Try fetching versions again?"),
+                        [tr("Retry"), tr("Cancel profile")],
                         default=1,
                     )
                     == 1
@@ -100,14 +105,24 @@ class ProfileViews:
         if not versions:
             runtime = COMPONENTS[component.runtime]
             raise IncompatibleSelection(
-                f"No verified {component.label} version supports {runtime.label} {runtimes[component.runtime]}. Choose a different runtime version or deselect this tool."
+                tr(
+                    "No verified {value0} version supports {value1} {value2}. Choose a different runtime version or deselect this tool."
+                ).format(
+                    value0=component.label,
+                    value1=runtime.label,
+                    value2=runtimes[component.runtime],
+                )
             )
         if name in defaults and defaults[name] not in versions:
             self.ui.notice(
-                "Choose an available version",
+                tr("Choose an available version"),
                 [
-                    f"Previously selected {component.label} {defaults[name]} is unavailable or incompatible with the selected runtime.",
-                    "Select a compatible published version. Existing versions remain unchanged.",
+                    tr(
+                        "Previously selected {value0} {value1} is unavailable or incompatible with the selected runtime."
+                    ).format(value0=component.label, value1=defaults[name]),
+                    tr(
+                        "Select a compatible published version. Existing versions remain unchanged."
+                    ),
                 ],
             )
         default = (
@@ -116,7 +131,9 @@ class ProfileViews:
             else versions.index(live.preferred_version(name, versions))
         )
         index = self.ui.choose(
-            f"{component.label} version · {source_label(component)}",
+            tr("{value0} version · {value1}").format(
+                value0=component.label, value1=source_label(component)
+            ),
             [live.label(name, version) for version in versions],
             default,
             searchable=True,
@@ -132,12 +149,18 @@ class ProfileViews:
             return
         runtime = RUNTIMES[required]
         self.ui.notice(
-            f"{component.label} requires {runtime.label}",
+            tr("{value0} requires {value1}").format(
+                value0=component.label, value1=runtime.label
+            ),
             [
-                f"Brig installs {component.label} through npm.",
-                f"{runtime.label} will also be installed because it is required.",
-                "Your project can keep using Python or PHP.",
-                f"Choose the {runtime.label} version next.",
+                tr("Brig installs {value0} through npm.").format(
+                    value0=component.label
+                ),
+                tr("{value0} will also be installed because it is required.").format(
+                    value0=runtime.label
+                ),
+                tr("Your project can keep using Python or PHP."),
+                tr("Choose the {value0} version next.").format(value0=runtime.label),
             ],
         )
         runtimes[required] = self._select_version(required, {}, live)
@@ -152,12 +175,14 @@ class ProfileViews:
     ) -> None:
         editing = name is not None
         existing = self.app.profile(name).latest if editing else None
-        title = "Edit profile" if editing else "Create profile"
+        title = tr("Edit profile") if editing else tr("Create profile")
         live = self.app.catalog_factory()
         if not editing:
             name = self.ui.input(
-                f"{title} · 1/6 · name (kebab-case)",
-                required_message="Profile name is required. Enter a name to continue.",
+                tr("{value0} · 1/6 · name (kebab-case)").format(value0=title),
+                required_message=tr(
+                    "Profile name is required. Enter a name to continue."
+                ),
                 validator=self.app.validate_profile_name,
             )
         parent = choose_parent(
@@ -174,10 +199,10 @@ class ProfileViews:
         pinned_services = inherited.services if inherited else {}
         if inherited:
             self.ui.notice(
-                "Inherited configuration",
+                tr("Inherited configuration"),
                 [
                     *configuration_lines(inherited),
-                    "Only additional components are selectable.",
+                    tr("Only additional components are selectable."),
                 ],
             )
         defaults = local_defaults(self.app, existing)
@@ -187,7 +212,7 @@ class ProfileViews:
             runtimes = {
                 **pinned_runtimes,
                 **self._select_versions(
-                    f"{title} · 2/6 · runtimes",
+                    tr("{value0} · 2/6 · runtimes").format(value0=title),
                     {
                         n: item
                         for n, item in RUNTIMES.items()
@@ -197,7 +222,7 @@ class ProfileViews:
                     live,
                     required_message=None
                     if inherited
-                    else "Select a runtime with Space to continue.",
+                    else tr("Select a runtime with Space to continue."),
                 ),
             }
             runtime_defaults = runtimes
@@ -211,7 +236,9 @@ class ProfileViews:
                 tools = {
                     **pinned_tools,
                     **self._select_versions(
-                        f"{title} · 3/6 · tools · compatible versions only",
+                        tr("{value0} · 3/6 · tools · compatible versions only").format(
+                            value0=title
+                        ),
                         available_tools,
                         {
                             n: v
@@ -225,12 +252,14 @@ class ProfileViews:
                 break
             except IncompatibleSelection as error:
                 self.ui.notice(
-                    "Choose a compatible runtime and tools", [str(error)], error=True
+                    tr("Choose a compatible runtime and tools"),
+                    [str(error)],
+                    error=True,
                 )
         services = {
             **pinned_services,
             **self._select_versions(
-                f"{title} · 4/6 · databases and caches",
+                tr("{value0} · 4/6 · databases and caches").format(value0=title),
                 {n: item for n, item in SERVICES.items() if n not in pinned_services},
                 defaults.services if defaults else {},
                 live,
@@ -247,12 +276,12 @@ class ProfileViews:
             parent,
         )
         if not self.ui.confirm(
-            f"{title} · 6/6 · review",
+            tr("{value0} · 6/6 · review").format(value0=title),
             [
-                f"Name       {name}",
+                tr("Name       {value0}").format(value0=name),
                 *configuration_lines(version),
                 "",
-                "Existing projects keep their current version.",
+                tr("Existing projects keep their current version."),
             ],
         ):
             return
@@ -269,36 +298,42 @@ class ProfileViews:
             base_version=parent.version if parent else None,
         )
         self.ui.notice(
-            "Profile saved",
+            tr("Profile saved"),
             [
-                f"{profile.name} · version {profile.latest.number}",
-                f"YAML: {profile_path(self.data_directory, profile.name, profile.latest.number)}",
+                tr("{value0} · version {value1}").format(
+                    value0=profile.name, value1=profile.latest.number
+                ),
+                tr("YAML: {value0}").format(
+                    value0=profile_path(
+                        self.data_directory, profile.name, profile.latest.number
+                    )
+                ),
             ],
         )
 
     def delete_profile(self, name: str) -> None:
         profile = self.app.profile_for_deletion(name)
         if not self.ui.confirm(
-            f"Delete profile '{profile.name}'",
+            tr("Delete profile '{value0}'").format(value0=profile.name),
             [
-                f"Name       {profile.name}",
-                f"Versions   {len(profile.versions)}",
-                "All versions and their YAML files will be deleted.",
+                tr("Name       {value0}").format(value0=profile.name),
+                tr("Versions   {value0}").format(value0=len(profile.versions)),
+                tr("All versions and their YAML files will be deleted."),
             ],
             action="Delete profile",
         ):
             return
         message = self.app.delete_profile(profile.name)
-        self.ui.notice("Profile deleted", [message])
+        self.ui.notice(tr("Profile deleted"), [message])
 
     def profiles(self) -> None:
         selected = 0
         while True:
             try:
                 profiles = self.app.state.profiles
-                records = list_rows(self.app, "profile") + ["+ Create profile"]
+                records = list_rows(self.app, "profile") + [tr("+ Create profile")]
                 index = choose_list(
-                    self.ui, "Profiles", records, min(selected, len(records) - 1)
+                    self.ui, tr("Profiles"), records, min(selected, len(records) - 1)
                 )
                 selected = index
                 if index == len(profiles):
@@ -306,7 +341,12 @@ class ProfileViews:
                 else:
                     name = profiles[index].name
                     action = self.ui.choose(
-                        name, ["View latest version", "Edit profile", "Delete profile"]
+                        name,
+                        [
+                            tr("View latest version"),
+                            tr("Edit profile"),
+                            tr("Delete profile"),
+                        ],
                     )
                     if action == 0:
                         self.ui.notice(
@@ -319,7 +359,9 @@ class ProfileViews:
             except Cancelled:
                 return
             except BrigError as error:
-                self.ui.notice("Could not complete action", [str(error)], error=True)
+                self.ui.notice(
+                    tr("Could not complete action"), [str(error)], error=True
+                )
 
     def _select_agents(
         self,
@@ -339,7 +381,7 @@ class ProfileViews:
         }
         selected_options = (
             self.ui.multiple(
-                f"{title} · 5/6 · agents",
+                tr("{value0} · 5/6 · agents").format(value0=title),
                 list(agent_options),
                 {
                     option
@@ -355,7 +397,7 @@ class ProfileViews:
                 },
                 required_message=None
                 if inherited
-                else "Select at least one agent with Space to continue.",
+                else tr("Select at least one agent with Space to continue."),
             )
             if agent_options
             else []
@@ -373,7 +415,7 @@ class ProfileViews:
             )
             agent = agents[
                 self.ui.choose(
-                    f"{title} · default agent",
+                    tr("{value0} · default agent").format(value0=title),
                     [AGENTS[name].name for name in agents],
                     default=default,
                 )

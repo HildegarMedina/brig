@@ -3,14 +3,30 @@
 ## Global options
 
 ```text
-brig [--data-dir DIRECTORY] [command]
+brig [--data-dir DIRECTORY] [--lang {en,es,pt}] [command]
 brig --help
 brig --version
 ```
 
 Without a command, Brig opens the terminal interface. `--data-dir` must appear
 before the command and changes the directory for definitions, versions, and
-engine artifacts.
+engine artifacts. `--lang` selects the language for this invocation and must also
+appear before the command. Interface text, help, summaries, and Brig errors are
+translated; command names, options, and identifiers keep their original spelling.
+
+## Language
+
+```text
+brig language [en|es|pt|auto]
+```
+
+Without an argument, show the active language and its code. With a code, save the
+preference for this Brig data directory. `auto` follows the terminal locale unless
+`BRIG_LANG` overrides it. Language changes require neither Docker nor internet.
+Selection order is `--lang`, `BRIG_LANG`, saved preference, then the first nonempty
+`LC_ALL`, `LC_MESSAGES`, or `LANG`. Unsupported locales fall back to English;
+unsupported `BRIG_LANG` values are ignored. The CLI restores its translation
+context after an invocation. See [language settings](../how-to/languages.md).
 
 ## Profiles
 
@@ -179,7 +195,8 @@ terminal background. Status labels remain readable without color.
 
 Use Left/Right or Tab to switch sections, Up/Down to select, Enter to open actions,
 and Esc to exit. Press `c` to create, `r` to refresh, and Page Up/Down to scroll the
-detail panel. In Projects, `s` starts or stops the selected project, `a` opens its
+detail panel. In Settings, Enter opens the language selector and saves the
+selected preference; the dashboard updates immediately. In Projects, `s` starts or stops the selected project, `a` opens its
 default agent, and `o` opens its shell. Existing confirmation and wizard flows
 handle editing and deletion. Status is refreshed on entry, on `r`, and after actions.
 

@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Protocol
 
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Profile, State
 from brig.persistence.codec import SCHEMA_VERSION, decode_state
 from brig.persistence.profile_yaml import legacy_profile, profile_path, render_profile
@@ -38,11 +39,16 @@ class JsonStateStore:
         except FileNotFoundError:
             return None
         except OSError as error:
-            raise BrigError(f"Cannot read {self.path}: {error}") from error
+            raise BrigError(
+                tr("Cannot read {value0}: {value1}").format(
+                    value0=self.path, value1=error
+                )
+            ) from error
         except (ValueError, TypeError, KeyError, AttributeError, BrigError) as error:
             raise BrigError(
-                f"Invalid data in {self.path}. File was not changed. "
-                "Restore a backup or move this file aside to start fresh."
+                tr(
+                    "Invalid data in {value0}. File was not changed. Restore a backup or move this file aside to start fresh."
+                ).format(value0=self.path)
             ) from error
 
     def save(self, state: State) -> None:
@@ -62,7 +68,9 @@ class JsonStateStore:
                     if document.exists():
                         if document.read_text(encoding="utf-8") != contents:
                             raise OSError(
-                                f"Profile version document was modified: {document}"
+                                tr(
+                                    "Profile version document was modified: {value0}"
+                                ).format(value0=document)
                             )
                         continue
                     legacy, expected = legacy_profile(
@@ -72,7 +80,11 @@ class JsonStateStore:
                         legacy.exists()
                         and legacy.read_text(encoding="utf-8") != expected
                     ):
-                        raise OSError(f"Legacy profile document was modified: {legacy}")
+                        raise OSError(
+                            tr("Legacy profile document was modified: {value0}").format(
+                                value0=legacy
+                            )
+                        )
                     document.parent.mkdir(parents=True, exist_ok=True)
                     with tempfile.NamedTemporaryFile(
                         mode="w",
@@ -106,7 +118,11 @@ class JsonStateStore:
         except OSError as error:
             for document in created_documents:
                 document.unlink(missing_ok=True)
-            raise BrigError(f"Cannot save {self.path}: {error}") from error
+            raise BrigError(
+                tr("Cannot save {value0}: {value1}").format(
+                    value0=self.path, value1=error
+                )
+            ) from error
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
@@ -135,12 +151,16 @@ class JsonStateStore:
                         os.replace(staged, directory)
                     except OSError as error:
                         raise BrigError(
-                            f"Deletion failed and versions could not be restored. Original YAML files are preserved at {staged}: {error}"
+                            tr(
+                                "Deletion failed and versions could not be restored. Original YAML files are preserved at {value0}: {value1}"
+                            ).format(value0=staged, value1=error)
                         ) from error
                 raise
         except OSError as error:
             raise BrigError(
-                f"Cannot delete profile '{profile.name}': {error}"
+                tr("Cannot delete profile '{value0}': {value1}").format(
+                    value0=profile.name, value1=error
+                )
             ) from error
         finally:
             if temporary is not None and (

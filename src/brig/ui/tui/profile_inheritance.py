@@ -4,6 +4,7 @@ from dataclasses import replace
 
 from brig.application import Application
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import ProfileParent, ProfileVersion
 from brig.profile_inheritance import resolve_base
 from brig.ui.tui.terminal import Terminal
@@ -47,16 +48,18 @@ def choose_parent(
         parent = existing.extends
         if parent is None:
             if update_base:
-                raise BrigError("This profile does not inherit a base profile.")
+                raise BrigError(tr("This profile does not inherit a base profile."))
             return None
         latest = app.profile(parent.profile).latest.number
         if latest != parent.version and not update_base:
             update_base = (
                 ui.choose(
-                    "Inherited base version",
+                    tr("Inherited base version"),
                     [
-                        f"Keep {parent.profile} v{parent.version}",
-                        f"Update to v{latest}",
+                        tr("Keep {value0} v{value1}").format(
+                            value0=parent.profile, value1=parent.version
+                        ),
+                        tr("Update to v{value0}").format(value0=latest),
                     ],
                     default=0,
                 )
@@ -64,14 +67,14 @@ def choose_parent(
             )
         return ProfileParent(parent.profile, latest) if update_base else parent
     if base_version is not None and base is None:
-        raise BrigError("--base-version requires --base.")
+        raise BrigError(tr("--base-version requires --base."))
     if base is None:
         profiles = app.state.profiles
         if not profiles:
             return None
         index = ui.choose(
-            "Base profile",
-            ["Create independently", *[profile.name for profile in profiles]],
+            tr("Base profile"),
+            [tr("Create independently"), *[profile.name for profile in profiles]],
             default=0,
         )
         if index == 0:
@@ -81,8 +84,11 @@ def choose_parent(
     if base_version is None:
         versions = list(reversed(profile.versions))
         index = ui.choose(
-            f"Inherit {profile.name} version",
-            [f"Version {version.number}" for version in versions],
+            tr("Inherit {value0} version").format(value0=profile.name),
+            [
+                tr("Version {value0}").format(value0=version.number)
+                for version in versions
+            ],
             default=0,
         )
         base_version = versions[index].number

@@ -12,6 +12,7 @@ from brig.docker.volumes import DockerVolumes
 from brig.docker.workspace import DockerWorkspace
 from brig.engine import Environment
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Project
 
 
@@ -108,11 +109,19 @@ class DockerEngine:
         if found.returncode:
             if "no such" not in (found.stderr or "").lower():
                 raise BrigError(
-                    "Cannot inspect project image: " + (found.stderr or "").strip()
+                    tr("Cannot inspect project image: ") + (found.stderr or "").strip()
                 )
-            print(f"Building image for {project.name}…", file=sys.stderr, flush=True)
+            print(
+                tr("Building image for {value0}…").format(value0=project.name),
+                file=sys.stderr,
+                flush=True,
+            )
             self.client.run([*command, "build", "dev"], capture=False)
-        print(f"Starting {project.name}…", file=sys.stderr, flush=True)
+        print(
+            tr("Starting {value0}…").format(value0=project.name),
+            file=sys.stderr,
+            flush=True,
+        )
         self.client.run(
             [
                 *command,
@@ -128,9 +137,13 @@ class DockerEngine:
         )
         if not self.is_running(project):
             raise BrigError(
-                "Docker reported success but the development container is not running."
+                tr(
+                    "Docker reported success but the development container is not running."
+                )
             )
-        return f"Started {project.name}. Use 'brig run {project.name}' to enter its terminal."
+        return tr(
+            "Started {value0}. Use 'brig run {value1}' to enter its terminal."
+        ).format(value0=project.name, value1=project.name)
 
     def stop(self, project: Project) -> str:
         with self.workspace.lock(project):
@@ -145,7 +158,9 @@ class DockerEngine:
             )
             if not config or Path(config).parent.parent != directory:
                 raise BrigError(
-                    "Cannot locate the managed Compose configuration for this container."
+                    tr(
+                        "Cannot locate the managed Compose configuration for this container."
+                    )
                 )
             compose_dir = Path(config).parent
         else:
@@ -153,18 +168,22 @@ class DockerEngine:
                 directory.glob("*/compose.yaml"), key=lambda path: path.stat().st_mtime
             )
             if not files:
-                return f"{project.name} is already stopped."
+                return tr("{value0} is already stopped.").format(value0=project.name)
             compose_dir = files[-1].parent
         self.client.run(
             [*self._compose(project, compose_dir), "down", "--remove-orphans"],
             capture=False,
         )
-        return f"Stopped {project.name}. Source files and Docker volumes were kept."
+        return tr(
+            "Stopped {value0}. Source files and Docker volumes were kept."
+        ).format(value0=project.name)
 
     def validate_shell(self, command=None) -> None:
         if not command and not (sys.stdin.isatty() and sys.stdout.isatty()):
             raise BrigError(
-                "Opening a project terminal requires an interactive terminal. Use '--command <program> [args...]' to run a command instead."
+                tr(
+                    "Opening a project terminal requires an interactive terminal. Use '--command <program> [args...]' to run a command instead."
+                )
             )
 
     def shell(self, project: Project, command=None) -> str:
@@ -175,7 +194,9 @@ class DockerEngine:
         container = self.client.inspect(project)
         if not container or not container["State"]["Running"]:
             raise BrigError(
-                "Project container is stopped. Run 'brig run' to start it and enter."
+                tr(
+                    "Project container is stopped. Run 'brig run' to start it and enter."
+                )
             )
         args = ["docker", "exec"]
         if interactive:
@@ -191,16 +212,24 @@ class DockerEngine:
         try:
             result = self.client.runner(args, check=False)
         except OSError as error:
-            raise BrigError(f"Cannot enter project terminal: {error}") from error
+            raise BrigError(
+                tr("Cannot enter project terminal: {value0}").format(value0=error)
+            ) from error
         if result.returncode:
-            raise BrigError(f"Project command exited with status {result.returncode}.")
+            raise BrigError(
+                tr("Project command exited with status {value0}.").format(
+                    value0=result.returncode
+                )
+            )
         return ""
 
     def run_agent(self, project: Project, agent: str) -> str:
         validate_agent(agent)
         if agent not in project.configuration.selected_agents:
             raise BrigError(
-                f"Agent '{agent}' is not selected in this project's profile."
+                tr(
+                    "Agent '{value0}' is not selected in this project's profile."
+                ).format(value0=agent)
             )
         self.validate_shell()
         return self._execute(project, list(AGENTS[agent].command), interactive=True)

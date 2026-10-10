@@ -8,6 +8,7 @@ from collections.abc import Callable
 from contextlib import suppress
 
 from brig.errors import BrigError, Cancelled
+from brig.i18n import tr
 
 
 class Terminal:
@@ -85,10 +86,10 @@ class Terminal:
     ) -> None:
         self.screen.erase()
         height, width = self.screen.getmaxyx()
-        self._write(1, 2, "[ brig ]", self.accent)
-        self._write(1, 12, "isolated project environments", curses.A_DIM)
+        self._write(1, 2, tr("[ brig ]"), self.accent)
+        self._write(1, 12, tr("isolated project environments"), curses.A_DIM)
         if height < 12 or width < 45:
-            self._write(3, 1, "Resize terminal to at least 45 × 12.")
+            self._write(3, 1, tr("Resize terminal to at least 45 × 12."))
             self.screen.refresh()
             return
         self._write(3, 2, title, curses.A_BOLD)
@@ -113,7 +114,12 @@ class Terminal:
                 style,
             )
         if error_message:
-            self._write(height - 5, 2, f"Error: {error_message}", self.error_style)
+            self._write(
+                height - 5,
+                2,
+                tr("Error: {value0}").format(value0=error_message),
+                self.error_style,
+            )
         self._write(height - 4, 2, "-" * (width - 5), curses.A_DIM)
         help_lines = textwrap.wrap(
             self._text(footer), width=width - 5, max_lines=2, placeholder="..."
@@ -124,7 +130,9 @@ class Terminal:
 
     def loading(self, message: str) -> None:
         self.render(
-            "Version catalog", [message], "Fetching published versions · Ctrl+C cancel"
+            tr("Version catalog"),
+            [message],
+            tr("Fetching published versions · Ctrl+C cancel"),
         )
 
     def external(self, action):
@@ -153,7 +161,7 @@ class Terminal:
         help_text: str | None = None,
     ) -> int:
         if not options:
-            raise BrigError("No options available.")
+            raise BrigError(tr("No options available."))
         selected = min(default, len(options) - 1)
         query = ""
         while True:
@@ -165,14 +173,18 @@ class Terminal:
             if selected not in indices and indices:
                 selected = indices[0]
             position = indices.index(selected) if selected in indices else -1
-            footer = help_text or "↑↓ move · enter select · esc back"
+            footer = help_text or tr("↑↓ move · enter select · esc back")
             if searchable:
-                footer += " · / search"
+                footer += tr(" · / search")
             rows = [options[i] for i in indices] or [
-                "No matches. Press / to change search."
+                tr("No matches. Press / to change search.")
             ]
             self.render(
-                title + (f" · search: {query}" if query else ""), rows, footer, position
+                title
+                + (tr(" · search: {value0}").format(value0=query) if query else ""),
+                rows,
+                footer,
+                position,
             )
             key = self.key()
             if key in ("\x1b", "q"):
@@ -184,7 +196,7 @@ class Terminal:
             elif key in ("\n", "\r", curses.KEY_ENTER) and indices:
                 return selected
             elif key == "/" and searchable:
-                query = self.input("Search", query)
+                query = self.input(tr("Search"), query)
 
     def multiple(
         self,
@@ -204,7 +216,7 @@ class Terminal:
             self.render(
                 title,
                 rows,
-                "↑↓ move · space toggle · enter next · esc back",
+                tr("↑↓ move · space toggle · enter next · esc back"),
                 selected,
                 error_message=error,
             )
@@ -240,7 +252,7 @@ class Terminal:
             self.render(
                 title,
                 [value + "▏"],
-                "type to edit · ctrl+u clear · enter continue · esc cancel",
+                tr("type to edit · ctrl+u clear · enter continue · esc cancel"),
                 error_message=error,
             )
             key = self.key()
@@ -271,7 +283,10 @@ class Terminal:
             maximum = max(0, len(lines) - self._capacity(height))
             offset = min(offset, maximum)
             self.render(
-                title, lines[offset:], "↑↓ scroll · enter / esc close", error_rows=error
+                title,
+                lines[offset:],
+                tr("↑↓ scroll · enter / esc close"),
+                error_rows=error,
             )
             key = self.key()
             if key in ("\n", "\r", "\x1b", "q", curses.KEY_ENTER):
@@ -285,8 +300,8 @@ class Terminal:
         self.notice(title, lines)
         return (
             self.choose(
-                "Save these changes?" if action == "Save" else f"{action}?",
-                [action, "Cancel"],
+                tr("Save these changes?") if action == "Save" else f"{tr(action)}?",
+                [tr(action), tr("Cancel")],
                 default=0 if action == "Save" else 1,
             )
             == 0

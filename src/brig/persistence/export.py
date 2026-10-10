@@ -5,6 +5,7 @@ import tempfile
 from pathlib import Path
 
 from brig.errors import BrigError
+from brig.i18n import tr
 
 
 def write_dockerfile(path: Path, contents: str) -> Path:
@@ -14,7 +15,9 @@ def write_dockerfile(path: Path, contents: str) -> Path:
     try:
         if destination.exists() or destination.is_symlink():
             raise BrigError(
-                f"Cannot export Dockerfile: {destination} already exists. Choose another output path."
+                tr(
+                    "Cannot export Dockerfile: {value0} already exists. Choose another output path."
+                ).format(value0=destination)
             )
         destination.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(
@@ -32,11 +35,15 @@ def write_dockerfile(path: Path, contents: str) -> Path:
         os.link(temporary, destination)
     except FileExistsError as error:
         raise BrigError(
-            f"Cannot export Dockerfile: {destination} already exists. Choose another output path."
+            tr(
+                "Cannot export Dockerfile: {value0} already exists. Choose another output path."
+            ).format(value0=destination)
         ) from error
     except OSError as error:
         raise BrigError(
-            f"Cannot export Dockerfile to {destination}: {error}"
+            tr("Cannot export Dockerfile to {value0}: {value1}").format(
+                value0=destination, value1=error
+            )
         ) from error
     finally:
         if temporary is not None:

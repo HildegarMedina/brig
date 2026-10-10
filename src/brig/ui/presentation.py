@@ -1,24 +1,32 @@
 """Plain text summaries shared by both user interfaces."""
 
 from brig.application import Application
+from brig.i18n import tr
 from brig.models import ProfileVersion, Project
 
 
 def configuration_lines(configuration: ProfileVersion) -> list[str]:
-    lines = [f"Version    {configuration.number}"]
+    lines = [tr("Version    {value0}").format(value0=configuration.number)]
     if configuration.extends:
         lines.append(
-            f"Inherits   {configuration.extends.profile} · version {configuration.extends.version}"
+            tr("Inherits   {value0} · version {value1}").format(
+                value0=configuration.extends.profile,
+                value1=configuration.extends.version,
+            )
         )
     for label, selections in (
-        ("Runtimes", configuration.runtimes),
-        ("Tools", configuration.tools),
-        ("Services", configuration.services),
+        (tr("Runtimes"), configuration.runtimes),
+        (tr("Tools"), configuration.tools),
+        (tr("Services"), configuration.services),
     ):
         values = ", ".join(f"{name} {version}" for name, version in selections.items())
-        lines.append(f"{label:<10} {values or 'none'}")
-    lines.append(f"Agents     {', '.join(configuration.selected_agents)}")
-    lines.append(f"Default    {configuration.agent}")
+        lines.append(f"{label:<10} {values or tr('none')}")
+    lines.append(
+        tr("Agents     {value0}").format(
+            value0=", ".join(configuration.selected_agents)
+        )
+    )
+    lines.append(tr("Default    {value0}").format(value0=configuration.agent))
     return lines
 
 
@@ -27,23 +35,30 @@ def project_lines(
 ) -> list[str]:
     environment = app.engine.describe(project)
     latest = app.profile(project.profile).latest.number
-    update = " · update available" if latest != project.configuration.number else ""
+    update = tr(" · update available") if latest != project.configuration.number else ""
     return [
-        f"Project    {project.name}",
-        f"Folder     {project.path or '(sample project; no folder mounted)'}",
-        f"Profile    {project.profile}{update}",
-        f"Status     {app.project_status(project) if status is None else status}",
+        tr("Project    {value0}").format(value0=project.name),
+        tr("Folder     {value0}").format(
+            value0=project.path or tr("(sample project; no folder mounted)")
+        ),
+        tr("Profile    {value0}{value1}").format(value0=project.profile, value1=update),
+        tr("Status     {value0}").format(
+            value0=tr(app.project_status(project) if status is None else status)
+        ),
         *configuration_lines(project.configuration),
         "",
-        "Planned environment — not created"
+        tr("Planned environment — not created")
         if app.engine.simulated
-        else "Docker environment",
-        f"Dev        {environment.development}",
-        f"Network    {environment.network}",
+        else tr("Docker environment"),
+        tr("Dev        {value0}").format(value0=environment.development),
+        tr("Network    {value0}").format(value0=environment.network),
         *[
-            f"Service    {name}: {container}"
+            tr("Service    {value0}: {value1}").format(value0=name, value1=container)
             for name, container in environment.services.items()
         ],
-        *[f"Volume     {volume}" for volume in environment.volumes],
-        "Mount      project folder → /workspace; no other host folders",
+        *[
+            tr("Volume     {value0}").format(value0=volume)
+            for volume in environment.volumes
+        ],
+        tr("Mount      project folder → /workspace; no other host folders"),
     ]

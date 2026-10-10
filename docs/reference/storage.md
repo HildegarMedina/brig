@@ -13,6 +13,7 @@ creates an empty state if none exists.
 
 ```text
 brig/
+├── preferences.json
 ├── state.json
 ├── profiles/
 │   └── profile-ENCODED_NAME/
@@ -30,6 +31,15 @@ brig/
             ├── development.env
             └── SERVICE.env
 ```
+
+## Interface preferences
+
+`preferences.json` stores `{"language": "en"}`, `es`, `pt`, or `auto` separately
+from profiles and project snapshots. It is created when you save a language choice
+in Settings or with `brig language CODE`. Missing preferences follow the terminal
+locale. `--data-dir` also selects the preference directory; `--lang` and
+`BRIG_LANG` override the saved choice without changing the file. Saving is atomic;
+a failed write preserves the previous preference.
 
 ## Definitions
 

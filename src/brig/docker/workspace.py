@@ -11,6 +11,7 @@ from brig.docker.compose import project_prefix
 from brig.docker.dockerfile import render_dockerfile
 from brig.docker.services import service_environment
 from brig.errors import BrigError
+from brig.i18n import tr
 
 
 class DockerWorkspace:
@@ -27,13 +28,17 @@ class DockerWorkspace:
             path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             descriptor = os.open(path, os.O_CREAT | os.O_RDWR, 0o600)
         except OSError as error:
-            raise BrigError(f"Cannot lock project environment: {error}") from error
+            raise BrigError(
+                tr("Cannot lock project environment: {value0}").format(value0=error)
+            ) from error
         with os.fdopen(descriptor, "w") as stream:
             try:
                 fcntl.flock(stream, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as error:
                 raise BrigError(
-                    f"Another Brig operation is preparing '{project.name}'. Retry after it finishes."
+                    tr(
+                        "Another Brig operation is preparing '{value0}'. Retry after it finishes."
+                    ).format(value0=project.name)
                 ) from error
             yield
 
@@ -51,7 +56,9 @@ class DockerWorkspace:
                 os.fsync(stream.fileno())
             os.replace(temporary, path)
         except OSError as error:
-            raise BrigError(f"Cannot write Docker configuration: {error}") from error
+            raise BrigError(
+                tr("Cannot write Docker configuration: {value0}").format(value0=error)
+            ) from error
         finally:
             if temporary:
                 temporary.unlink(missing_ok=True)
@@ -63,7 +70,9 @@ class DockerWorkspace:
     def plan(self, project, uid, gid):
         if uid == 0 or gid == 0:
             raise BrigError(
-                "Run Brig as your regular user, without sudo, so the project terminal can use an unprivileged user."
+                tr(
+                    "Run Brig as your regular user, without sudo, so the project terminal can use an unprivileged user."
+                )
             )
         dockerfile = render_dockerfile(project)
         # Only image-affecting configuration contributes to the build cache key.

@@ -4,6 +4,7 @@ from copy import deepcopy
 from dataclasses import asdict
 
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Profile, State
 from brig.persistence.codec import SCHEMA_VERSION, decode_state
 
@@ -23,20 +24,26 @@ def merge_profiles(state: State, documents: list[Profile]) -> tuple[State, int, 
         profile = profiles[key]
         if profile.name != document.name:
             raise BrigError(
-                f"Imported profile name '{document.name}' conflicts with '{profile.name}'."
+                tr(
+                    "Imported profile name '{value0}' conflicts with '{value1}'."
+                ).format(value0=document.name, value1=profile.name)
             )
         version = document.latest
         if version.number <= len(profile.versions):
             if profile.versions[version.number - 1] != version:
                 raise BrigError(
-                    f"Profile '{profile.name}' version {version.number} already exists with different configuration."
+                    tr(
+                        "Profile '{value0}' version {value1} already exists with different configuration."
+                    ).format(value0=profile.name, value1=version.number)
                 )
             unchanged += 1
             continue
         expected = len(profile.versions) + 1
         if version.number != expected:
             raise BrigError(
-                f"Missing version {expected} of profile '{profile.name}'. Include its earlier YAML versions in the import."
+                tr(
+                    "Missing version {value0} of profile '{value1}'. Include its earlier YAML versions in the import."
+                ).format(value0=expected, value1=profile.name)
             )
         profile.versions.append(version)
         added += 1
@@ -45,5 +52,7 @@ def merge_profiles(state: State, documents: list[Profile]) -> tuple[State, int, 
             {"schema_version": SCHEMA_VERSION, **asdict(candidate)}
         )
     except (ValueError, TypeError, KeyError, BrigError) as error:
-        raise BrigError(f"Cannot import profiles: {error}") from error
+        raise BrigError(
+            tr("Cannot import profiles: {value0}").format(value0=error)
+        ) from error
     return candidate, added, unchanged

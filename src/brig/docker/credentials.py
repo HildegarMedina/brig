@@ -6,6 +6,7 @@ import secrets
 from brig.docker.client import DockerClient
 from brig.docker.workspace import DockerWorkspace
 from brig.errors import BrigError
+from brig.i18n import tr
 
 
 class DatabaseCredentials:
@@ -29,10 +30,12 @@ class DatabaseCredentials:
                     )
                     for pair in credentials.values()
                 ):
-                    raise ValueError("Invalid credentials")
+                    raise ValueError(tr("Invalid credentials"))
             except (OSError, ValueError) as error:
                 raise BrigError(
-                    "Cannot read project database credentials. Restore credentials.json from backup; passwords will not be silently replaced."
+                    tr(
+                        "Cannot read project database credentials. Restore credentials.json from backup; passwords will not be silently replaced."
+                    )
                 ) from error
         else:
             credentials = {}
@@ -49,7 +52,9 @@ class DatabaseCredentials:
             )
             if result.stdout.strip():
                 raise BrigError(
-                    "Project volumes exist but database credentials are missing. Restore the project's credentials.json before starting it."
+                    tr(
+                        "Project volumes exist but database credentials are missing. Restore the project's credentials.json before starting it."
+                    )
                 )
         changed = not path.exists()
         for name in project.configuration.services:

@@ -18,6 +18,7 @@ actual release numbers belong to version providers.
 | --- | --- |
 | `models.py`, `errors.py`, `engine.py` | Records, errors, and the execution contract |
 | `application.py` | Shared use cases and state commits |
+| `i18n/` | Translation catalogs, language resolution, and separate interface preferences |
 | `ui/` | CLI argument handling and shared text summaries |
 | `ui/tui/` | Terminal widgets, profile flows, project flows, and top-level navigation |
 | `components/` | Component/agent registries, upstream providers, and compatibility |
@@ -86,6 +87,27 @@ APT, start host services, or modify user groups.
 Tests cover behavior including profile snapshots, storage relationships, save
 failures, CLI options, wizard validation, selected installations, and data
 preservation when engine operations fail.
+
+## Translate interface text
+
+Use `tr("English template")` from `brig.i18n` for user-facing strings, before
+formatting values. Keep the English template literal, and add the same key to
+`src/brig/i18n/catalogs/es.json` and `pt.json`. English uses the source template.
+Catalogs ship as package data and are loaded through `importlib.resources`;
+translations are cached, and the active language uses a `ContextVar`.
+
+Preserve format fields exactly, including any conversion or width specification.
+Translate rendered categories and statuses at the presentation boundary. Keep
+command names, YAML keys, release numbers, resource names, profile/project names,
+and state enums unchanged. Translate application errors where they are created;
+Docker, subprocess, upstream, and system diagnostics remain supplied by their
+producer. CLI language selection runs before help parsing and restores both the
+language context and argparse's gettext binding on exit.
+
+Catalog tests require every literal template to exist in both catalogs, compare
+format fields, and verify translated CLI/TUI behavior. Test that translated
+views preserve snapshots and generated YAML/Dockerfiles. Only interface
+preferences belong in `preferences.json`; do not add them to environment state.
 
 ## Docker integration tests
 

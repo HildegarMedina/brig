@@ -8,6 +8,7 @@ from brig.components.agents import AGENTS
 from brig.docker.client import DockerClient
 from brig.docker.compose import project_prefix
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Project
 
 
@@ -30,22 +31,26 @@ class DockerVolumes:
                 continue
             if result.returncode:
                 raise BrigError(
-                    "Cannot inspect project data volume: "
+                    tr("Cannot inspect project data volume: ")
                     + (result.stderr or "").strip()
                 )
             try:
                 labels = json.loads(result.stdout)[0].get("Labels") or {}
                 if labels.get("org.brig.project-id") != project.id:
                     raise BrigError(
-                        f"Data volume '{volume}' is not managed by this project."
+                        tr(
+                            "Data volume '{value0}' is not managed by this project."
+                        ).format(value0=volume)
                     )
                 if labels.get("org.brig.service-major") != version.split(".")[0]:
                     raise BrigError(
-                        f"Cannot start {name} {version} with this project's existing data volume. A major-version data migration is required; Brig will not overwrite or reinitialize it."
+                        tr(
+                            "Cannot start {value0} {value1} with this project's existing data volume. A major-version data migration is required; Brig will not overwrite or reinitialize it."
+                        ).format(value0=name, value1=version)
                     )
             except (ValueError, IndexError, KeyError, TypeError) as error:
                 raise BrigError(
-                    "Docker returned an invalid data volume description."
+                    tr("Docker returned an invalid data volume description.")
                 ) from error
 
     def ensure_agent_volumes(self, project: Project) -> None:
@@ -62,7 +67,7 @@ class DockerVolumes:
             if found.returncode:
                 if "no such" not in (found.stderr or "").lower():
                     raise BrigError(
-                        "Cannot inspect shared agent storage: "
+                        tr("Cannot inspect shared agent storage: ")
                         + (found.stderr or "").strip()
                     )
                 self.client.run(
@@ -82,9 +87,11 @@ class DockerVolumes:
                 actual = json.loads(found.stdout)[0].get("Labels") or {}
             except (ValueError, KeyError, IndexError, TypeError) as error:
                 raise BrigError(
-                    "Docker returned invalid shared agent storage information."
+                    tr("Docker returned invalid shared agent storage information.")
                 ) from error
             if any(actual.get(key) != value for key, value in labels.items()):
                 raise BrigError(
-                    f"Shared agent volume '{name}' is not owned by this Brig installation."
+                    tr(
+                        "Shared agent volume '{value0}' is not owned by this Brig installation."
+                    ).format(value0=name)
                 )

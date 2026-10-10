@@ -8,6 +8,7 @@ from brig.components.catalog import COMPONENTS
 from brig.components.compatibility import ReleaseInfo
 from brig.components.providers import PROVIDERS, fetch_text, release_info, source_label
 from brig.errors import BrigError
+from brig.i18n import tr
 
 
 class LiveVersionCatalog:
@@ -39,7 +40,7 @@ class LiveVersionCatalog:
                 )
             )
             if not result:
-                raise ValueError("No stable, exact versions were returned")
+                raise ValueError(tr("No stable, exact versions were returned"))
             info = release_info(name, text, result, self.fetch)
         except (
             OSError,
@@ -50,8 +51,11 @@ class LiveVersionCatalog:
             AttributeError,
         ) as error:
             raise BrigError(
-                f"Cannot fetch versions for {component.label} from {source_label(component)}: {error}. "
-                "Check your connection and retry. No fallback versions were selected."
+                tr(
+                    "Cannot fetch versions for {value0} from {value1}: {value2}. Check your connection and retry. No fallback versions were selected."
+                ).format(
+                    value0=component.label, value1=source_label(component), value2=error
+                )
             ) from error
         self._snapshot[name] = result
         self._info[name] = info
@@ -59,7 +63,7 @@ class LiveVersionCatalog:
 
     def label(self, name: str, version: str) -> str:
         self.versions(name)
-        return f"{version} · {self._info[name][version].channel}"
+        return f"{version} · {tr(self._info[name][version].channel)}"
 
     def preferred_version(self, name: str, versions: list[str]) -> str:
         self.versions(name)
@@ -86,9 +90,17 @@ class LiveVersionCatalog:
         if runtime and info and info.supports(runtime):
             return None
         requirement = (
-            info.requirement_label() if info else "release metadata is unavailable"
+            info.requirement_label() if info else tr("release metadata is unavailable")
         )
-        return f"{component.label} {version} cannot be verified for {COMPONENTS[component.runtime].label} {runtime or '(not selected)'}. Requires: {requirement}. Choose a compatible tool or change the runtime."
+        return tr(
+            "{value0} {value1} cannot be verified for {value2} {value3}. Requires: {value4}. Choose a compatible tool or change the runtime."
+        ).format(
+            value0=component.label,
+            value1=version,
+            value2=COMPONENTS[component.runtime].label,
+            value3=runtime or "(not selected)",
+            value4=requirement,
+        )
 
     def compatible_versions(
         self, name: str, runtimes: dict[str, str]

@@ -118,6 +118,22 @@ Inside a registered folder, `brig run` selects that project automatically. Run
 Brig currently prepares the environment. Application dependency installation,
 HTTP server startup, and application port publishing require manual setup.
 
+## Choose your language
+
+Brig's interface and messages are available in English, Spanish, and Portuguese.
+Save your preference from Settings in `brig`, or from the command line:
+
+```bash
+brig language es
+brig language pt
+brig language en
+```
+
+Use `brig --lang es profile list` for one invocation, or `brig language auto` to
+follow your terminal locale. `BRIG_LANG` also selects the language. Commands,
+profile names, and YAML keys stay the same in every language.
+See [language settings](docs/how-to/languages.md) for the selection order.
+
 ## Share and import profiles
 
 Copy saved profile YAML files or their folders to another machine, then import:
@@ -141,6 +157,7 @@ Start with the [documentation index](docs/README.md).
 - [Tutorial: your first project](docs/tutorials/first-project.md).
 - [How-to: manage projects](docs/how-to/projects.md).
 - [How-to: import profiles](docs/how-to/import-profiles.md).
+- [How-to: choose your language](docs/how-to/languages.md).
 - [Explanation: architecture and execution flow](docs/explanation/architecture.md).
 - [Reference: commands](docs/reference/cli.md).
 - [Reference: storage and persistence](docs/reference/storage.md).

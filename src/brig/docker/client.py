@@ -7,6 +7,7 @@ import sys
 
 from brig.docker.compose import project_prefix
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Project
 
 
@@ -26,15 +27,23 @@ class DockerClient:
             result = self.runner(["docker", *args], **options)
         except FileNotFoundError as error:
             raise BrigError(
-                "Docker is not installed. Install Docker Engine and its Compose plugin, then retry."
+                tr(
+                    "Docker is not installed. Install Docker Engine and its Compose plugin, then retry."
+                )
             ) from error
         except OSError as error:
-            raise BrigError(f"Cannot execute Docker: {error}") from error
+            raise BrigError(
+                tr("Cannot execute Docker: {value0}").format(value0=error)
+            ) from error
         if check and result.returncode:
             details = (
                 result.stderr or result.stdout or "See Docker output above."
             ).strip()
-            raise BrigError(f"Docker failed (exit {result.returncode}): {details}")
+            raise BrigError(
+                tr("Docker failed (exit {value0}): {value1}").format(
+                    value0=result.returncode, value1=details
+                )
+            )
         return result
 
     def check(self):
@@ -42,18 +51,24 @@ class DockerClient:
             return
         if self.runner is subprocess.run and not shutil.which("docker"):
             raise BrigError(
-                "Docker is not installed. Install Docker Engine and its Compose plugin, then retry."
+                tr(
+                    "Docker is not installed. Install Docker Engine and its Compose plugin, then retry."
+                )
             )
         result = self.run(["version", "--format", "{{.Server.Version}}"], check=False)
         if result.returncode:
             raise BrigError(
-                "Cannot connect to Docker. Start Docker and check your socket permissions. "
+                tr(
+                    "Cannot connect to Docker. Start Docker and check your socket permissions. "
+                )
                 + (result.stderr or "").strip()
             )
         result = self.run(["compose", "version", "--short"], check=False)
         if result.returncode:
             raise BrigError(
-                "Docker Compose is unavailable. Install the Docker Compose v2 plugin."
+                tr(
+                    "Docker Compose is unavailable. Install the Docker Compose v2 plugin."
+                )
             )
         self._checked = True
 
@@ -66,19 +81,21 @@ class DockerClient:
             if "no such" in (result.stderr or "").lower():
                 return None
             raise BrigError(
-                "Cannot inspect project container: " + (result.stderr or "").strip()
+                tr("Cannot inspect project container: ") + (result.stderr or "").strip()
             )
         try:
             container = json.loads(result.stdout)[0]
             labels = container["Config"].get("Labels") or {}
             if labels.get("org.brig.project-id") != project.id:
                 raise BrigError(
-                    "A container with this project's name exists but is not managed by Brig. Resolve the name conflict before continuing."
+                    tr(
+                        "A container with this project's name exists but is not managed by Brig. Resolve the name conflict before continuing."
+                    )
                 )
             return container
         except (ValueError, KeyError, IndexError, TypeError) as error:
             raise BrigError(
-                "Docker returned an invalid container description."
+                tr("Docker returned an invalid container description.")
             ) from error
 
     def has_running_resources(self, project: Project) -> bool:

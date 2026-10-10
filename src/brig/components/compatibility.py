@@ -6,6 +6,8 @@ from functools import lru_cache
 from packaging.specifiers import SpecifierSet
 from semantic_version import NpmSpec, Version
 
+from brig.i18n import tr
+
 
 @lru_cache(maxsize=1024)
 def matches(requirement: str, runtime: str, dialect: str) -> bool:
@@ -17,7 +19,9 @@ def matches(requirement: str, runtime: str, dialect: str) -> bool:
         return tuple(map(int, runtime.split("."))) >= tuple(
             map(int, requirement.split("."))
         )
-    raise ValueError(f"Unsupported requirement dialect: {dialect}")
+    raise ValueError(
+        tr("Unsupported requirement dialect: {value0}").format(value0=dialect)
+    )
 
 
 @dataclass(frozen=True)
@@ -40,6 +44,6 @@ class ReleaseInfo:
 
     def requirement_label(self) -> str:
         if not self.requirements:
-            return "runtime requirements were not published"
+            return tr("runtime requirements were not published")
         prefix = ">=" if self.dialect == "minimum" else ""
         return " OR ".join(prefix + expression for expression in self.requirements)

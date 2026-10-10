@@ -4,6 +4,7 @@ import shlex
 from dataclasses import dataclass
 
 from brig.errors import BrigError
+from brig.i18n import tr
 
 
 @dataclass(frozen=True)
@@ -151,17 +152,19 @@ AGENTS = {
 
 def validate_agent(agent: str) -> None:
     if not isinstance(agent, str) or agent not in AGENTS:
-        raise BrigError(f"Unknown agent: {agent}.")
+        raise BrigError(tr("Unknown agent: {value0}.").format(value0=agent))
     if not AGENTS[agent].available:
-        raise BrigError(f"{AGENTS[agent].name} is a future integration.")
+        raise BrigError(
+            tr("{value0} is a future integration.").format(value0=AGENTS[agent].name)
+        )
 
 
 def validate_agents(agents: list[str], default: str) -> None:
     if not isinstance(agents, list) or not agents:
-        raise BrigError("Select at least one agent.")
+        raise BrigError(tr("Select at least one agent."))
     for agent in agents:
         validate_agent(agent)
     if len(set(agents)) != len(agents):
-        raise BrigError("Select each agent only once.")
+        raise BrigError(tr("Select each agent only once."))
     if default not in agents:
-        raise BrigError("The default agent must be one of the selected agents.")
+        raise BrigError(tr("The default agent must be one of the selected agents."))

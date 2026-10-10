@@ -5,6 +5,7 @@ from pathlib import Path
 
 from brig.application import Application
 from brig.errors import BrigError, Cancelled
+from brig.i18n import tr
 from brig.ui.tui.dashboard import Dashboard
 from brig.ui.tui.profiles import ProfileViews
 from brig.ui.tui.projects import ProjectViews
@@ -83,7 +84,9 @@ def launch(
         except Cancelled:
             pass
         except BrigError as error:
-            interactive.ui.notice("Could not complete action", [str(error)], error=True)
+            interactive.ui.notice(
+                tr("Could not complete action"), [str(error)], error=True
+            )
             return False
         return True
 

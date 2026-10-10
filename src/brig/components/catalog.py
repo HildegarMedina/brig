@@ -6,6 +6,7 @@ from typing import Protocol
 
 from brig.components.agents import validate_agent
 from brig.errors import BrigError
+from brig.i18n import tr
 
 
 @dataclass(frozen=True)
@@ -83,7 +84,7 @@ def validate_selection(
 ) -> None:
     """Validate stored shape offline; verify new selections against a live snapshot."""
     if not runtimes:
-        raise BrigError("Select at least one runtime.")
+        raise BrigError(tr("Select at least one runtime."))
     for kind, selections, catalog in (
         ("runtime", runtimes, RUNTIMES),
         ("tool", tools, TOOLS),
@@ -98,11 +99,19 @@ def validate_selection(
                     rf"[0-9]+(?:\.[0-9]+){{{component.version_parts - 1}}}", version
                 )
             ):
-                raise BrigError(f"Unsupported {kind}: {name} {version}.")
+                raise BrigError(
+                    tr("Unsupported {value0}: {value1} {value2}.").format(
+                        value0=tr(kind), value1=name, value2=version
+                    )
+                )
     for name in tools:
         required = TOOLS[name].runtime
         if required not in runtimes:
-            raise BrigError(f"{name} requires the {required} runtime.")
+            raise BrigError(
+                tr("{value0} requires the {value1} runtime.").format(
+                    value0=name, value1=required
+                )
+            )
     validate_agent(agent)
     if versions is not None:
         for selections in (runtimes, tools, services):
@@ -111,7 +120,9 @@ def validate_selection(
                     continue
                 if version not in versions.versions(name):
                     raise BrigError(
-                        f"{name} {version} is not available from its version source."
+                        tr(
+                            "{value0} {value1} is not available from its version source."
+                        ).format(value0=name, value1=version)
                     )
         for name, version in tools.items():
             if name in inherited:

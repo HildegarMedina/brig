@@ -1,19 +1,22 @@
 """Pinned profile relationships and validation, without environment execution."""
 
 from brig.errors import BrigError
+from brig.i18n import tr
 from brig.models import Profile, ProfileParent, ProfileVersion
 
 
 def resolve_base(profiles: list[Profile], parent: ProfileParent) -> ProfileVersion:
     if not isinstance(parent.profile, str) or type(parent.version) is not int:
-        raise BrigError("Invalid base profile reference.")
+        raise BrigError(tr("Invalid base profile reference."))
     for profile in profiles:
         if profile.name == parent.profile:
             for version in profile.versions:
                 if version.number == parent.version:
                     return version
     raise BrigError(
-        f"Unknown base profile version: {parent.profile} v{parent.version}."
+        tr("Unknown base profile version: {value0} v{value1}.").format(
+            value0=parent.profile, value1=parent.version
+        )
     )
 
 
@@ -44,10 +47,12 @@ def validate_inherited(configuration: ProfileVersion, base: ProfileVersion) -> N
         for name, version in getattr(base, section).items():
             if selections.get(name) != version:
                 raise BrigError(
-                    f"Inherited {name} {version} cannot be removed or overridden."
+                    tr(
+                        "Inherited {value0} {value1} cannot be removed or overridden."
+                    ).format(value0=name, value1=version)
                 )
     if not set(base.selected_agents).issubset(configuration.selected_agents):
-        raise BrigError("Inherited agents cannot be removed.")
+        raise BrigError(tr("Inherited agents cannot be removed."))
 
 
 def validate_relationships(profiles: list[Profile]) -> None:
@@ -56,5 +61,5 @@ def validate_relationships(profiles: list[Profile]) -> None:
             if version.extends:
                 base = resolve_base(profiles, version.extends)
                 if would_cycle(profiles, profile.name, version.extends.profile):
-                    raise BrigError("Profile inheritance cannot contain cycles.")
+                    raise BrigError(tr("Profile inheritance cannot contain cycles."))
                 validate_inherited(version, base)

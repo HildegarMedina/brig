@@ -43,3 +43,6 @@ source = ["src/brig"]
 fail_under = 100
 precision = 2
 show_missing = true
+
+[tool.setuptools.package-data]
+"brig.i18n" = ["catalogs/*.json"]
