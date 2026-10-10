@@ -32,11 +32,11 @@ def parser() -> argparse.ArgumentParser:
     ).add_subparsers(dest="action", required=True)
     profiles.add_parser("create", help="open the profile creation wizard")
     profiles.add_parser("list", help="list profiles")
-    profiles.add_parser("edit", help="create a new profile revision").add_argument(
+    profiles.add_parser("edit", help="create a new profile version").add_argument(
         "name"
     )
     deletion = profiles.add_parser(
-        "delete", help="delete an unused profile and its YAML revisions"
+        "delete", help="delete an unused profile and its YAML versions"
     )
     deletion.add_argument("name")
     deletion.add_argument(
@@ -64,9 +64,9 @@ def parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help="export to a new file instead of printing; existing files are kept",
     )
-    projects.add_parser(
-        "update", help="apply the latest profile revision"
-    ).add_argument("name")
+    projects.add_parser("update", help="apply the latest profile version").add_argument(
+        "name"
+    )
     project_deletion = projects.add_parser(
         "delete",
         help="unregister a stopped project while keeping its local folder and profile",
@@ -111,6 +111,13 @@ def parser() -> argparse.ArgumentParser:
 
 
 def _interactive_action(args: argparse.Namespace) -> str | None:
+    if (
+        args.command in ("profile", "project")
+        and args.action == "list"
+        and sys.stdin.isatty()
+        and sys.stdout.isatty()
+    ):
+        return f"{args.command}-list"
     if args.command is None:
         return "home"
     if args.command == "profile" and args.action in ("create", "edit"):

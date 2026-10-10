@@ -16,9 +16,9 @@ engine artifacts.
 
 | Command | Effect |
 | --- | --- |
-| `brig profile create` | Wizard to save the first revision |
-| `brig profile list` | List names and latest revisions |
-| `brig profile edit NAME` | Wizard that creates another revision |
+| `brig profile create` | Wizard to save the first version |
+| `brig profile list` | List names and latest versions |
+| `brig profile edit NAME` | Wizard that creates another version |
 | `brig profile delete NAME [--yes]` | Delete an unreferenced profile and its YAML documents |
 
 Creating and editing require an interactive terminal and internet to fetch
@@ -32,7 +32,7 @@ default to **Cancel**; `--yes` confirms directly.
 | `brig project init` | Register an existing folder with a name and profile |
 | `brig project list` | List projects and query their Docker status |
 | `brig project show NAME` | Show snapshot, folder, and environment resources |
-| `brig project update NAME` | Adopt the latest profile revision when the environment is stopped |
+| `brig project update NAME` | Adopt the latest profile version when the environment is stopped |
 | `brig project delete NAME [--yes]` | Remove a stopped project's registration |
 | `brig project dockerfile [NAME] [--output FILE]` | Display or export its Dockerfile |
 
@@ -121,14 +121,19 @@ and [OpenCode permissions](https://opencode.ai/docs/permissions/).
 
 After updating Brig, run `brig down --project NAME` followed by `brig run NAME`
 from the host. The changed Dockerfile selects a new image and regenerates the
-launchers. Existing projects do not need a new profile revision for this change.
+launchers. Existing projects do not need a new profile version for this change.
 
 ## Terminal interface
 
-`brig profile list` and `brig project list` display a colored card for each record
-in a terminal, including its configuration. Project cards also show status and
-folder. Colors cycle across records. `NO_COLOR=1` disables colors, basic terminals
-use ASCII borders, and redirected output retains the compact text listing.
+`brig profile list` and `brig project list` open a card browser when both input
+and output are interactive. Profiles show only their name and latest version;
+projects show their name, status, and profile with its pinned version. Use Up/Down
+to select, Enter to view details, and Esc to return or exit. Details include the
+full configuration and project folder. Small terminals use a compact menu.
+Colors cycle across records. `NO_COLOR=1` disables colors and non-Unicode locales
+use ASCII borders. Redirected output retains a compact, noninteractive listing.
+Profile version numbers continue the existing numbering; stored files keep their
+format and require no migration.
 
 Arrow keys navigate; Enter selects; Space toggles multiple selections; Esc goes
 back; Ctrl+C exits. Version selectors support searching with `/`. Ctrl+U clears

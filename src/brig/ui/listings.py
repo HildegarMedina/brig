@@ -2,7 +2,6 @@
 
 from brig.application import Application
 from brig.ui.cards import render_cards
-from brig.ui.presentation import configuration_lines
 
 
 def profile_list(app: Application) -> str:
@@ -10,9 +9,12 @@ def profile_list(app: Application) -> str:
     if not profiles:
         return "No profiles. Use 'brig profile create'."
     return render_cards(
-        [(profile.name, configuration_lines(profile.latest)) for profile in profiles],
+        [
+            (profile.name, [f"Version    {profile.latest.number}"])
+            for profile in profiles
+        ],
         "\n".join(
-            f"{profile.name} · revision {profile.latest.number}" for profile in profiles
+            f"{profile.name} · version {profile.latest.number}" for profile in profiles
         ),
     )
 
@@ -29,14 +31,12 @@ def project_list(app: Application) -> str:
             (
                 project.name,
                 [
-                    f"Profile    {project.profile}",
                     f"Status     {status}",
-                    f"Folder     {project.path or '(no folder mounted)'}",
-                    *configuration_lines(project.configuration),
+                    f"Profile    {project.profile} · version {project.configuration.number}",
                 ],
             )
         )
         summaries.append(
-            f"{project.name} · {project.profile} r{project.configuration.number} · {status}"
+            f"{project.name} · {project.profile} version {project.configuration.number} · {status}"
         )
     return render_cards(records, "\n".join(summaries))

@@ -22,6 +22,7 @@ class Terminal:
             pass
         self.accent = curses.A_BOLD
         self.error_style = curses.A_BOLD
+        self.card_styles = (curses.A_BOLD,)
         if "NO_COLOR" not in os.environ and curses.has_colors():
             try:
                 curses.start_color()
@@ -34,6 +35,21 @@ class Terminal:
                 curses.init_pair(2, curses.COLOR_RED, background)
                 self.accent |= curses.color_pair(1)
                 self.error_style |= curses.color_pair(2)
+                styles = []
+                for pair, color in enumerate(
+                    (
+                        curses.COLOR_CYAN,
+                        curses.COLOR_MAGENTA,
+                        curses.COLOR_BLUE,
+                        curses.COLOR_YELLOW,
+                        curses.COLOR_GREEN,
+                        curses.COLOR_RED,
+                    ),
+                    3,
+                ):
+                    curses.init_pair(pair, color, background)
+                    styles.append(curses.color_pair(pair))
+                self.card_styles = tuple(styles)
             except curses.error:
                 # Basic attributes still work on terminals with limited colors.
                 pass
@@ -83,6 +99,7 @@ class Terminal:
         *,
         error_message: str | None = None,
         error_rows: bool = False,
+        row_styles: list[int] | None = None,
     ) -> None:
         self.screen.erase()
         height, width = self.screen.getmaxyx()
@@ -103,7 +120,11 @@ class Terminal:
             self._write(4, width - len(position) - 3, position, curses.A_DIM)
         for index, row in enumerate(rows[offset : offset + capacity], offset):
             is_selected = index == selected
-            style = self.error_style if error_rows else 0
+            style = (
+                self.error_style
+                if error_rows
+                else (row_styles[index] if row_styles else 0)
+            )
             if is_selected:
                 style |= self.accent | curses.A_REVERSE
             elif row.startswith("[x]"):

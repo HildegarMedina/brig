@@ -103,7 +103,7 @@ class ProfileViews:
                 "Choose an available version",
                 [
                     f"Previously selected {component.label} {defaults[name]} is unavailable or incompatible with the selected runtime.",
-                    "Select a compatible published version. Existing revisions remain unchanged.",
+                    "Select a compatible published version. Existing versions remain unchanged.",
                 ],
             )
         default = (
@@ -199,7 +199,7 @@ class ProfileViews:
                 f"Name       {name}",
                 *configuration_lines(revision),
                 "",
-                "Existing projects keep their current revision.",
+                "Existing projects keep their current version.",
             ],
         ):
             return
@@ -216,7 +216,7 @@ class ProfileViews:
         self.ui.notice(
             "Profile saved",
             [
-                f"{profile.name} · revision {profile.latest.number}",
+                f"{profile.name} · version {profile.latest.number}",
                 f"YAML: {profile_path(self.data_directory, profile.name, profile.latest.number)}",
             ],
         )
@@ -227,8 +227,8 @@ class ProfileViews:
             f"Delete profile '{profile.name}'",
             [
                 f"Name       {profile.name}",
-                f"Revisions  {len(profile.revisions)}",
-                "All revisions and their YAML files will be deleted.",
+                f"Versions   {len(profile.revisions)}",
+                "All versions and their YAML files will be deleted.",
             ],
             action="Delete profile",
         ):
@@ -241,7 +241,7 @@ class ProfileViews:
             try:
                 profiles = self.app.state.profiles
                 options = [
-                    f"{p.name} · revision {p.latest.number}" for p in profiles
+                    f"{p.name} · version {p.latest.number}" for p in profiles
                 ] + ["+ Create profile"]
                 index = self.ui.choose("Profiles", options)
                 if index == len(profiles):
@@ -249,7 +249,7 @@ class ProfileViews:
                 else:
                     name = profiles[index].name
                     action = self.ui.choose(
-                        name, ["View latest revision", "Edit profile", "Delete profile"]
+                        name, ["View latest version", "Edit profile", "Delete profile"]
                     )
                     if action == 0:
                         self.ui.notice(

@@ -37,7 +37,7 @@ class CardTests(unittest.TestCase):
         ):
             return render_cards(records, "plain listing")
 
-    def test_list_commands_show_colored_cards_with_configuration(self):
+    def test_static_lists_show_only_summary_fields(self):
         with tempfile.TemporaryDirectory() as directory:
             JsonStateStore(Path(directory)).save(demo_state())
             for command in ("profile", "project"):
@@ -47,6 +47,7 @@ class CardTests(unittest.TestCase):
                     redirect_stdout(output),
                     patch.dict("os.environ", {"TERM": "xterm"}, clear=True),
                     patch("brig.ui.cli.DockerEngine", return_value=DemoEngine()),
+                    patch("sys.stdin.isatty", return_value=False),
                 ):
                     status = main(["--data-dir", directory, command, "list"])
                 self.assertEqual(status, 0)
@@ -54,11 +55,29 @@ class CardTests(unittest.TestCase):
                 self.assertIn("┌", contents)
                 self.assertIn("\033[36m", contents)
                 self.assertIn("\033[35m", contents)
-                self.assertIn("Runtimes", contents)
-                self.assertIn("Agents", contents)
+                self.assertNotIn("Runtimes", contents)
+                self.assertNotIn("Agents", contents)
+                self.assertNotIn("revision", contents)
                 if command == "project":
                     self.assertIn("Status", contents)
-                    self.assertIn("Folder", contents)
+                    self.assertIn("Profile", contents)
+                    self.assertIn("version", contents)
+                    self.assertNotIn("Folder", contents)
+                else:
+                    self.assertIn("Version", contents)
+
+    def test_list_commands_launch_browser_only_with_interactive_input_and_output(self):
+        for command in ("profile", "project"):
+            with (
+                self.subTest(command=command),
+                tempfile.TemporaryDirectory() as directory,
+                redirect_stdout(TerminalOutput()),
+                patch("sys.stdin.isatty", return_value=True),
+                patch("brig.ui.cli.DockerEngine", return_value=DemoEngine()),
+                patch("brig.ui.cli.launch", return_value=True) as launch,
+            ):
+                self.assertEqual(main(["--data-dir", directory, command, "list"]), 0)
+                self.assertEqual(launch.call_args.args[2], f"{command}-list")
 
     def test_redirected_output_keeps_original_summary(self):
         with redirect_stdout(io.StringIO()):

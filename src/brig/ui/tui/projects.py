@@ -29,7 +29,7 @@ class ProjectViews:
         profiles = self.app.state.profiles
         selection = self.ui.choose(
             "Create project · 3/4 · profile",
-            [f"{p.name} · revision {p.latest.number}" for p in profiles],
+            [f"{p.name} · version {p.latest.number}" for p in profiles],
         )
         profile = profiles[selection]
         if not self.ui.confirm(
@@ -57,7 +57,7 @@ class ProjectViews:
             try:
                 projects = self.app.state.projects
                 options = [
-                    f"{p.name} · {p.profile} r{p.configuration.number} · {self.app.project_status(p)}"
+                    f"{p.name} · {p.profile} v{p.configuration.number} · {self.app.project_status(p)}"
                     for p in projects
                 ] + ["+ Create project"]
                 index = self.ui.choose("Projects", options)
@@ -133,7 +133,7 @@ class ProjectViews:
                     if not self.ui.confirm(
                         "Apply profile update",
                         [
-                            f"Current revision: {project.configuration.number}",
+                            f"Current version: {project.configuration.number}",
                             *configuration_lines(latest),
                             "Stop the project before applying an update.",
                         ],

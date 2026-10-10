@@ -6,6 +6,7 @@ from pathlib import Path
 from brig.application import Application
 from brig.components.agents import AGENTS
 from brig.errors import BrigError, Cancelled
+from brig.ui.tui.browser import browse_list
 from brig.ui.tui.profiles import ProfileViews
 from brig.ui.tui.projects import ProjectViews
 from brig.ui.tui.terminal import Terminal
@@ -89,7 +90,9 @@ def launch(
     def run(screen):
         interactive = InteractiveApp(app, Terminal(screen), directory)
         try:
-            if action == "profile-create":
+            if action in ("profile-list", "project-list"):
+                browse_list(app, interactive.ui, action.split("-")[0])
+            elif action == "profile-create":
                 interactive.profile_wizard()
             elif action == "profile-edit":
                 interactive.profile_wizard(name)

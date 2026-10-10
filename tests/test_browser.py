@@ -1,0 +1,68 @@
+"""Keyboard navigation and summary-to-detail transitions in list browsers."""
+
+import curses
+import unittest
+from unittest.mock import patch
+
+from brig.application import Application
+from brig.errors import Cancelled
+from brig.ui.tui.browser import browse_list, choose_card
+from tests import test_tui
+from tests.demo_engine import DemoEngine
+from tests.fakes import FakeVersionCatalog, MemoryStore, demo_state
+
+
+class BrowserTests(unittest.TestCase):
+    def test_cards_navigate_and_show_keyboard_controls(self):
+        ui = test_tui.TerminalTests().terminal([curses.KEY_DOWN, "\n"])
+        result = choose_card(
+            ui, "Profiles", [("first", ["Version 1"]), ("second", ["Version 2"])], 0
+        )
+        self.assertEqual(result, 1)
+        self.assertTrue(
+            any(
+                "enter details" in row and "esc exit" in row
+                for row in ui.screen.written
+            )
+        )
+
+    def test_pagination_keeps_last_card_reachable(self):
+        ui = test_tui.TerminalTests().terminal([curses.KEY_UP, "\n"], size=(16, 45))
+        result = choose_card(
+            ui, "Profiles", [(f"profile-{i}", [f"Version {i}"]) for i in range(12)], 0
+        )
+        self.assertEqual(result, 11)
+        self.assertTrue(any("profile-11" in row for row in ui.screen.written))
+
+    def test_small_terminal_can_select_using_compact_menu(self):
+        ui = test_tui.TerminalTests().terminal([curses.KEY_DOWN, "\n"], size=(12, 45))
+        self.assertEqual(
+            choose_card(
+                ui, "Profiles", [("first", ["Version 1"]), ("second", ["Version 2"])], 0
+            ),
+            1,
+        )
+
+    def test_enter_opens_details_and_escape_returns_to_same_selection_then_exits(self):
+        app = Application(MemoryStore(demo_state()), DemoEngine(), FakeVersionCatalog)
+        for kind in ("profile", "project"):
+            with self.subTest(kind=kind):
+                ui = test_tui.TerminalTests().terminal(
+                    [curses.KEY_DOWN, "\n", "\x1b", "\x1b"]
+                )
+                with (
+                    patch.object(ui, "notice", wraps=ui.notice) as details,
+                    self.assertRaises(Cancelled),
+                ):
+                    browse_list(app, ui, kind)
+                entries = (
+                    app.state.profiles if kind == "profile" else app.state.projects
+                )
+                self.assertEqual(details.call_args.args[0], entries[1].name)
+                self.assertTrue(
+                    any("Version" in line for line in details.call_args.args[1])
+                )
+                if kind == "project":
+                    self.assertTrue(
+                        any("Folder" in line for line in details.call_args.args[1])
+                    )

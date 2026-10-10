@@ -5,7 +5,7 @@ from brig.models import ProfileRevision, Project
 
 
 def configuration_lines(configuration: ProfileRevision) -> list[str]:
-    lines = [f"Revision   {configuration.number}"]
+    lines = [f"Version    {configuration.number}"]
     for label, selections in (
         ("Runtimes", configuration.runtimes),
         ("Tools", configuration.tools),

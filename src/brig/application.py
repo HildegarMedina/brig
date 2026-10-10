@@ -142,7 +142,7 @@ class Application:
         ]
         self.store.delete_profile(candidate, profile)
         self.state = candidate
-        return f"Deleted profile '{profile.name}' and all its revisions."
+        return f"Deleted profile '{profile.name}' and all its versions."
 
     def create_project(self, name: str, path: Path, profile_name: str) -> Project:
         name = self.validate_project_name(name)
@@ -191,14 +191,14 @@ class Application:
         project = self.project(name)
         latest = self.profile(project.profile).latest
         if latest.number == project.configuration.number:
-            return f"{project.name} already uses the latest profile revision."
+            return f"{project.name} already uses the latest profile version."
         if self.engine.has_running_resources(project):
             raise BrigError("Stop the project before applying a profile update.")
         candidate = deepcopy(self.state)
         target = next(p for p in candidate.projects if p.id == project.id)
         target.configuration = deepcopy(latest)
         self._commit(candidate)
-        return f"Updated {project.name} to profile revision {latest.number}."
+        return f"Updated {project.name} to profile version {latest.number}."
 
     def start(self, name: str) -> str:
         return self._set_running(name, True)
