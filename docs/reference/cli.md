@@ -125,14 +125,21 @@ launchers. Existing projects do not need a new profile version for this change.
 
 ## Terminal interface
 
-`brig profile list` and `brig project list` open a simple list when both input
-and output are interactive. Each profile shows its name and latest version;
-each project shows its name, status, and profile with its pinned version.
-Use Up/Down to select, Enter to view details, and Esc to return or exit.
-Selection uses a marker and emphasized text on the terminal's normal background.
-The main `brig` menu uses the same lists, with an additional creation option and
-the existing profile and project management actions. Redirected output retains
-the compact, noninteractive listing.
+`brig` opens a workspace dashboard inspired by Docker Sandboxes, with Projects,
+Profiles and Settings tabs. Terminals of at least 88 × 24 show a record
+panel and a live selection preview side by side. Smaller terminals use a compact
+list. The focused record has an emphasized border; its contents keep the normal
+terminal background. Status labels remain readable without color.
+
+Use Left/Right or Tab to switch sections, Up/Down to select, Enter to open actions,
+and Esc to exit. Press `c` to create, `r` to refresh, and Page Up/Down to scroll the
+detail panel. In Projects, `s` starts or stops the selected project, `a` opens its
+default agent, and `o` opens its shell. Existing confirmation and wizard flows
+handle editing and deletion. Status is refreshed on entry, on `r`, and after actions.
+
+`brig profile list` and `brig project list` open the same dashboard for that
+section when both input and output are interactive. These views are read-only:
+Enter opens details and Esc exits. Redirected output retains a compact text list.
 Profile version numbers continue the existing numbering; stored files keep their
 format and require no migration.
 

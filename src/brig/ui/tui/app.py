@@ -4,9 +4,8 @@ import curses
 from pathlib import Path
 
 from brig.application import Application
-from brig.components.agents import AGENTS
 from brig.errors import BrigError, Cancelled
-from brig.ui.tui.browser import browse_list
+from brig.ui.tui.dashboard import Dashboard
 from brig.ui.tui.profiles import ProfileViews
 from brig.ui.tui.projects import ProjectViews
 from brig.ui.tui.terminal import Terminal
@@ -21,46 +20,7 @@ class InteractiveApp:
         self.project_views = ProjectViews(app, terminal, data_directory)
 
     def home(self) -> None:
-        while True:
-            try:
-                choice = self.ui.choose(
-                    "Your development workspace",
-                    ["Projects", "Profiles", "Agents", "Settings", "Quit"],
-                )
-                if choice == 0:
-                    self.projects()
-                elif choice == 1:
-                    self.profiles()
-                elif choice == 2:
-                    self.ui.notice(
-                        "Agents",
-                        [
-                            f"{agent.name}: {'installed in project images' if agent.available else 'future integration'}"
-                            for agent in AGENTS.values()
-                        ]
-                        + [
-                            "",
-                            "Agents will run inside each project's development container.",
-                            "Sign in or connect a provider from each agent on first use.",
-                        ],
-                    )
-                elif choice == 3:
-                    self.ui.notice(
-                        "Settings",
-                        [
-                            "Language: English",
-                            f"Engine: {'Demo' if self.app.engine.simulated else 'Docker Compose'}",
-                            f"Data directory: {self.data_directory}",
-                            "Catalog: live versions from Docker Official Images, PyPI and npm",
-                            "Project updates: explicit; stop the project before applying",
-                        ],
-                    )
-                else:
-                    return
-            except Cancelled:
-                return
-            except BrigError as error:
-                self.ui.notice("Could not complete action", [str(error)], error=True)
+        Dashboard(self.app, self.ui, self.data_directory, self).run()
 
     def profiles(self) -> None:
         self.profile_views.profiles()
@@ -91,7 +51,10 @@ def launch(
         interactive = InteractiveApp(app, Terminal(screen), directory)
         try:
             if action in ("profile-list", "project-list"):
-                browse_list(app, interactive.ui, action.split("-")[0])
+                Dashboard(app, interactive.ui, directory).run(
+                    "Profiles" if action == "profile-list" else "Projects",
+                    read_only=True,
+                )
             elif action == "profile-create":
                 interactive.profile_wizard()
             elif action == "profile-edit":

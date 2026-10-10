@@ -18,7 +18,9 @@ def configuration_lines(configuration: ProfileRevision) -> list[str]:
     return lines
 
 
-def project_lines(app: Application, project: Project) -> list[str]:
+def project_lines(
+    app: Application, project: Project, *, status: str | None = None
+) -> list[str]:
     environment = app.engine.describe(project)
     latest = app.profile(project.profile).latest.number
     update = " · update available" if latest != project.configuration.number else ""
@@ -26,7 +28,7 @@ def project_lines(app: Application, project: Project) -> list[str]:
         f"Project    {project.name}",
         f"Folder     {project.path or '(sample project; no folder mounted)'}",
         f"Profile    {project.profile}{update}",
-        f"Status     {app.project_status(project)}",
+        f"Status     {app.project_status(project) if status is None else status}",
         *configuration_lines(project.configuration),
         "",
         "Planned environment — not created"
