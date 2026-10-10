@@ -27,8 +27,10 @@ image and can be launched with `brig agent` or their commands from that terminal
 its login and global configuration persist in a shared agent volume on this
 machine, while conversation files have a separate volume per project.
 
-Installing Docker on the host, installing application dependencies, starting HTTP
-servers, and publishing application ports are not implemented. Profile YAML files can be read and shared;
+The repository installer checks Docker, Compose, and daemon access; on supported
+Debian and Ubuntu hosts it installs missing Docker dependencies. Installing
+application dependencies, starting HTTP servers, and publishing application ports
+are not implemented. Profile YAML files can be read and shared;
 importing them is not implemented.
 
 ## Maintaining this documentation

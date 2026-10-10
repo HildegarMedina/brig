@@ -2,9 +2,16 @@
 
 ## Docker is unavailable
 
-If Brig reports that Docker is not installed, install Docker Engine and the
-Compose plugin according to your distribution's documentation. Brig does not
-install system services.
+If Docker or Compose is missing, run `./scripts/install.sh` from the repository
+as your regular user. It installs missing dependencies on supported Debian and
+Ubuntu hosts and checks daemon access. Other distributions require manual Docker
+installation; see [installation](../tutorials/first-project.md#1-prepare-your-machine).
+
+If package installation reports a conflict, resolve it using your distribution's
+Docker instructions and rerun the installer. It does not remove existing packages
+automatically. If it added you to the `docker` group, log out and back in before
+starting projects. The Python-only `uv tool install` command does not perform
+these host checks.
 
 If it cannot connect to the daemon, check:
 

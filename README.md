@@ -31,17 +31,21 @@ and asks you to choose its version.
 
 Requires Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/). Running
 environments also requires Docker Engine and the Docker Compose v2 plugin or
-newer, accessible as your regular user.
+newer, accessible as your regular user. The installer checks these dependencies
+and automatically installs missing packages on supported Debian and Ubuntu hosts.
 
 From this repository:
 
 ```bash
-uv tool install .
+./scripts/install.sh
 brig --help
 ```
 
 If the command is not found, run `uv tool update-shell` and open another terminal.
-After updating the code, run `uv tool install --reinstall .`.
+After updating the code, run `./scripts/install.sh` again. Run it as your regular
+user; system changes use `sudo`. If Docker access is newly configured, log out and
+back in before starting projects. Existing working Docker installations are reused.
+See [installation details](docs/tutorials/first-project.md#1-prepare-your-machine).
 
 ## Start from zero
 

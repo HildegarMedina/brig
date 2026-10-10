@@ -70,6 +70,11 @@ and the simulation engine as test dependencies. Real engine boundary tests repla
 subprocess execution but generate real files in temporary directories. Docker
 integration tests run separately using the command below.
 
+The development hook installer does not change host Docker packages. The separate
+`scripts/install.sh` command installs Brig for use and prepares its Docker
+dependencies. Installer unit tests use fake system commands, so they never run
+APT, start host services, or modify user groups.
+
 Tests cover behavior including profile snapshots, storage relationships, save
 failures, CLI options, wizard validation, selected installations, and data
 preservation when engine operations fail.

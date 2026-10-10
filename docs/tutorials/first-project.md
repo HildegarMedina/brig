@@ -5,14 +5,14 @@ isolated Python terminal. The folder can contain a real project or be empty.
 
 ## 1. Prepare your machine
 
-You need Linux, Python 3.12 or newer, [uv](https://docs.astral.sh/uv/), Docker Engine,
-and the Docker Compose v2 plugin or newer. Docker must be running and your user
-must be able to access its daemon.
+You need Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/). Brig also
+requires Docker Engine and the Compose v2 plugin or newer. The repository
+installer checks their availability, the daemon, and access for your regular user.
 
 From the Brig repository folder:
 
 ```bash
-uv tool install .
+./scripts/install.sh
 brig --help
 ```
 
@@ -20,10 +20,33 @@ If `brig` is not on your PATH, run `uv tool update-shell` and open another termi
 After updating the code, reinstall the tool:
 
 ```bash
-uv tool install --reinstall .
+./scripts/install.sh
 ```
 
-Check Docker as your regular user:
+The installer reuses working Docker installations, including accessible remote
+and rootless daemons. On Ubuntu 22.04, 24.04, 26.04 and Debian 12, 13 it installs
+missing packages using Docker's official APT repository. If only Compose is
+missing, it installs the plugin without reinstalling the engine. Package conflicts
+stop installation without removing existing packages.
+
+Run the installer without `sudo`; it uses `sudo` for system packages and local
+service configuration. It can start and enable the standard local Docker service
+on systems with systemd. If your user needs Docker access, it adds the `docker`
+group and tells you to **log out and back in**. This group grants administrative
+control through Docker; see [Docker's post-installation instructions](https://docs.docker.com/engine/install/linux-postinstall/).
+It does not change a configured remote or rootless endpoint; if that daemon is
+unreachable, start it and resolve its access before retrying.
+
+Other Linux distributions require manually installing Docker Engine and Compose
+before running the installer. Follow [Docker's distribution instructions](https://docs.docker.com/engine/install/).
+The APT setup follows [Docker's Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
+and [Debian](https://docs.docker.com/engine/install/debian/) documentation.
+
+For an existing managed machine, `uv tool install --reinstall .` remains available
+to install only the Python package; it does not run host dependency setup. The
+development hook installer also remains separate and does not install Docker.
+
+After setup, check Docker as your regular user:
 
 ```bash
 docker version
