@@ -1,6 +1,7 @@
 """Coordinate the per-project Docker lifecycle and terminal execution."""
 
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -175,6 +176,52 @@ class DockerEngine:
         return tr(
             "Started {value0}. Use 'brig run {value1}' to enter its terminal."
         ).format(value0=project.name, value1=project.name)
+
+    def clean(self, project: Project) -> str:
+        with self.workspace.lock(project):
+            self.client.check()
+            _, current, _ = self.workspace.plan(project, self.uid, self.gid)
+            repository = current.split(":", 1)[0]
+            result = self.client.run(
+                [
+                    "image",
+                    "ls",
+                    "--no-trunc",
+                    "--format",
+                    "{{.ID}} {{.Repository}}:{{.Tag}}",
+                ]
+            )
+            images = [line.split() for line in result.stdout.splitlines()]
+            keep = {current, f"{current}-credential-proxy"}
+            protected = {
+                image_id for image_id, reference in images if reference in keep
+            }
+            pattern = re.compile(
+                re.escape(repository) + r":[0-9a-f]{24}(?:-credential-proxy)?"
+            )
+            removed = 0
+            for image_id, reference in images:
+                if image_id in protected or not pattern.fullmatch(reference):
+                    continue
+                containers = self.client.run(
+                    [
+                        "container",
+                        "ls",
+                        "--all",
+                        "--filter",
+                        f"ancestor={image_id}",
+                        "--format",
+                        "{{.ID}}",
+                    ]
+                )
+                if containers.stdout.strip():
+                    continue
+                # Remove only the project's tag, without forcing deletion of shared images.
+                self.client.run(["image", "rm", reference])
+                removed += 1
+            return tr(
+                "Cleaned {value0}: removed {value1} old image tags. Current images, containers, and volumes were kept."
+            ).format(value0=project.name, value1=removed)
 
     def stop(self, project: Project) -> str:
         with self.workspace.lock(project):

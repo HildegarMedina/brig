@@ -288,6 +288,9 @@ class Application:
             "Deleted project '{value0}' from Brig. Its local folder and profile were kept."
         ).format(value0=project.name)
 
+    def clean_project(self, name: str) -> str:
+        return self.engine.clean(self.project(name))
+
     def update_project(self, name: str) -> str:
         project = self.project(name)
         latest = self.profile(project.profile).latest

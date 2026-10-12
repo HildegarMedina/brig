@@ -390,5 +390,7 @@
   "Choose an agent for '{project}'": "Elige un agente para '{project}'",
   "This project has several agents. Specify --agent for run/shell or an agent name for brig agent.": "Este proyecto tiene varios agentes. Indica --agent para run/shell o el nombre del agente para brig agent.",
   "select an installed agent before entering": "elige un agente instalado antes de entrar",
-  "agent name; choose interactively when several are installed": "nombre del agente; elige interactivamente si hay varios instalados"
+  "agent name; choose interactively when several are installed": "nombre del agente; elige interactivamente si hay varios instalados",
+  "remove unused old project images, keeping current images and data": "eliminar imágenes antiguas sin uso del proyecto, conservando las actuales y los datos",
+  "Cleaned {value0}: removed {value1} old image tags. Current images, containers, and volumes were kept.": "Limpieza de {value0}: se eliminaron {value1} etiquetas de imágenes antiguas. Se conservaron las imágenes actuales, los contenedores y los volúmenes."
 }

@@ -136,6 +136,10 @@ def parser() -> argparse.ArgumentParser:
     projects.add_parser(
         "update", help=tr("apply the latest profile version")
     ).add_argument("name")
+    projects.add_parser(
+        "clean",
+        help=tr("remove unused old project images, keeping current images and data"),
+    ).add_argument("name")
     project_deletion = projects.add_parser(
         "delete",
         help=tr(
@@ -222,6 +226,8 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             return app.detach(args.name)
         if args.action == "dockerfile":
             return app.project_dockerfile(args.name, Path.cwd(), args.output)
+        if args.action == "clean":
+            return app.clean_project(args.name)
         if args.action == "delete":
             return app.delete_project(args.name)
         if args.action == "list":

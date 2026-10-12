@@ -157,6 +157,18 @@ brig project update my-api
 brig run my-api
 ```
 
+To remove unused images from previous configurations manually:
+
+```bash
+brig project clean my-api
+```
+
+Cleanup keeps the images for the project's current configuration and any image
+used by a running or stopped container. It removes only old Brig development and
+credential proxy image tags for this project. Source files, volumes, database
+images, and build cache are kept. The result reports removed tags; shared Docker
+layers mean this count does not represent a fixed amount of reclaimed space.
+
 Editing saves a new profile version; existing projects keep their saved version
 until you update them. To explicitly update a child's inherited base, use
 `brig profile edit python-web --update-base`.
