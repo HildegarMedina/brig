@@ -20,7 +20,7 @@ def proxy_image_lines() -> list[str]:
         "RUN pip install --no-cache-dir mitmproxy==12.2.3 && \\",
         '    groupadd --gid "$BRIG_GID" brig && useradd --uid "$BRIG_UID" --gid brig --create-home brig && \\',
         "    mkdir -p /secrets /certificates /public && chown brig:brig /secrets /certificates /public && chmod 700 /secrets /certificates /public",
-        "COPY proxy/ /opt/brig-proxy/",
+        "COPY --chown=brig:brig proxy/ /opt/brig-proxy/",
         "ENV PYTHONPATH=/opt/brig-proxy",
         "USER brig",
         'CMD ["python", "-m", "brig.auth_proxy"]',

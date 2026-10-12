@@ -176,3 +176,19 @@ def validate_agents(agents: list[str], default: str) -> None:
         raise BrigError(tr("Select each agent only once."))
     if default not in agents:
         raise BrigError(tr("The default agent must be one of the selected agents."))
+
+
+def validate_project_agent(configuration, agent: str) -> None:
+    validate_agent(agent)
+    if agent not in configuration.selected_agents:
+        raise BrigError(
+            tr("Agent '{value0}' is not selected in this project's profile.").format(
+                value0=agent
+            )
+        )
+    if agent != configuration.agent:
+        raise BrigError(
+            tr(
+                "This project uses '{active}'. Only its default agent is installed and authorized."
+            ).format(active=configuration.agent)
+        )

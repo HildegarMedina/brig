@@ -25,9 +25,10 @@ class AuthDockerTests(unittest.TestCase):
     def test_each_proxy_is_private_and_agents_receive_only_public_view(self):
         from brig.docker.compose import compose_definition
 
-        definition = compose_definition(self.project, "brig-test", 1234, 4321)
         for agent in self.project.configuration.selected_agents:
-            service = definition["services"][f"agent_{agent}"]
+            self.project.configuration.agent = agent
+            definition = compose_definition(self.project, "brig-test", 1234, 4321)
+            service = definition["services"]["dev"]
             proxy = definition["services"][f"credential_{agent}"]
             self.assertNotIn("default", proxy["networks"])
             self.assertNotIn("credential_egress", service["networks"])
@@ -55,8 +56,9 @@ class AuthDockerTests(unittest.TestCase):
             )
             self.assertNotIn("ports", proxy)
             self.assertEqual(proxy["cap_drop"], ["ALL"])
-        dev = definition["services"]["dev"]
-        self.assertNotIn("HTTP_PROXY", dev.get("environment", {}))
+            self.assertEqual(
+                service["environment"]["HTTP_PROXY"], f"http://credential_{agent}:8080"
+            )
 
     def test_native_login_helpers_never_mount_workspace_or_public_proxy_view(self):
         with (
@@ -65,6 +67,7 @@ class AuthDockerTests(unittest.TestCase):
             redirect_stderr(io.StringIO()),
         ):
             for agent in self.project.configuration.selected_agents:
+                self.case.app.project("api").configuration.agent = agent
                 self.case.app.authenticate_agent("api", agent)
                 command = next(
                     args
@@ -84,6 +87,7 @@ class AuthDockerTests(unittest.TestCase):
                 self.assertIn("--force-recreate", self.case.runner.calls[-1][0])
 
     def test_keys_use_stdin_not_arguments_and_helpers_have_no_network(self):
+        self.project.configuration.agent = "codex"
         with redirect_stderr(io.StringIO()):
             message = self.case.app.authenticate_agent("api", "codex", key=self.key)
         self.assertIn("Authentication saved", message)
@@ -101,6 +105,7 @@ class AuthDockerTests(unittest.TestCase):
         self.assertNotIn(self.key, message)
 
     def test_authentication_validation_precedes_docker_operations(self):
+        self.project.configuration.agent = "codex"
         for agent, options in (
             ("unknown", {}),
             ("codex", {"key": self.key, "provider": "anthropic"}),
@@ -112,6 +117,7 @@ class AuthDockerTests(unittest.TestCase):
             with self.assertRaises(BrigError):
                 self.case.app.authenticate_agent("api", agent, **options)
         self.project.configuration.agents = ["claude"]
+        self.project.configuration.agent = "claude"
         with self.assertRaisesRegex(BrigError, "not selected"):
             self.case.app.authenticate_agent("api", "codex")
         self.assertEqual(self.case.runner.calls, [])
@@ -122,6 +128,7 @@ class AuthDockerTests(unittest.TestCase):
             self.case.app.authenticate_agent("api", "claude")
 
     def test_login_failures_do_not_echo_secret_stderr_or_restart_containers(self):
+        self.project.configuration.agent = "codex"
         self.case.start()
         for exception in (None, OSError(self.key)):
 
@@ -142,6 +149,7 @@ class AuthDockerTests(unittest.TestCase):
             self.assertNotIn(self.key, str(error.exception))
 
     def test_cli_hidden_key_prompt_and_login_use_host_authentication(self):
+        self.project.configuration.agent = "opencode"
         with (
             tempfile.TemporaryDirectory() as folder,
             patch("brig.ui.cli.Application", return_value=self.case.app),
@@ -169,6 +177,7 @@ class AuthDockerTests(unittest.TestCase):
                 ),
                 0,
             )
+            self.case.app.project("api").configuration.agent = "claude"
             self.assertEqual(
                 main(
                     [
@@ -186,6 +195,7 @@ class AuthDockerTests(unittest.TestCase):
             self.assertNotIn(self.key, output.getvalue())
 
     def test_stdin_key_entry_is_noninteractive_and_does_not_echo(self):
+        self.project.configuration.agent = "codex"
         with (
             tempfile.TemporaryDirectory() as folder,
             patch("brig.ui.cli.Application", return_value=self.case.app),

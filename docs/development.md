@@ -36,15 +36,12 @@ Lifecycle locks cover preparation and start/stop operations. JSON and YAML saves
 remain coordinated in `JsonStateStore` so failures preserve the previous state.
 The simulation engine lives in `tests/demo_engine.py`.
 
-Dockerfile targets derive each agent image from the shared development stage.
-Compose gives each agent an independent home and mounts only its own
-public authentication view and histories. Real credential volumes are mounted
-only in trusted proxy/helper containers. Agent execution checks project, agent,
-and proxy labels
-before `docker exec`; it must never fall back to development. Boundary tests
-verify mount separation, target contents, CLI forwarding, image cache reuse, and
-foreign-container rejection. Integration tests verify credential fixtures remain
-unavailable to other agents and development; they never use real login tokens.
+The `dev` Dockerfile target adds the profile's default agent to its languages
+and tools. Compose starts one work container and its matching credential proxy.
+The work container reuses that agent's project home and conversation volumes;
+real login stores are mounted only in trusted proxy/helper containers. Shell and
+agent execution target the same managed work container. Startup also validates
+legacy agent/proxy ownership before removing former containers as orphans.
 
 Profile imports reuse the state codec and inheritance validation. The YAML reader
 uses a restricted PyYAML SafeLoader, rejects duplicate keys and aliases, and
@@ -128,19 +125,19 @@ preferences belong in `preferences.json`; do not add them to environment state.
 BRIG_DOCKER_TESTS=1 uv run python -m unittest tests.integration.test_lifecycle tests.integration.test_agents -v
 ```
 
-The five enabled tests verify:
+The Docker tests verify:
 
 - Entering Bash through a real pseudo-terminal and returning to the host.
 - Building a missing image, reusing the container, mounting the correct folder,
   writing files with the user's UID, and preserving Redis data. Starting another
   project and verifying that stopping the first does not affect it.
-  Checking that Claude executes in its own container before and after recreation, settings and conversation files remain separate between projects.
+  Checking that Claude executes in the project work container before and after recreation, settings and conversation files remain separate between projects.
 - Starting PostgreSQL, MySQL, MariaDB, MongoDB, and Redis with a PHP project;
   checking health, PDO connections, and MongoDB authentication.
 - Running Node.js, Claude, and Playwright; navigating a local page, clicking a
   button, saving a screenshot, and checking agent storage permissions.
 
-- Executing native Claude, Codex, and OpenCode in separate containers without Node.js; checking protected
+- Executing each default agent (Claude, Codex, and OpenCode) in its project work container without Node.js; checking protected
   fixture credentials, private conversation state, and persistence after recreation.
 
 Tests use temporary profiles and folders. Cleanup selects only resources labeled
@@ -233,3 +230,19 @@ provider that deliberately echoes them. No real provider secrets are required.
 Docker integration tests seed fixture API keys and inspect agent/proxy mounts.
 Real native OAuth login and inference require Docker and suitable provider
 accounts; unit coverage does not substitute for those end-to-end checks.
+
+## Optional live Codex validation
+
+To validate inference with an existing host login, run:
+
+```bash
+BRIG_LIVE_CODEX_TESTS=1 uv run --locked python -m unittest tests.integration.test_live_codex -v
+```
+
+This uses the protected Codex login from the default Brig data directory and
+consumes account quota. It creates temporary registrations and source folders,
+asks Codex to write one fixture file, and verifies placeholder credentials and
+project history before and after recreation. It also starts a second project
+and checks that the history is absent there. Cleanup removes only the test
+projects' resources; the shared real login is preserved. It does not perform a
+new interactive browser/device login.

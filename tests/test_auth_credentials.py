@@ -136,10 +136,39 @@ class AuthCredentialTests(unittest.TestCase):
         self.assertEqual(headers["ChatGPT-Account-Id"], "account-fixture")
         self.assertNotIn(self.token, json.dumps(login_view(store)))
         self.assertEqual(login_view(store)["auth_mode"], "chatgpt")
+        view = login_view(store)
+        self.assertEqual(view["tokens"]["account_id"], "account-fixture")
+        self.assertEqual(
+            claims(view["tokens"]["access_token"])["https://api.openai.com/auth"][
+                "chatgpt_account_id"
+            ],
+            "account-fixture",
+        )
         self.write("auth.json", [])
         with self.assertRaises(CredentialError):
             store.headers("openai")
         self.assertIn("OPENAI_API_KEY", login_view(store))
+
+    def test_codex_public_account_id_keeps_tokens_inert_and_rejects_invalid_ids(self):
+        for account in (None, "bad\naccount", 7):
+            self.write(
+                "brig-auth.json",
+                {
+                    "openai": {
+                        "type": "oauth",
+                        "access": self.token,
+                        "accountId": account,
+                    }
+                },
+            )
+            store = CredentialStore(self.root, "codex")
+            if account is None:
+                view = login_view(store)
+                self.assertEqual(view["tokens"]["refresh_token"], PLACEHOLDER)
+                self.assertNotIn(self.token, json.dumps(view))
+            else:
+                with self.assertRaises(CredentialError):
+                    login_view(store)
 
     def test_claude_and_opencode_legacy_and_v2_logins(self):
         self.write(

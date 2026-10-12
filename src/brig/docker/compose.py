@@ -124,11 +124,7 @@ def compose_definition(
         add_database_service(services, volumes, name, version, prefix, labels)
         dependencies[name] = {"condition": "service_healthy"}
     if dependencies:
-        for service in [
-            "dev",
-            *[f"agent_{agent}" for agent in configuration.selected_agents],
-        ]:
-            services[service].setdefault("depends_on", {}).update(dependencies)
+        services["dev"].setdefault("depends_on", {}).update(dependencies)
     return {
         "name": prefix,
         "services": services,
@@ -189,47 +185,37 @@ def add_database_service(services, volumes, name, version, prefix, labels) -> No
 def add_agent_storage(
     project, services, volumes, networks, labels, uid, gid, agent_volumes
 ) -> None:
-    for agent in sorted(project.configuration.selected_agents):
-        integration = AGENTS[agent]
-        home = f"{agent}_home"
-        volumes[home] = {
-            "name": f"{project_prefix(project)}-{agent}-runtime-home",
-            "labels": labels,
-        }
-        service = dict(services["dev"])
-        service.update(
-            image=f"{services['dev']['image']}-agent-{agent}",
-            build={**services["dev"]["build"], "target": f"agent_{agent}"},
-            container_name=f"{project_prefix(project)}-agent-{agent}",
-            labels={**labels, "org.brig.agent": agent},
-            volumes=[
-                dict(services["dev"]["volumes"][0]),
-                {"type": "volume", "source": home, "target": "/home/brig"},
-            ],
+    agent = project.configuration.agent
+    integration = AGENTS[agent]
+    home = "home"
+    volumes[home] = {
+        "name": f"{project_prefix(project)}-{agent}-runtime-home",
+        "labels": labels,
+    }
+    service = services["dev"]
+    service["labels"] = {**labels, "org.brig.agent": agent}
+    if not integration.config_directory:
+        return
+    shared = f"{agent}_config"
+    volumes[shared] = {
+        "name": (agent_volumes or {}).get(agent, f"brig-{agent}-{uid}"),
+        "external": True,
+    }
+    service["brig_auth_config"] = integration.config_directory
+    add_credential_proxy(
+        agent,
+        service,
+        services,
+        volumes,
+        networks,
+        project_prefix(project),
+        services["dev"]["image"],
+        uid,
+        gid,
+        shared,
+    )
+    for history, volume, target in agent_history_volumes(project, agent):
+        volumes[history] = {"name": volume, "labels": labels}
+        service["volumes"].append(
+            {"type": "volume", "source": history, "target": target}
         )
-        services[f"agent_{agent}"] = service
-        if not integration.config_directory:
-            continue
-        shared = f"{agent}_config"
-        volumes[shared] = {
-            "name": (agent_volumes or {}).get(agent, f"brig-{agent}-{uid}"),
-            "external": True,
-        }
-        service["brig_auth_config"] = integration.config_directory
-        add_credential_proxy(
-            agent,
-            service,
-            services,
-            volumes,
-            networks,
-            project_prefix(project),
-            services["dev"]["image"],
-            uid,
-            gid,
-            shared,
-        )
-        for history, volume, target in agent_history_volumes(project, agent):
-            volumes[history] = {"name": volume, "labels": labels}
-            service["volumes"].append(
-                {"type": "volume", "source": history, "target": target}
-            )

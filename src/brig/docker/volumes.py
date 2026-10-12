@@ -54,44 +54,44 @@ class DockerVolumes:
                 ) from error
 
     def ensure_agent_volumes(self, project: Project) -> None:
-        for agent in project.configuration.selected_agents:
-            if not AGENTS[agent].config_directory:
-                continue
-            name = self.agent_volume_name(agent)
-            labels = {
-                "org.brig.agent": agent,
-                "org.brig.agent-scope": self.agent_scope,
-                "org.brig.uid": str(self.uid),
-            }
-            found = self.client.run(["volume", "inspect", name], check=False)
-            if found.returncode:
-                if "no such" not in (found.stderr or "").lower():
-                    raise BrigError(
-                        tr("Cannot inspect shared agent storage: ")
-                        + (found.stderr or "").strip()
-                    )
-                self.client.run(
-                    [
-                        "volume",
-                        "create",
-                        *[
-                            argument
-                            for key, value in labels.items()
-                            for argument in ("--label", f"{key}={value}")
-                        ],
-                        name,
-                    ]
-                )
-                found = self.client.run(["volume", "inspect", name])
-            try:
-                actual = json.loads(found.stdout)[0].get("Labels") or {}
-            except (ValueError, KeyError, IndexError, TypeError) as error:
+        agent = project.configuration.agent
+        if not AGENTS[agent].config_directory:
+            return
+        name = self.agent_volume_name(agent)
+        labels = {
+            "org.brig.agent": agent,
+            "org.brig.agent-scope": self.agent_scope,
+            "org.brig.uid": str(self.uid),
+        }
+        found = self.client.run(["volume", "inspect", name], check=False)
+        if found.returncode:
+            if "no such" not in (found.stderr or "").lower():
                 raise BrigError(
-                    tr("Docker returned invalid shared agent storage information.")
-                ) from error
-            if any(actual.get(key) != value for key, value in labels.items()):
-                raise BrigError(
-                    tr(
-                        "Shared agent volume '{value0}' is not owned by this Brig installation."
-                    ).format(value0=name)
+                    tr("Cannot inspect shared agent storage: ")
+                    + (found.stderr or "").strip()
                 )
+            self.client.run(
+                [
+                    "volume",
+                    "create",
+                    *[
+                        argument
+                        for key, value in labels.items()
+                        for argument in ("--label", f"{key}={value}")
+                    ],
+                    name,
+                ]
+            )
+            found = self.client.run(["volume", "inspect", name])
+        try:
+            actual = json.loads(found.stdout)[0].get("Labels") or {}
+        except (ValueError, KeyError, IndexError, TypeError) as error:
+            raise BrigError(
+                tr("Docker returned invalid shared agent storage information.")
+            ) from error
+        if any(actual.get(key) != value for key, value in labels.items()):
+            raise BrigError(
+                tr(
+                    "Shared agent volume '{value0}' is not owned by this Brig installation."
+                ).format(value0=name)
+            )

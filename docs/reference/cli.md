@@ -143,24 +143,26 @@ with a shell; specify one as the program if needed.
 brig agent [AGENT] [--project NAME] [--command PROGRAM ARGUMENTS...]
 ```
 
-Builds a missing image, starts the selected project, and launches its selected
-agent inside its own container at `/workspace`. Each selected agent has its own
-image and home, with conversation volumes and a read-only public authentication
-view. Real credentials remain in a separate proxy container. An interactive terminal is required unless `--command` is supplied. Omitting `AGENT` uses the profile's default agent. Only agents in the
-project's pinned version can be launched.
+Builds a missing image, starts the project, and launches its default agent in
+the same work container used by `brig run`, at `/workspace`. The container has
+the profile's languages, tools, and one coding agent. Settings and conversations
+are project-specific; real credentials stay in a separate proxy. An interactive
+terminal is required unless `--command` is supplied. Omitting `AGENT` uses the
+profile's default. An explicitly requested agent must match that default, even
+when a legacy profile lists several selected agents.
 
 ```bash
 brig agent codex --project my-api
-brig agent opencode --project my-api
+brig run my-api
+# Inside the project terminal:
+codex
 ```
 
-The development shell opened by `brig run` contains the profile tools and no
-agent executable or credential mount. Launch agents from the host using
-`brig agent`. To run a program inside one agent's environment without a TTY:
+To run a program in the same environment without a TTY:
 
 ```bash
 brig agent codex --project my-api --command codex --version
-brig agent claude --project my-api --command python --version
+brig run my-api --command codex --version
 ```
 
 Use the interactive agent command for normal chat. Arguments following
@@ -178,13 +180,13 @@ trusted helper without the project workspace. OpenCode login selects OpenAI.
 `--stdin`. Provider defaults to Anthropic for Claude and OpenAI otherwise.
 Codex supports OpenAI, Claude supports Anthropic, and OpenCode supports the
 providers listed in [protected credentials](../how-to/credentials.md).
-Only agents selected in the project can be authenticated. Keys are never CLI
-arguments. Success recreates that project's proxy and agent; restart other
+Only the project's default agent can be authenticated. Keys are never CLI
+arguments. Success recreates that project's proxy and work container; restart other
 running projects if switching authentication modes. Login persists across
 projects; settings and conversations remain project-specific.
 
 Brig's launchers enable full tool permissions by default for `brig agent` and
-commands executed in the corresponding agent container:
+commands executed in the project work container:
 
 | Agent | Container launcher setting |
 | --- | --- |
@@ -206,8 +208,8 @@ and [OpenCode permissions](https://opencode.ai/docs/permissions/).
 After updating Brig, run `brig down --project NAME` followed by `brig run NAME`
 from the host. The changed Dockerfile selects a new image and regenerates the
 launchers. Existing projects do not need a new profile version for this change.
-The agent containers reuse existing login and nested conversation volume names;
-new agent homes are separate from the legacy development home. See
+The work container reuses the default agent's runtime home, login, and nested
+conversation volume names. Legacy development homes remain unmounted. See
 [agent isolation and upgrading](../how-to/agent-isolation.md).
 
 ## Terminal interface

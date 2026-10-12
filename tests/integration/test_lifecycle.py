@@ -60,7 +60,11 @@ class DockerLifecycleTests(unittest.TestCase):
         # Only resources carrying these temporary test projects' exact IDs.
         for identifier in (self.project_id, self.other_id):
             prefix = f"brig-{identifier}"
-            for kind, flags in (("container", ["--all"]), ("volume", [])):
+            for kind, flags in (
+                ("container", ["--all"]),
+                ("network", []),
+                ("volume", []),
+            ):
                 result = subprocess.run(
                     [
                         "docker",
@@ -77,15 +81,16 @@ class DockerLifecycleTests(unittest.TestCase):
                 )
                 for resource in result.stdout.split():
                     subprocess.run(
-                        ["docker", kind, "rm", "--force", resource],
+                        [
+                            "docker",
+                            kind,
+                            "rm",
+                            *([] if kind == "network" else ["--force"]),
+                            resource,
+                        ],
                         capture_output=True,
                         check=False,
                     )
-            subprocess.run(
-                ["docker", "network", "rm", prefix + "-network"],
-                capture_output=True,
-                check=False,
-            )
             result = subprocess.run(
                 [
                     "docker",

@@ -1,4 +1,4 @@
-"""Exact HTTPS destinations and inference-only paths for credential injection."""
+"""Exact HTTPS destinations and model/bootstrap paths for credential injection."""
 
 PROVIDERS = {
     "openai": ("api.openai.com", "chatgpt.com"),
@@ -21,6 +21,8 @@ def permitted(method: str, path: str) -> bool:
         return path in (
             "/v1/models",
             "/backend-api/codex/models",
+            "/backend-api/wham/accounts/check",
+            "/backend-api/wham/config/bundle",
             "/api/v1/models",
             "/openai/v1/models",
             "/v1beta/models",

@@ -384,5 +384,6 @@
   "↑↓ move · enter details · esc exit": "↑↓ mover · enter detalles · esc salir",
   "↑↓ move · enter select · esc back": "↑↓ mover · enter seleccionar · esc volver",
   "↑↓ move · space toggle · enter next · esc back": "↑↓ mover · espacio alternar · enter siguiente · esc volver",
-  "↑↓ scroll · enter / esc close": "↑↓ desplazar · enter / esc cerrar"
+  "↑↓ scroll · enter / esc close": "↑↓ desplazar · enter / esc cerrar",
+  "This project uses '{active}'. Only its default agent is installed and authorized.": "Este proyecto usa '{active}'. Solo su agente predeterminado está instalado y autorizado."
 }

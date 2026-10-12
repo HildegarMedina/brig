@@ -77,7 +77,7 @@ class AgentTests(unittest.TestCase):
             contents = profile_path(Path(folder) / "data", "both-agents", 1).read_text()
             self.assertIn('agents:\n  - "claude"\n  - "codex"', contents)
             project = app.create_project("both-project", Path(folder), "both-agents")
-            self.assertIn("AS claude_binary", render_dockerfile(project))
+            self.assertNotIn("AS claude_binary", render_dockerfile(project))
             self.assertIn("AS codex_binary", render_dockerfile(project))
             app.save_profile(
                 "both-agents",
@@ -139,7 +139,7 @@ class AgentTests(unittest.TestCase):
                         definition = compose_definition(
                             project, "brig-test", 1000, 1000
                         )
-                        mounts = definition["services"][f"agent_{selected}"]["volumes"]
+                        mounts = definition["services"]["dev"]["volumes"]
                         for directory in AGENTS[selected].history_directories:
                             target = f"{AGENTS[selected].config_directory}/{directory}"
                             self.assertTrue(

@@ -4,7 +4,7 @@ import base64
 import json
 from datetime import UTC, datetime
 
-from brig.auth_proxy.credentials import CredentialStore
+from brig.auth_proxy.credentials import CredentialStore, claims
 from brig.auth_proxy.providers import PROVIDERS
 from brig.auth_proxy.storage import CredentialError
 
@@ -12,7 +12,7 @@ PLACEHOLDER = "sk-brig-proxy-managed-not-a-real-credential"
 EXPIRES = 4102444800000
 
 
-def placeholder_jwt() -> str:
+def placeholder_jwt(account_id: str = "brig-proxy") -> str:
     def encode(value):
         return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip("=")
 
@@ -23,7 +23,7 @@ def placeholder_jwt() -> str:
             {
                 "exp": EXPIRES // 1000,
                 "https://api.openai.com/auth": {
-                    "chatgpt_account_id": "brig-proxy",
+                    "chatgpt_account_id": account_id,
                     "chatgpt_plan_type": "plus",
                 },
             }
@@ -39,13 +39,24 @@ def login_view(store: CredentialStore) -> dict:
         except CredentialError:
             record = {"type": "api"}
         if record.get("type") == "oauth":
+            # Routing discovery matches this non-secret ID against the account
+            # list. Tokens and JWT signatures remain inert placeholders.
+            account_id = record.get("accountId") or claims(
+                record.get("access") or ""
+            ).get("https://api.openai.com/auth", {}).get(
+                "chatgpt_account_id", "brig-proxy"
+            )
+            if not isinstance(account_id, str) or any(
+                ord(char) < 33 or ord(char) > 126 for char in account_id
+            ):
+                raise CredentialError("Invalid account identifier")
             return {
                 "auth_mode": "chatgpt",
                 "tokens": {
-                    "id_token": placeholder_jwt(),
-                    "access_token": placeholder_jwt(),
+                    "id_token": placeholder_jwt(account_id),
+                    "access_token": placeholder_jwt(account_id),
                     "refresh_token": PLACEHOLDER,
-                    "account_id": "brig-proxy",
+                    "account_id": account_id,
                 },
                 "last_refresh": datetime.now(UTC).isoformat(),
             }

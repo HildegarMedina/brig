@@ -134,11 +134,11 @@ Names use the `brig-PROJECT_ID` prefix:
 | Resource | Name or location |
 | --- | --- |
 | Development container | `brig-ID-dev` |
-| Agent container | `brig-ID-agent-AGENT` |
+| Active agent | Runs inside `brig-ID-dev` |
 | Service container | `brig-ID-SERVICE` |
 | Network | `brig-ID-network` |
-| Agent home volume | `brig-ID-AGENT-runtime-home` → `/home/brig` in that agent container |
-| Home volume | `brig-ID-home` → `/home/brig` |
+| Work home volume | `brig-ID-AGENT-runtime-home` → `/home/brig` in the work container |
+| Legacy development home | `brig-ID-home`, retained but not mounted |
 | Protected agent login | `brig-AGENT-UID-SCOPE` → `/secrets` in its proxy only |
 | Credential proxy | `brig-ID-credential-AGENT` |
 | Private certificate authority | Project-specific volume in the proxy only |
@@ -147,7 +147,7 @@ Names use the `brig-PROJECT_ID` prefix:
 | Data volume | `brig-ID-SERVICE-data` |
 | MongoDB configuration volume | `brig-ID-mongodb-config` |
 | Development image | `brig-dev-brig-ID:HASH` |
-| Agent image | `brig-dev-brig-ID:HASH-agent-AGENT` |
+| Credential proxy image | `brig-dev-brig-ID:HASH-credential-proxy` |
 
 Source files live in the registered host folder, mounted at `/workspace`. Named
 volumes are managed by Docker and are not inside Brig's data directory. They have
@@ -155,7 +155,7 @@ ownership labels and, for a service's data, its major version. Existing developm
 containers with conflicting names are not automatically adopted.
 
 `SCOPE` hashes the engine's absolute runtime directory. All projects in the same
-Brig data directory for the same host user share each selected agent's login.
+Brig data directory for the same host user share their active agent's login.
 Each agent has its own external volume named `brig-AGENT-UID-SCOPE`, with agent,
 user, and scope ownership labels. It survives `down` and project deletion.
 Only the trusted authentication helper and matching credential proxy mount it.
@@ -175,7 +175,7 @@ Agent executables and their installation resources live outside `/home/brig`,
 so persistent home volumes do not hide them when containers are recreated.
 Login and nested conversation-directory volume names are unchanged by agent
 separation. Existing local SQLite databases and logs in the legacy development
-home are preserved there but are not automatically copied to the new agent homes.
+home are preserved there but are not automatically copied to the project work homes.
 See [upgrade guidance](../how-to/agent-isolation.md#upgrade-existing-projects).
 
 ## What each operation preserves

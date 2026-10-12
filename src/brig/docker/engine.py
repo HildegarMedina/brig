@@ -4,7 +4,7 @@ import os
 import sys
 from pathlib import Path
 
-from brig.components.agents import AGENTS, validate_agent
+from brig.components.agents import AGENTS, validate_project_agent
 from brig.docker.authentication import authenticate
 from brig.docker.client import DockerClient
 from brig.docker.compose import agent_history_volumes, project_prefix, render_compose
@@ -44,7 +44,7 @@ class DockerEngine:
             self.gid,
             agent_volumes={
                 agent: self.agent_volume_name(agent)
-                for agent in project.configuration.selected_agents
+                for agent in [project.configuration.agent]
             },
         )
         self.client.check()
@@ -61,19 +61,18 @@ class DockerEngine:
             f"{prefix}-dev",
             {name: f"{prefix}-{name}" for name in project.configuration.services},
             f"{prefix}-network",
-            (f"{prefix}-home",)
-            + tuple(
+            tuple(
                 f"{prefix}-{agent}-runtime-home"
-                for agent in project.configuration.selected_agents
+                for agent in [project.configuration.agent]
             )
             + tuple(
                 f"{prefix}-credential-{agent}-{kind}"
-                for agent in project.configuration.selected_agents
+                for agent in [project.configuration.agent]
                 for kind in ("ca", "view")
             )
             + tuple(
                 volume
-                for agent in project.configuration.selected_agents
+                for agent in [project.configuration.agent]
                 if AGENTS[agent].config_directory
                 for volume in (self.agent_volume_name(agent),)
                 + tuple(
@@ -86,10 +85,7 @@ class DockerEngine:
                 if "mongodb" in project.configuration.services
                 else ()
             ),
-            {
-                agent: f"{prefix}-agent-{agent}"
-                for agent in project.configuration.selected_agents
-            },
+            {project.configuration.agent: f"{prefix}-dev"},
         )
 
     def is_running(self, project: Project) -> bool:
@@ -126,10 +122,6 @@ class DockerEngine:
         for name in [
             image,
             f"{image}-credential-proxy",
-            *[
-                f"{image}-agent-{agent}"
-                for agent in project.configuration.selected_agents
-            ],
         ]:
             found = self.client.run(["image", "inspect", name], check=False)
             if found.returncode:
@@ -150,11 +142,7 @@ class DockerEngine:
                     *command,
                     "build",
                     "dev",
-                    f"credential_{project.configuration.selected_agents[0]}",
-                    *[
-                        f"agent_{agent}"
-                        for agent in project.configuration.selected_agents
-                    ],
+                    f"credential_{project.configuration.agent}",
                 ],
                 capture=False,
             )
@@ -234,11 +222,7 @@ class DockerEngine:
     def _execute(
         self, project: Project, command, *, interactive: bool, agent: str | None = None
     ) -> str:
-        container = (
-            self.client.inspect(project, agent=agent)
-            if agent
-            else self.client.inspect(project)
-        )
+        container = self.client.inspect(project)
         if not container or not container["State"]["Running"]:
             raise BrigError(
                 tr(
@@ -273,13 +257,7 @@ class DockerEngine:
         return ""
 
     def run_agent(self, project: Project, agent: str, command=None) -> str:
-        validate_agent(agent)
-        if agent not in project.configuration.selected_agents:
-            raise BrigError(
-                tr(
-                    "Agent '{value0}' is not selected in this project's profile."
-                ).format(value0=agent)
-            )
+        validate_project_agent(project.configuration, agent)
         self.validate_shell(command)
         return self._execute(
             project,
@@ -289,5 +267,6 @@ class DockerEngine:
         )
 
     def authenticate_agent(self, project, agent, *, provider=None, key=None):
+        validate_project_agent(project.configuration, agent)
         with self.workspace.lock(project):
             return authenticate(self, project, agent, provider=provider, key=key)

@@ -64,6 +64,10 @@ class AuthProtocolTests(unittest.TestCase):
         for method, path, allowed in (
             ("POST", "/v1/responses", True),
             ("GET", "/v1/models?key=fake", True),
+            ("GET", "/backend-api/wham/accounts/check", True),
+            ("GET", "/backend-api/wham/config/bundle", True),
+            ("POST", "/backend-api/wham/accounts/check", False),
+            ("GET", "/backend-api/wham/settings/user", False),
             ("POST", "/v1beta/models/gemini:generateContent", True),
             ("POST", "/v1beta/models/../bad:generateContent", False),
             ("POST", "/v1beta/models/%2e/bad:generateContent", False),

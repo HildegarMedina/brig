@@ -27,7 +27,7 @@ def authenticate(engine, project, agent, *, provider=None, key=None):
                 "-it",
                 "--mount",
                 mount + AGENTS[agent].config_directory,
-                f"{image}-agent-{agent}",
+                image,
             ]
         )
         native = (
@@ -98,7 +98,7 @@ def authenticate(engine, project, agent, *, provider=None, key=None):
             "--force-recreate",
             "--wait",
             f"credential_{agent}",
-            f"agent_{agent}",
+            "dev",
         ],
         capture=False,
     )

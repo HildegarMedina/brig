@@ -103,10 +103,13 @@ Use `claude` or `opencode` for another agent selected in your profile.
 selects OpenAI; other supported providers use `set-key --provider PROVIDER`.
 See [protected credentials](docs/how-to/credentials.md) for the provider list.
 
-Each agent has its own container and project-specific settings and conversation
-state. Login is reused across projects for the same host user and Brig data
-directory. A separate proxy holds the real provider credentials; agents receive
-placeholders instead of the credential store.
+The profile's default agent is installed in the project container alongside its
+languages and tools. You can also enter with `brig run my-api` and run `codex`
+directly there. Settings and conversation history belong to that project.
+Login is reused across projects for the same agent, host user, and Brig data
+directory. A separate proxy holds real provider credentials; the project receives
+placeholders instead of the credential store. Only the default agent is active,
+even when an older profile lists several agents.
 
 Agents run commands without tool approval prompts. They share your project folder
 and can modify or delete its files, read secrets stored there, and use the project's

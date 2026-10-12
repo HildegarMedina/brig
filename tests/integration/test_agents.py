@@ -1,8 +1,10 @@
 """Real multi-agent executables and persistent storage, without live login."""
 
 import os
+import subprocess
 import unittest
 
+from brig.components.agents import AGENTS
 from brig.docker.engine import DockerEngine
 from brig.models import ProfileVersion
 from brig.persistence.store import JsonStateStore
@@ -28,7 +30,6 @@ class AgentLifecycleTests(unittest.TestCase):
     def remove_resources(self):
         test_lifecycle.DockerLifecycleTests.remove_resources(self)
         engine = DockerEngine(self.data / "runtime")
-        import subprocess
 
         for agent in ("codex", "opencode"):
             subprocess.run(
@@ -40,160 +41,164 @@ class AgentLifecycleTests(unittest.TestCase):
     def agent(self, project, agent, *command):
         return self.brig("agent", agent, "--project", project, "--command", *command)
 
-    def test_native_agents_share_credentials_and_keep_project_state(self):
-        store = JsonStateStore(self.data)
-        state = store.load()
-        version = ProfileVersion(
-            2,
-            {"python": os.environ.get("BRIG_TEST_PYTHON", "3.14.8")},
-            {},
-            {},
-            agent="codex",
-            agents=["claude", "codex", "opencode"],
-        )
-        state.profiles[0].versions.append(version)
-        for project in state.projects:
-            project.configuration = version
-        store.save(state)
-        for agent in version.selected_agents:
-            self.brig(
-                "auth",
-                "set-key",
-                agent,
-                "--project",
-                "integration-project",
-                "--stdin",
-                input_data="brig-fixture-not-a-real-key\n",
-            )
-        for agent in version.selected_agents:
-            result = self.agent("integration-project", agent, agent, "--version")
-            self.assertTrue(result.stdout.strip())
-        self.agent(
-            "integration-project",
-            "codex",
-            "sh",
-            "-ec",
-            """
-            umask 077
-            ! grep -q brig-fixture-not-a-real-key "$CODEX_HOME/auth.json"
-            printf private > "$CODEX_HOME/sessions/brig-test"
-            printf private > "$CODEX_HOME/archived_sessions/brig-test"
-            mkdir -p /home/brig/.local/state/codex
-            printf private > /home/brig/.local/state/codex/brig-test
-            test ! -e /home/brig/.local/share/opencode/auth.json
-            test ! -d /home/brig/.config/claude
-            test "$(stat -c %a "$CODEX_HOME")" = 700
-        """,
-        )
-        self.agent(
-            "integration-project",
-            "opencode",
-            "sh",
-            "-ec",
-            """
-            umask 077
-            ! grep -q brig-fixture-not-a-real-key /home/brig/.local/share/opencode/auth.json
-            printf private > /home/brig/.local/share/opencode/project/brig-test
-            test ! -e /home/brig/.config/codex/auth.json
-            test ! -d /home/brig/.config/claude
-        """,
-        )
-        self.agent("other-project", "codex", "codex", "login", "status")
-        self.agent("other-project", "opencode", "opencode", "auth", "list")
-        self.agent("integration-project", "opencode", "opencode", "session", "list")
-        self.agent(
-            "integration-project",
-            "opencode",
-            "python",
-            "-c",
-            "import os, sqlite3; db = sqlite3.connect('file:' + os.environ['OPENCODE_DB'] + '?mode=rw', uri=True); "
-            "db.execute('CREATE TABLE brig_fixture (marker TEXT)'); "
-            "db.execute(\"INSERT INTO brig_fixture VALUES ('private')\"); db.commit()",
-        )
-        self.agent("other-project", "opencode", "opencode", "session", "list")
-        self.agent(
-            "other-project",
-            "opencode",
-            "python",
-            "-c",
-            "import os, sqlite3; db = sqlite3.connect('file:' + os.environ['OPENCODE_DB'] + '?mode=rw', uri=True); "
-            "assert not db.execute(\"SELECT name FROM sqlite_master WHERE name = 'brig_fixture'\").fetchall()",
-        )
-        self.agent(
-            "other-project",
-            "codex",
-            "sh",
-            "-ec",
-            """
-            test -f "$CODEX_HOME/auth.json"
-            test ! -f "$CODEX_HOME/sessions/brig-test"
-            test ! -f "$CODEX_HOME/archived_sessions/brig-test"
-            test ! -f /home/brig/.local/state/codex/brig-test
-        """,
-        )
-        self.agent(
-            "other-project",
-            "opencode",
-            "sh",
-            "-ec",
-            """
-            test -f /home/brig/.local/share/opencode/auth.json
-            test ! -f /home/brig/.local/share/opencode/project/brig-test
-        """,
-        )
-        self.brig(
-            "run",
-            "integration-project",
-            "--command",
-            "sh",
-            "-ec",
-            """
-            test ! -e /home/brig/.config/codex/auth.json
-            test ! -e /home/brig/.local/share/opencode/auth.json
-            test ! -d /home/brig/.config/claude
-        """,
-        )
-        for agent in version.selected_agents:
-            container = self.inspect(
-                "container", f"brig-{self.project_id}-agent-{agent}"
-            )
-            self.assertEqual(container["Config"]["Labels"]["org.brig.agent"], agent)
-            self.assertFalse(container["HostConfig"]["Privileged"])
-            shared = DockerEngine(self.data / "runtime").agent_volume_name(agent)
-            self.assertNotIn(
-                shared, [mount.get("Name") for mount in container["Mounts"]]
-            )
-            public = next(
-                mount
-                for mount in container["Mounts"]
-                if mount["Destination"] == "/opt/brig-auth"
-            )
-            self.assertFalse(public["RW"])
-            proxy = self.inspect(
-                "container", f"brig-{self.project_id}-credential-{agent}"
-            )
-            self.assertIn(shared, [mount.get("Name") for mount in proxy["Mounts"]])
-            self.assertFalse(
-                any(mount["Destination"] == "/workspace" for mount in proxy["Mounts"])
-            )
-        self.brig("down", "--project", "integration-project")
-        self.agent("integration-project", "codex", "codex", "login", "status")
-        self.agent(
-            "integration-project",
-            "codex",
-            "sh",
-            "-ec",
-            """
-            test -f "$CODEX_HOME/sessions/brig-test"
-            test -f "$CODEX_HOME/archived_sessions/brig-test"
-            test -f /home/brig/.local/state/codex/brig-test
-        """,
-        )
-        self.agent(
-            "integration-project",
-            "opencode",
-            "python",
-            "-c",
-            "import os, sqlite3; db = sqlite3.connect('file:' + os.environ['OPENCODE_DB'] + '?mode=rw', uri=True); "
-            "assert db.execute('SELECT marker FROM brig_fixture').fetchone() == ('private',)",
-        )
+    def test_work_container_has_agent_shared_login_and_project_history(self):
+        for agent, integration in AGENTS.items():
+            with self.subTest(agent=agent):
+                store = JsonStateStore(self.data)
+                state = store.load()
+                version = ProfileVersion(
+                    len(state.profiles[0].versions) + 1,
+                    {"python": os.environ.get("BRIG_TEST_PYTHON", "3.14.8")},
+                    {},
+                    {},
+                    agent=agent,
+                    agents=list(AGENTS),
+                )
+                state.profiles[0].versions.append(version)
+                for project in state.projects:
+                    project.configuration = version
+                store.save(state)
+                self.brig(
+                    "auth",
+                    "set-key",
+                    agent,
+                    "--project",
+                    "integration-project",
+                    "--stdin",
+                    input_data="brig-fixture-not-a-real-key\n",
+                )
+                if agent == "claude":
+                    # Simulate a former per-agent service. The next start must
+                    # verify its ownership and retire it as a Compose orphan.
+                    work = self.inspect("container", f"brig-{self.project_id}-dev")
+                    subprocess.run(
+                        [
+                            "docker",
+                            "run",
+                            "--detach",
+                            "--name",
+                            f"brig-{self.project_id}-agent-codex",
+                            "--label",
+                            f"org.brig.project-id={self.project_id}",
+                            "--label",
+                            "org.brig.agent=codex",
+                            "--label",
+                            f"com.docker.compose.project=brig-{self.project_id}",
+                            "--label",
+                            "com.docker.compose.service=agent_codex",
+                            "--label",
+                            "com.docker.compose.config-hash=legacy-fixture",
+                            "--label",
+                            "com.docker.compose.oneoff=False",
+                            work["Config"]["Image"],
+                            "sleep",
+                            "infinity",
+                        ],
+                        text=True,
+                        capture_output=True,
+                        check=True,
+                    )
+                result = self.brig(
+                    "run", "integration-project", "--command", agent, "--version"
+                )
+                self.assertTrue(result.stdout.strip())
+                self.assertTrue(
+                    self.agent(
+                        "integration-project", agent, agent, "--version"
+                    ).stdout.strip()
+                )
+                history_paths = [
+                    f"{integration.config_directory}/{name}"
+                    for name in integration.history_directories
+                ]
+                program = (
+                    "from pathlib import Path; import shutil; "
+                    f"paths = {history_paths!r}; "
+                    "[Path(path, 'brig-history-test').write_text('private') for path in paths]; "
+                    "Path('/home/brig/brig-settings-test').write_text('private'); "
+                    "Path('/home/brig/.local/state').mkdir(parents=True, exist_ok=True); "
+                    "Path('/home/brig/.local/state/brig-state-test').write_text('private'); "
+                    f"assert all(shutil.which(name) is None for name in {list(set(AGENTS) - {agent})!r}); "
+                    "assert not Path('/secrets').exists(); "
+                    "assert not Path('/certificates').exists(); "
+                    "assert not Path('/var/run/docker.sock').exists(); "
+                    "assert 'brig-fixture-not-a-real-key' not in Path('/opt/brig-auth/auth.json').read_text(); "
+                    f"assert 'brig-fixture-not-a-real-key' not in Path({integration.config_directory!r}, {('.credentials.json' if agent == 'claude' else 'auth.json')!r}).read_text()"
+                )
+                self.brig(
+                    "run", "integration-project", "--command", "python", "-c", program
+                )
+                other_program = (
+                    "from pathlib import Path; "
+                    f"assert all(not Path(path, 'brig-history-test').exists() for path in {history_paths!r}); "
+                    "assert not Path('/home/brig/brig-settings-test').exists(); "
+                    "assert not Path('/home/brig/.local/state/brig-state-test').exists(); "
+                    "assert Path('/opt/brig-auth/auth.json').is_file()"
+                )
+                self.brig(
+                    "run", "other-project", "--command", "python", "-c", other_program
+                )
+                shared = DockerEngine(self.data / "runtime").agent_volume_name(agent)
+                for project_id in (self.project_id, self.other_id):
+                    container = self.inspect("container", f"brig-{project_id}-dev")
+                    self.assertEqual(
+                        container["Config"]["Labels"]["org.brig.agent"], agent
+                    )
+                    self.assertFalse(container["HostConfig"]["Privileged"])
+                    self.assertNotIn(
+                        shared, [mount.get("Name") for mount in container["Mounts"]]
+                    )
+                    public = next(
+                        mount
+                        for mount in container["Mounts"]
+                        if mount["Destination"] == "/opt/brig-auth"
+                    )
+                    self.assertFalse(public["RW"])
+                    proxy = self.inspect(
+                        "container", f"brig-{project_id}-credential-{agent}"
+                    )
+                    self.assertIn(
+                        shared, [mount.get("Name") for mount in proxy["Mounts"]]
+                    )
+                    self.assertEqual(proxy["State"]["Health"]["Status"], "healthy")
+                    self.assertFalse(
+                        any(
+                            mount["Destination"] == "/workspace"
+                            for mount in proxy["Mounts"]
+                        )
+                    )
+
+                    resources = subprocess.run(
+                        [
+                            "docker",
+                            "container",
+                            "ls",
+                            "--all",
+                            "--filter",
+                            f"label=org.brig.project-id={project_id}",
+                            "--format",
+                            "{{.Names}}",
+                        ],
+                        text=True,
+                        capture_output=True,
+                        check=True,
+                    )
+                    self.assertEqual(
+                        set(resources.stdout.split()),
+                        {
+                            f"brig-{project_id}-dev",
+                            f"brig-{project_id}-credential-{agent}",
+                        },
+                    )
+                self.brig("down", "--project", "integration-project")
+                retained_program = (
+                    "from pathlib import Path; "
+                    f"assert all(Path(path, 'brig-history-test').read_text() == 'private' for path in {history_paths!r}); "
+                    "assert Path('/home/brig/brig-settings-test').read_text() == 'private'; "
+                    "assert Path('/home/brig/.local/state/brig-state-test').read_text() == 'private'"
+                )
+                self.agent(
+                    "integration-project", agent, "python", "-c", retained_program
+                )
+                self.brig("down", "--project", "integration-project")
+                self.brig("down", "--project", "other-project")

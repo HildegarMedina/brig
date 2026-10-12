@@ -8,7 +8,10 @@ from uuid import uuid4
 
 from brig.attachments import attach_files, detach_files
 from brig.auth_proxy.providers import PROVIDERS
-from brig.components.agents import validate_agent, validate_agents
+from brig.components.agents import (
+    validate_agents,
+    validate_project_agent,
+)
 from brig.components.catalog import VersionCatalog, validate_selection
 from brig.components.versions import LiveVersionCatalog
 from brig.docker.dockerfile import render_dockerfile
@@ -322,14 +325,8 @@ class Application:
         return detach_files(self.project(name))
 
     def run_agent(self, name: str, agent: str, command=None) -> str:
-        validate_agent(agent)
         project = self.project(name)
-        if agent not in project.configuration.selected_agents:
-            raise BrigError(
-                tr(
-                    "Agent '{value0}' is not selected in this project's profile."
-                ).format(value0=agent)
-            )
+        validate_project_agent(project.configuration, agent)
         self.engine.validate_shell(command) if command else self.engine.validate_shell()
         self.start(name)
         if command is not None:
@@ -339,14 +336,8 @@ class Application:
     def authenticate_agent(
         self, name: str, agent: str, *, provider=None, key=None
     ) -> str:
-        validate_agent(agent)
         project = self.project(name)
-        if agent not in project.configuration.selected_agents:
-            raise BrigError(
-                tr(
-                    "Agent '{value0}' is not selected in this project's profile."
-                ).format(value0=agent)
-            )
+        validate_project_agent(project.configuration, agent)
         if key is None:
             self.engine.validate_shell()
         else:

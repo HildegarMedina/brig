@@ -1,6 +1,6 @@
 # Protect agent provider credentials
 
-Sign in from the host, using an agent selected in the project's saved profile:
+Sign in from the host, using the default agent in the project's saved profile:
 
 ```bash
 brig auth login codex --project my-api
@@ -28,7 +28,7 @@ for `openai`, `anthropic`, `google`, `openrouter`, `groq`, `mistral`, and `xai`.
 Azure, AWS, Copilot, custom endpoints, and other provider authentication schemes
 are not supported by the protected proxy.
 
-After saving authentication, Brig recreates that project's proxy and agent.
+After saving authentication, Brig recreates that project's proxy and work container.
 Open the agent normally:
 
 ```bash
@@ -45,8 +45,10 @@ a revoked or invalid login may require signing in again from the host.
 
 The real credential store is mounted only in its separate credential proxy and
 trusted authentication helper. The agent receives inert login placeholders and
-public CA certificates. The proxy inserts the real credential into approved
-HTTPS inference requests, verifies upstream certificates, rejects credentialed
+public CA certificates. Codex's public login view also retains the non-secret
+account identifier needed for workspace discovery. The proxy inserts the real
+credential into approved HTTPS model requests and read-only Codex account/config
+bootstrap requests, verifies upstream certificates, rejects credentialed
 redirects, and filters known credentials from returned streams. Its CA private
 key is never mounted in the agent. Native login inside the agent cannot update
 the protected login; use `brig auth` from the host.
@@ -67,8 +69,14 @@ brig agent codex --project my-api
 ```
 
 Existing login stores and nested conversation-directory volumes retain their
-names. Agent runtime homes now use `brig-ID-AGENT-runtime-home`; older development
-and agent home volumes are retained but not automatically copied, because they
+names. Project work containers reuse `brig-ID-AGENT-runtime-home`; older development
+and legacy agent home volumes are retained but not automatically copied, because they
 may contain cached credentials. Keep them for selective recovery of local state.
 Historical conversations may also contain secrets previously pasted or exposed;
 this change does not erase those copies. See [agent isolation](agent-isolation.md).
+
+If a credential container exits during startup, inspect its log with
+`docker logs brig-ID-credential-codex` (replace `ID` and the agent name).
+`No module named brig.auth_proxy` indicates an older image whose proxy sources
+are unreadable by its unprivileged user. Update Brig and run the project again;
+the corrected Dockerfile triggers an image rebuild automatically.

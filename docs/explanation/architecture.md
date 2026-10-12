@@ -99,21 +99,20 @@ major version does not trigger an automatic migration.
 ## What isolation means
 
 Each project has resource names derived from its internal ID, a Docker network,
-and separate data, development-home, agent-home, and conversation volumes.
-Development mounts the project's registered folder and its own home. Each selected
-agent runs in a separate container, mounting the same project folder, its own
-home, conversation volumes, and a read-only public authentication view.
-The images contain one agent executable each; development contains no agents.
-No container mounts the Docker socket or uses privileged mode.
+and persistent data, work-home, and conversation volumes. One work container
+mounts the project folder, its default agent's home and histories, and a
+read-only public authentication view. The shell and coding agent share tools,
+processes, and localhost. No container mounts the Docker socket or uses
+privileged mode.
 
-The generated Dockerfile has a shared `development` stage for runtimes, tools,
-clients, and the unprivileged user. Each `agent_AGENT` target derives from it and
-adds that adapter's executable and private directories. Compose builds a `dev`
-image and one image per selected agent, reusing the common layers. All connect
-to the project network and wait for the same database healthchecks.
+The generated Dockerfile has a `development` stage for runtimes, tools, clients,
+and the unprivileged user. The final `dev` target adds the default agent's binary
+and configuration directories. Compose builds one work image and one credential
+proxy image. Other agents listed in legacy profiles are inactive; their binaries,
+login mounts, and proxies are not included.
 
 Agent adapters in `components/agents.py` define installation, command,
-dependencies, and configuration location. Each agent has a trusted credential
+dependencies, and configuration location. The active agent has a trusted credential
 proxy on a dedicated internal network, with its own egress network and no
 workspace or published ports. A separate Python 3.12 image runs mitmproxy;
 profile language selections do not affect this internal dependency.
@@ -121,7 +120,7 @@ profile language selections do not affect this internal dependency.
 The proxy alone mounts the shared login store and private CA. Agents receive
 public CA certificates and inert native login documents. Their HTTPS requests
 use the proxy, which verifies upstream TLS and supplies real credentials only to
-exact supported provider hosts and approved inference/model paths. It strips
+exact supported provider hosts and approved model/bootstrap paths. It strips
 client authentication headers, refuses credentialed redirects and compressed
 responses, and filters known credentials from streamed responses. General egress
 is not restricted. Expiring supported OAuth tokens are refreshed in protected

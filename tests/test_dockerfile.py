@@ -87,8 +87,8 @@ class DockerfileTests(unittest.TestCase):
             [line for line in contents.splitlines() if line.startswith("COPY")],
             [
                 "COPY --from=composer_binary /usr/bin/composer /usr/local/bin/composer",
+                "COPY --chown=brig:brig proxy/ /opt/brig-proxy/",
                 "COPY --from=claude_binary /usr/local/bin/claude /opt/brig-claude/claude",
-                "COPY proxy/ /opt/brig-proxy/",
             ],
         )
         self.assertNotIn("composer install", contents)
