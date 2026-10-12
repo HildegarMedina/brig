@@ -144,6 +144,23 @@ Changing a service's major version when it has persistent data requires a data
 migration. Brig detects this through volume labels and rejects automatic reuse.
 It does not migrate or reinitialize that data.
 
+## Clean old project images
+
+After updating an environment, remove unused images from earlier configurations:
+
+```bash
+brig project clean my-api
+```
+
+Brig keeps images for the current configuration and any image used by a running
+or stopped container. It removes old development, credential proxy, and legacy
+agent image tags for this project without forcing deletion. You can run cleanup
+while the project is running.
+
+Source files, volumes, database images, and build cache remain intact. Cleanup
+reports how many tags were removed; shared layers mean this is not a measurement
+of reclaimed disk space. Older generated configuration files are also retained.
+
 ## View or export the Dockerfile
 
 ```bash

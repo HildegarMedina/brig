@@ -79,11 +79,20 @@ See [import profiles](../how-to/import-profiles.md) for examples and file limits
 | `brig project init` | Register an existing folder with a name and profile |
 | `brig project list` | List projects and query their Docker status |
 | `brig project show NAME` | Show snapshot, folder, and environment resources |
+| `brig project clean NAME` | Remove unused old project image tags; keep current images and data |
 | `brig project update NAME` | Adopt the latest profile version when the environment is stopped |
 | `brig project delete NAME [--yes]` | Remove a stopped project's registration |
 | `brig project dockerfile [NAME] [--output FILE]` | Display or export its Dockerfile |
 | `brig project attach NAME FILE [FILE ...]` | Copy local files into project context and print their container paths |
 | `brig project detach NAME` | Remove all attachment copies for the project; preserve originals |
+
+`project clean` requires Docker and works with running or stopped projects. It
+keeps the development and credential proxy images for the current configuration,
+and any image used by a running or stopped container. It removes only old image
+tags belonging to that project, including legacy agent images, without forcing
+deletion. Volumes, source files, database images, generated configuration files,
+and build cache are preserved. The result reports removed tags rather than
+reclaimed bytes because image layers can be shared.
 
 `project init` is interactive. New profile and project names must contain 1–64
 ASCII characters in `kebab-case`: start with a lowercase letter and use lowercase
