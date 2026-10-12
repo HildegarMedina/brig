@@ -11,6 +11,7 @@ terminal inside its development container.
 | Create and run your first project | [Your first project](tutorials/first-project.md) |
 | Start, stop, update, or delete a definition | [Manage projects](how-to/projects.md) |
 | Understand separate agent containers and upgrade existing projects | [Agent isolation](how-to/agent-isolation.md) |
+| Sign in without exposing provider tokens to agents | [Protected credentials](how-to/credentials.md) |
 | Choose English, Spanish, or Portuguese | [Language settings](how-to/languages.md) |
 | Share YAML profiles or import a saved history | [Import profiles](how-to/import-profiles.md) |
 | Resolve a Docker, version, or terminal error | [Troubleshooting](how-to/troubleshooting.md) |
@@ -26,9 +27,9 @@ The engine generates Dockerfiles and Compose configurations for PHP, Python, and
 Node.js, individually or together. It can start PostgreSQL, MySQL, MariaDB,
 MongoDB, and Redis according to the profile, build a missing image, and open an
 unprivileged terminal. Selected Claude Code, Codex, and OpenCode agents are installed in the development
-images and run in separate containers, one per selected agent, launched with `brig agent`. Sign in on first use;
-its login and global configuration persist in a shared agent volume on this
-machine, while conversation files have a separate volume per project.
+images and run in separate containers, one per selected agent, launched with `brig agent`. Sign in through `brig auth login` on the host; a separate credential proxy
+holds each login in protected storage shared across projects. Settings and
+conversation state remain private to each project.
 
 The repository installer checks Docker, Compose, and daemon access; on supported
 Debian and Ubuntu hosts it installs missing Docker dependencies. Installing

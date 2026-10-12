@@ -2,6 +2,7 @@
 
 import argparse
 import curses
+import getpass
 import os
 import sys
 from contextlib import suppress
@@ -9,6 +10,7 @@ from pathlib import Path
 
 from brig import __version__
 from brig.application import Application
+from brig.auth_proxy.providers import PROVIDERS
 from brig.docker.engine import DockerEngine
 from brig.errors import BrigError
 from brig.i18n import (
@@ -52,6 +54,25 @@ def parser() -> argparse.ArgumentParser:
         "language", help=tr("show or save the interface language")
     )
     language.add_argument("language", nargs="?", choices=(*LANGUAGES, "auto"))
+    authentication = commands.add_parser(
+        "auth", help=tr("manage protected agent credentials from the host")
+    ).add_subparsers(dest="action", required=True)
+    for action in ("login", "set-key"):
+        auth = authentication.add_parser(
+            action,
+            help=tr("sign in outside the agent container")
+            if action == "login"
+            else tr("save a protected provider API key"),
+        )
+        auth.add_argument("agent", choices=("claude", "codex", "opencode"))
+        auth.add_argument("--project", metavar="NAME")
+        if action == "set-key":
+            auth.add_argument("--provider", choices=tuple(PROVIDERS))
+            auth.add_argument(
+                "--stdin",
+                action="store_true",
+                help=tr("read the API key from stdin without echoing it"),
+            )
     profiles = commands.add_parser(
         "profile", help=tr("manage reusable environment profiles")
     ).add_subparsers(dest="action", required=True)
@@ -211,6 +232,17 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             )
         )
     project = app.resolve_project(name or args.project, Path.cwd())
+    if args.command == "auth":
+        if args.action == "login":
+            return app.authenticate_agent(project.name, args.agent)
+        if args.stdin:
+            key = sys.stdin.read(16385).strip()
+        else:
+            app.engine.validate_shell()
+            key = getpass.getpass(tr("Provider API key (hidden): "))
+        return app.authenticate_agent(
+            project.name, args.agent, provider=args.provider, key=key
+        )
     if args.command == "up":
         return app.start(project.name)
     if args.command == "down":

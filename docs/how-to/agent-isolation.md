@@ -37,24 +37,18 @@ project agents through the existing workspace mount.
 ## What is separated
 
 Each agent container mounts its own project-specific home and conversation
-volumes, plus that agent's shared login/configuration volume. Codex does not
-receive Claude or OpenCode login volumes; the same rule applies to the others.
-Development does not receive any of these agent mounts. Agent containers contain
-only their respective agent executable, in addition to the shared profile tools.
+volumes, plus a read-only public authentication view. Real logins are mounted only
+in that agent's separate credential proxy. Other agents and development do not
+mount either its credential store or private certificate authority.
 
 Login remains shared between projects for the same agent, host user, and Brig
-data directory. Signing out or changing global configuration affects that
-agent's other projects. Other agents do not directly mount that storage.
+data directory. Settings are private to each project's agent home. Authenticate
+from the host using [protected credentials](credentials.md).
 
-The project directory remains writable and shared. Agents can read `.env` and
-other files inside it, modify code, and affect one another through shared project
-files. They also receive the project's database connection settings. Avoid
-placing an agent's provider credentials inside the shared project folder.
-
-An agent can still read its own credentials. Brig does not yet hide provider
-tokens behind an external proxy, block internet access, or isolate containers
-with separate virtual machines. Docker's normal host boundary remains in use;
-separation is not a guarantee against malicious shared project content.
+The project directory remains writable and shared. Agents can read `.env`, modify
+or delete project files, and use project database credentials. The proxy protects
+managed provider credentials; it does not hide secrets you put in the workspace
+or restrict general internet access. Containers share the host kernel.
 
 ## Upgrade existing projects
 
@@ -70,10 +64,11 @@ containers. It requires no profile edit or new profile version. Existing login
 volumes and nested conversation-directory volumes keep their names and are
 reused. Source files, database volumes, and the old development home are retained.
 
-Each new agent home starts separately. Files that earlier versions stored
+Each new agent home starts separately. Previous `brig-ID-AGENT-home` volumes
+are also retained but not mounted, because they may contain cached credentials. Files that earlier versions stored
 elsewhere in the development home, including local SQLite conversation databases
 and logs, remain in `brig-ID-home`; they are not automatically copied to the new
-`brig-ID-AGENT-home` volumes. Preserve that legacy volume if you need those files.
+`brig-ID-AGENT-runtime-home` volumes. Preserve that legacy volume if you need those files.
 Restore only the relevant agent's local state into its own home, with agents
 stopped; do not copy the whole development home into every agent container.
 

@@ -7,6 +7,7 @@ import tempfile
 from contextlib import contextmanager
 from pathlib import Path
 
+from brig.docker.auth_proxy import proxy_sources
 from brig.docker.compose import project_prefix
 from brig.docker.dockerfile import render_dockerfile
 from brig.docker.services import service_environment
@@ -76,7 +77,11 @@ class DockerWorkspace:
             )
         dockerfile = render_dockerfile(project)
         # Only image-affecting configuration contributes to the build cache key.
-        digest = hashlib.sha256(f"{uid}:{gid}\n{dockerfile}".encode()).hexdigest()[:24]
+        digest = hashlib.sha256(
+            (
+                f"{uid}:{gid}\n{dockerfile}" + str(sorted(proxy_sources().items()))
+            ).encode()
+        ).hexdigest()[:24]
         image = f"brig-dev-{project_prefix(project)}:{digest}"
         directory = self.project_directory(project) / digest
         return directory, image, dockerfile
@@ -89,5 +94,7 @@ class DockerWorkspace:
             self.write(directory / f"{name}.env", self.env(initialization))
         self.write(directory / "development.env", self.env(environment))
         self.write(directory / "Dockerfile", dockerfile)
-        self.write(directory / ".dockerignore", "*\n!Dockerfile\n")
+        for name, content in proxy_sources().items():
+            self.write(directory / name, content)
+        self.write(directory / ".dockerignore", "*\n!Dockerfile\n!proxy/\n!proxy/**\n")
         self.write(directory / "compose.yaml", compose)

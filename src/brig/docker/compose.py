@@ -6,6 +6,7 @@ from pathlib import Path
 
 from brig.components.agents import AGENTS, validate_agents
 from brig.components.catalog import validate_selection
+from brig.docker.auth_proxy import add_credential_proxy
 from brig.docker.services import SERVICES
 from brig.errors import BrigError
 from brig.i18n import tr
@@ -111,7 +112,13 @@ def compose_definition(
         }
     }
     volumes = {"home": {"name": f"{prefix}-home", "labels": labels}}
-    add_agent_storage(project, services, volumes, labels, uid, agent_volumes)
+    networks = {
+        "default": {"name": f"{prefix}-network", "labels": labels},
+        "credential_egress": {"name": f"{prefix}-credential-egress", "labels": labels},
+    }
+    add_agent_storage(
+        project, services, volumes, networks, labels, uid, gid, agent_volumes
+    )
     dependencies = {}
     for name, version in sorted(configuration.services.items()):
         add_database_service(services, volumes, name, version, prefix, labels)
@@ -121,12 +128,12 @@ def compose_definition(
             "dev",
             *[f"agent_{agent}" for agent in configuration.selected_agents],
         ]:
-            services[service]["depends_on"] = dependencies
+            services[service].setdefault("depends_on", {}).update(dependencies)
     return {
         "name": prefix,
         "services": services,
         "volumes": volumes,
-        "networks": {"default": {"name": f"{prefix}-network", "labels": labels}},
+        "networks": networks,
     }
 
 
@@ -179,12 +186,14 @@ def add_database_service(services, volumes, name, version, prefix, labels) -> No
     }
 
 
-def add_agent_storage(project, services, volumes, labels, uid, agent_volumes) -> None:
+def add_agent_storage(
+    project, services, volumes, networks, labels, uid, gid, agent_volumes
+) -> None:
     for agent in sorted(project.configuration.selected_agents):
         integration = AGENTS[agent]
         home = f"{agent}_home"
         volumes[home] = {
-            "name": f"{project_prefix(project)}-{agent}-home",
+            "name": f"{project_prefix(project)}-{agent}-runtime-home",
             "labels": labels,
         }
         service = dict(services["dev"])
@@ -206,8 +215,18 @@ def add_agent_storage(project, services, volumes, labels, uid, agent_volumes) ->
             "name": (agent_volumes or {}).get(agent, f"brig-{agent}-{uid}"),
             "external": True,
         }
-        service["volumes"].append(
-            {"type": "volume", "source": shared, "target": integration.config_directory}
+        service["brig_auth_config"] = integration.config_directory
+        add_credential_proxy(
+            agent,
+            service,
+            services,
+            volumes,
+            networks,
+            project_prefix(project),
+            services["dev"]["image"],
+            uid,
+            gid,
+            shared,
         )
         for history, volume, target in agent_history_volumes(project, agent):
             volumes[history] = {"name": volume, "labels": labels}

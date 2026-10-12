@@ -137,9 +137,12 @@ Names use the `brig-PROJECT_ID` prefix:
 | Agent container | `brig-ID-agent-AGENT` |
 | Service container | `brig-ID-SERVICE` |
 | Network | `brig-ID-network` |
-| Agent home volume | `brig-ID-AGENT-home` → `/home/brig` in that agent container |
+| Agent home volume | `brig-ID-AGENT-runtime-home` → `/home/brig` in that agent container |
 | Home volume | `brig-ID-home` → `/home/brig` |
-| Shared Claude configuration | `brig-claude-UID-SCOPE` → `/home/brig/.config/claude` |
+| Protected agent login | `brig-AGENT-UID-SCOPE` → `/secrets` in its proxy only |
+| Credential proxy | `brig-ID-credential-AGENT` |
+| Private certificate authority | Project-specific volume in the proxy only |
+| Public authentication view | Project-specific volume → `/opt/brig-auth`, read-only in the agent |
 | Claude conversation files | `brig-ID-claude-history` → `/home/brig/.config/claude/projects` |
 | Data volume | `brig-ID-SERVICE-data` |
 | MongoDB configuration volume | `brig-ID-mongodb-config` |
@@ -152,26 +155,21 @@ ownership labels and, for a service's data, its major version. Existing developm
 containers with conflicting names are not automatically adopted.
 
 `SCOPE` hashes the engine's absolute runtime directory. All projects in the same
-Brig data directory for the same host user share each selected agent's login and
-global configuration. Each agent has its own external volume named
-`brig-AGENT-UID-SCOPE`, with agent, user, and scope ownership labels. It survives
-`down` and project deletion; another data directory or host user gets separate
-storage. Brig does not mount host agent credentials. Only the matching agent
-container mounts that volume. Development has no agent credential mounts, and
-agent containers never share their home volume. They share the writable project
-folder and project network.
+Brig data directory for the same host user share each selected agent's login.
+Each agent has its own external volume named `brig-AGENT-UID-SCOPE`, with agent,
+user, and scope ownership labels. It survives `down` and project deletion.
+Only the trusted authentication helper and matching credential proxy mount it.
+The proxy serializes refresh and key changes across projects using a file lock.
 
-| Agent | Shared storage | Project-specific conversation storage |
-| --- | --- | --- |
-| Claude | `/home/brig/.config/claude` (`CLAUDE_CONFIG_DIR`) | Nested `projects/` volume |
-| Codex | `/home/brig/.config/codex` (`CODEX_HOME`), including `auth.json` | Nested `sessions/` and `archived_sessions/` volumes; SQLite databases and logs under `/home/brig/.local/state/codex` in the private home volume |
-| OpenCode | `/home/brig/.local/share/opencode`, including `auth.json` and `config/` (`OPENCODE_CONFIG_DIR`) | SQLite database at `/home/brig/.local/state/opencode/brig.db` (`OPENCODE_DB`) in the private home volume; nested `project/` and legacy `storage/` volumes |
-
-The first nested volume is named `brig-ID-AGENT-history`; additional directories
-use `brig-ID-AGENT-history-2`. Shared directories and nested history directories
-are owned by the unprivileged user with permissions 0700. Codex uses file-based
-credential storage so its login can be shared without a host keyring. Agents
-manage credentials and token refresh; Brig does not guarantee a login never expires.
+Agent settings and local state belong to its private runtime home. Native auth
+files contain inert placeholders, copied from a read-only public view at startup.
+The public view also contains a certificate bundle, never the CA private key.
+Nested history volume names remain `brig-ID-AGENT-history`, with additional
+folders named `brig-ID-AGENT-history-2`. Claude uses `projects/`; Codex uses
+`sessions/` and `archived_sessions/`; OpenCode uses `project/` and legacy `storage/`.
+Codex and OpenCode SQLite databases remain in their private runtime homes.
+The credential proxy renews supported OAuth tokens near expiry; revoked sessions
+may require host login again. See [protected credentials](../how-to/credentials.md).
 
 Agent executables and their installation resources live outside `/home/brig`,
 so persistent home volumes do not hide them when containers are recreated.

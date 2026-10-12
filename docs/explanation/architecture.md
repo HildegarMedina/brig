@@ -102,7 +102,7 @@ Each project has resource names derived from its internal ID, a Docker network,
 and separate data, development-home, agent-home, and conversation volumes.
 Development mounts the project's registered folder and its own home. Each selected
 agent runs in a separate container, mounting the same project folder, its own
-home, and only that agent's login/configuration and conversation volumes.
+home, conversation volumes, and a read-only public authentication view.
 The images contain one agent executable each; development contains no agents.
 No container mounts the Docker socket or uses privileged mode.
 
@@ -113,17 +113,25 @@ image and one image per selected agent, reusing the common layers. All connect
 to the project network and wait for the same database healthchecks.
 
 Agent adapters in `components/agents.py` define installation, command,
-dependencies, and configuration location. Shared external volumes retain each
-agent's login per host user and Brig data directory; nested per-project volumes
-retain conversation files. `brig agent` starts the project and executes in the
-selected agent container after checking both its project and agent ownership
-labels. `--command` executes a supplied program in that same container without
-requiring a TTY. The user follows the agent's authentication prompts.
+dependencies, and configuration location. Each agent has a trusted credential
+proxy on a dedicated internal network, with its own egress network and no
+workspace or published ports. A separate Python 3.12 image runs mitmproxy;
+profile language selections do not affect this internal dependency.
 
-Each agent can still read its own mounted credentials, the shared workspace,
-and project database credentials. This change does not implement an external
-authentication proxy or restrict network egress. Separate containers reduce
-direct access to other agents' homes and logins; writable project files remain
+The proxy alone mounts the shared login store and private CA. Agents receive
+public CA certificates and inert native login documents. Their HTTPS requests
+use the proxy, which verifies upstream TLS and supplies real credentials only to
+exact supported provider hosts and approved inference/model paths. It strips
+client authentication headers, refuses credentialed redirects and compressed
+responses, and filters known credentials from streamed responses. General egress
+is not restricted. Expiring supported OAuth tokens are refreshed in protected
+storage under a lock. `brig auth` runs trusted host-invoked helpers without the
+workspace to perform native login or accept a key over stdin.
+
+`brig agent` checks ownership of the selected agent and credential proxy before
+execution. `--command` runs a supplied program without a TTY. The managed login
+boundary does not cover workspace secrets, database credentials, historical
+copies of tokens, or the host Docker administrator. Writable project files remain
 a shared trust boundary.
 
 The development container uses a user whose UID/GID matches the host user. Service

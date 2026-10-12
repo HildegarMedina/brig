@@ -17,9 +17,9 @@ class AgentLifecycleTests(unittest.TestCase):
     setUp = test_lifecycle.DockerLifecycleTests.setUp
     inspect = test_lifecycle.DockerLifecycleTests.inspect
 
-    def brig(self, *args, success=True, cwd=None):
+    def brig(self, *args, success=True, cwd=None, input_data=None):
         result = test_lifecycle.DockerLifecycleTests.brig(
-            self, *args, success=False, cwd=cwd
+            self, *args, success=False, cwd=cwd, input_data=input_data
         )
         if success:
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -56,6 +56,16 @@ class AgentLifecycleTests(unittest.TestCase):
             project.configuration = version
         store.save(state)
         for agent in version.selected_agents:
+            self.brig(
+                "auth",
+                "set-key",
+                agent,
+                "--project",
+                "integration-project",
+                "--stdin",
+                input_data="brig-fixture-not-a-real-key\n",
+            )
+        for agent in version.selected_agents:
             result = self.agent("integration-project", agent, agent, "--version")
             self.assertTrue(result.stdout.strip())
         self.agent(
@@ -65,7 +75,7 @@ class AgentLifecycleTests(unittest.TestCase):
             "-ec",
             """
             umask 077
-            printf '{"OPENAI_API_KEY":"brig-fixture-not-a-real-key"}' > "$CODEX_HOME/auth.json"
+            ! grep -q brig-fixture-not-a-real-key "$CODEX_HOME/auth.json"
             printf private > "$CODEX_HOME/sessions/brig-test"
             printf private > "$CODEX_HOME/archived_sessions/brig-test"
             mkdir -p /home/brig/.local/state/codex
@@ -82,7 +92,7 @@ class AgentLifecycleTests(unittest.TestCase):
             "-ec",
             """
             umask 077
-            printf '{"openai":{"type":"api","key":"brig-fixture-not-a-real-key"}}' > /home/brig/.local/share/opencode/auth.json
+            ! grep -q brig-fixture-not-a-real-key /home/brig/.local/share/opencode/auth.json
             printf private > /home/brig/.local/share/opencode/project/brig-test
             test ! -e /home/brig/.config/codex/auth.json
             test ! -d /home/brig/.config/claude
@@ -149,6 +159,23 @@ class AgentLifecycleTests(unittest.TestCase):
             )
             self.assertEqual(container["Config"]["Labels"]["org.brig.agent"], agent)
             self.assertFalse(container["HostConfig"]["Privileged"])
+            shared = DockerEngine(self.data / "runtime").agent_volume_name(agent)
+            self.assertNotIn(
+                shared, [mount.get("Name") for mount in container["Mounts"]]
+            )
+            public = next(
+                mount
+                for mount in container["Mounts"]
+                if mount["Destination"] == "/opt/brig-auth"
+            )
+            self.assertFalse(public["RW"])
+            proxy = self.inspect(
+                "container", f"brig-{self.project_id}-credential-{agent}"
+            )
+            self.assertIn(shared, [mount.get("Name") for mount in proxy["Mounts"]])
+            self.assertFalse(
+                any(mount["Destination"] == "/workspace" for mount in proxy["Mounts"])
+            )
         self.brig("down", "--project", "integration-project")
         self.agent("integration-project", "codex", "codex", "login", "status")
         self.agent(

@@ -216,3 +216,16 @@ When changing commands or behavior, update the corresponding page linked from
 [`docs/README.md`](README.md) together with the code. Keep documentation in English.
 Commits follow Conventional Commits. An incompatible CLI change must use `!` or a
 `BREAKING CHANGE` footer and explain how to use the new commands.
+
+## Credential proxy validation
+
+`brig.auth_proxy` implements protected credential storage, OAuth refresh, inert
+native login views, endpoint binding, and streaming redaction. Docker integration
+adds one proxy per agent and host-invoked authentication helpers. The proxy image
+uses Python 3.12 and pinned mitmproxy independently of profile runtimes.
+
+The unit suite includes a local TLS proxy test with fixture credentials and a
+provider that deliberately echoes them. No real provider secrets are required.
+Docker integration tests seed fixture API keys and inspect agent/proxy mounts.
+Real native OAuth login and inference require Docker and suitable provider
+accounts; unit coverage does not substitute for those end-to-end checks.

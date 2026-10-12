@@ -109,10 +109,11 @@ class DockerLifecycleTests(unittest.TestCase):
             ["docker", "volume", "rm", volume], capture_output=True, check=False
         )
 
-    def brig(self, *args, success=True, cwd=None):
+    def brig(self, *args, success=True, cwd=None, input_data=None):
         result = subprocess.run(
             [sys.executable, "-m", "brig", "--data-dir", str(self.data), *args],
             cwd=cwd,
+            input=input_data,
             capture_output=True,
             text=True,
             timeout=900,
@@ -237,9 +238,9 @@ class DockerLifecycleTests(unittest.TestCase):
                 "--command",
                 "sh",
                 "-ec",
-                'cat "$CLAUDE_CONFIG_DIR/session-test"; test ! -e "$CLAUDE_CONFIG_DIR/projects/history-test"',
+                'test ! -e "$CLAUDE_CONFIG_DIR/session-test"; test ! -e "$CLAUDE_CONFIG_DIR/projects/history-test"; printf isolated-settings',
             ).stdout,
-            "session-fixture",
+            "isolated-settings",
         )
         other = self.inspect("container", f"brig-{self.other_id}-dev")
         self.assertNotEqual(

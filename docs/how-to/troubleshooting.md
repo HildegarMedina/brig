@@ -110,16 +110,14 @@ After updating Brig, run `brig down --project my-api` before starting the projec
 again. Brig rebuilds the required images and recreates containers while retaining
 named volumes. Existing login and conversation-directory volumes are reused;
 see [agent isolation](agent-isolation.md) for legacy home storage.
-Follow the agent's sign-in prompts on first use. Brig does not copy credentials
-from the host or automate sign-in.
+Use `brig auth login codex --project my-api` from the host, substituting your
+selected agent. Native login inside the agent uses placeholders and cannot
+replace the protected login. For API keys, use `brig auth set-key`.
+See [protected credentials](credentials.md).
 
-Codex supports `codex login --device-auth` for headless authentication when your
-account permits it. OpenCode connects providers through `/connect` or
-`opencode auth login`. Use the agent's own authentication flow; see
-[Codex authentication](https://learn.chatgpt.com/docs/auth) and
-[OpenCode providers](https://opencode.ai/docs/providers/).
-
-Signing in once shares that session with other projects under the same Brig data
-directory and host user. `down`, recreating a container, or deleting a project
-registration preserves the shared login. An explicit logout affects all projects
-using it; an expired or revoked session may require signing in again.
+An expired or revoked session may require login again. Restart other running
+projects after changing authentication modes. If the credential proxy is unhealthy,
+check Docker startup/build errors; it must publish a public certificate and login
+view before the agent starts. Unsupported provider endpoints and compressed
+credentialed responses are rejected. Do not disable TLS verification or mount the
+credential store into the agent to work around these errors.

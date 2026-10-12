@@ -1,0 +1,49 @@
+"""Exact HTTPS destinations and inference-only paths for credential injection."""
+
+PROVIDERS = {
+    "openai": ("api.openai.com", "chatgpt.com"),
+    "anthropic": ("api.anthropic.com",),
+    "google": ("generativelanguage.googleapis.com",),
+    "openrouter": ("openrouter.ai",),
+    "groq": ("api.groq.com",),
+    "mistral": ("api.mistral.ai",),
+    "xai": ("api.x.ai",),
+}
+
+
+def provider_for(host: str) -> str | None:
+    return next((name for name, hosts in PROVIDERS.items() if host in hosts), None)
+
+
+def permitted(method: str, path: str) -> bool:
+    path = path.split("?", 1)[0]
+    if method == "GET":
+        return path in (
+            "/v1/models",
+            "/backend-api/codex/models",
+            "/api/v1/models",
+            "/openai/v1/models",
+            "/v1beta/models",
+        )
+    return method == "POST" and (
+        path
+        in (
+            "/v1/responses",
+            "/v1/responses/compact",
+            "/backend-api/codex/responses",
+            "/backend-api/codex/responses/compact",
+            "/v1/chat/completions",
+            "/api/v1/chat/completions",
+            "/openai/v1/chat/completions",
+            "/v1/messages",
+            "/v1/messages/count_tokens",
+            "/v1/complete",
+        )
+        or (
+            path.startswith("/v1beta/models/")
+            and path.endswith(
+                (":generateContent", ":streamGenerateContent", ":countTokens")
+            )
+            and all(char not in path for char in ("%", "..", "\\"))
+        )
+    )

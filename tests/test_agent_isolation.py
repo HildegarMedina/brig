@@ -45,9 +45,10 @@ class AgentIsolationTests(unittest.TestCase):
             home = mounts["/home/brig"]["source"]
             self.assertNotEqual(home, "home")
             homes.add(home)
-            self.assertEqual(
-                mounts[integration.config_directory]["source"], f"{agent}_config"
-            )
+            self.assertNotIn(integration.config_directory, mounts)
+            self.assertTrue(mounts["/opt/brig-auth"]["read_only"])
+            proxy = services[f"credential_{agent}"]
+            self.assertEqual(proxy["volumes"][0]["source"], f"{agent}_config")
             for other, other_integration in AGENTS.items():
                 if other != agent:
                     self.assertNotIn(other_integration.config_directory, mounts)
@@ -58,9 +59,17 @@ class AgentIsolationTests(unittest.TestCase):
             for history in integration.history_directories:
                 self.assertIn(f"{integration.config_directory}/{history}", mounts)
             self.assertEqual(service["env_file"], ["development.env"])
-            self.assertEqual(service["depends_on"], services["dev"]["depends_on"])
+            self.assertEqual(
+                {
+                    name: value
+                    for name, value in service["depends_on"].items()
+                    if not name.startswith("credential_")
+                },
+                services["dev"]["depends_on"],
+            )
             self.assertNotIn("privileged", service)
             self.assertNotIn("network_mode", service)
+            self.assertNotIn("default", proxy["networks"])
         self.assertEqual(len(homes), len(AGENTS))
 
     def test_existing_login_and_history_volume_names_are_preserved(self):
@@ -72,7 +81,9 @@ class AgentIsolationTests(unittest.TestCase):
             self.assertEqual(
                 volumes[f"{agent}_history"]["name"], f"{prefix}-{agent}-history"
             )
-            self.assertEqual(volumes[f"{agent}_home"]["name"], f"{prefix}-{agent}-home")
+            self.assertEqual(
+                volumes[f"{agent}_home"]["name"], f"{prefix}-{agent}-runtime-home"
+            )
         self.assertEqual(volumes["home"]["name"], f"{prefix}-home")
 
     def test_unselected_agents_have_no_service_image_or_mount(self):
@@ -127,7 +138,9 @@ class AgentIsolationTests(unittest.TestCase):
         environment = self.case.engine.describe(self.project)
         self.assertEqual(set(environment.agents), set(AGENTS))
         for agent in AGENTS:
-            self.assertIn(f"brig-{self.project.id}-{agent}-home", environment.volumes)
+            self.assertIn(
+                f"brig-{self.project.id}-{agent}-runtime-home", environment.volumes
+            )
             self.assertEqual(
                 environment.agents[agent], f"brig-{self.project.id}-agent-{agent}"
             )
@@ -197,7 +210,14 @@ class AgentIsolationTests(unittest.TestCase):
         builds = [args for args, _ in self.case.runner.calls if "build" in args]
         self.assertEqual(len(builds), 1)
         self.assertEqual(
-            builds[0][-4:], ["dev", "agent_claude", "agent_codex", "agent_opencode"]
+            builds[0][-5:],
+            [
+                "dev",
+                "credential_claude",
+                "agent_claude",
+                "agent_codex",
+                "agent_opencode",
+            ],
         )
 
     def test_cli_agent_command_and_empty_command(self):

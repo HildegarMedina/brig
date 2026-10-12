@@ -48,6 +48,15 @@ class DockerRunner:
                                 if "-agent-" in args[-1]
                                 else {}
                             ),
+                            **(
+                                {
+                                    "org.brig.auth-proxy": args[-1].split(
+                                        "-credential-"
+                                    )[-1]
+                                }
+                                if "-credential-" in args[-1]
+                                else {}
+                            ),
                             "com.docker.compose.project.config_files": self.config,
                         }
                     },
@@ -124,7 +133,7 @@ class DockerEngineTests(unittest.TestCase):
         self.assertTrue(self.app.project("api").running)
         self.assertEqual(
             Path(self.runner.config).parent.joinpath(".dockerignore").read_text(),
-            "*\n!Dockerfile\n",
+            "*\n!Dockerfile\n!proxy/\n!proxy/**\n",
         )
         self.assertFalse(Path(self.project.path).joinpath("Dockerfile").exists())
 

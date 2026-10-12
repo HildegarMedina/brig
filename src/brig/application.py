@@ -7,6 +7,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from brig.attachments import attach_files, detach_files
+from brig.auth_proxy.providers import PROVIDERS
 from brig.components.agents import validate_agent, validate_agents
 from brig.components.catalog import VersionCatalog, validate_selection
 from brig.components.versions import LiveVersionCatalog
@@ -334,6 +335,41 @@ class Application:
         if command is not None:
             return self.engine.run_agent(self.project(name), agent, command)
         return self.engine.run_agent(self.project(name), agent)
+
+    def authenticate_agent(
+        self, name: str, agent: str, *, provider=None, key=None
+    ) -> str:
+        validate_agent(agent)
+        project = self.project(name)
+        if agent not in project.configuration.selected_agents:
+            raise BrigError(
+                tr(
+                    "Agent '{value0}' is not selected in this project's profile."
+                ).format(value0=agent)
+            )
+        if key is None:
+            self.engine.validate_shell()
+        else:
+            expected = "anthropic" if agent == "claude" else "openai"
+            provider = provider or expected
+            if provider not in PROVIDERS or (
+                agent != "opencode" and provider != expected
+            ):
+                raise BrigError(
+                    tr("Unsupported authentication provider: {provider}").format(
+                        provider=provider
+                    )
+                )
+            if (
+                not isinstance(key, str)
+                or not 8 <= len(key) <= 16384
+                or any(ord(char) < 33 or ord(char) > 126 for char in key)
+            ):
+                raise BrigError(tr("Invalid API key. No credentials were changed."))
+        self.start(name)
+        return self.engine.authenticate_agent(
+            self.project(name), agent, provider=provider, key=key
+        )
 
     def shell(self, name: str, command=None) -> str:
         self.engine.validate_shell(command)

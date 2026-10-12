@@ -4,6 +4,7 @@ import json
 
 from brig.components.agents import AGENTS, validate_agents
 from brig.components.catalog import validate_selection
+from brig.docker.auth_proxy import proxy_image_lines
 from brig.errors import BrigError
 from brig.i18n import tr
 from brig.models import Project
@@ -116,6 +117,7 @@ def render_dockerfile(project: Project) -> str:
             )
         lines.extend(["USER brig", ""])
     # A plain Dockerfile build also defaults to the development environment.
+    lines.extend(proxy_image_lines())
     lines.extend(["FROM development AS dev", ""])
     return "\n".join(lines) + "\n"
 

@@ -31,7 +31,13 @@ class AgentIntegration:
 
 
 def command_wrapper(name: str, command: tuple[str, ...], *, prepare=()) -> str:
-    lines = ("#!/bin/sh", "set -eu", *prepare, "exec " + shlex.join(command) + ' "$@"')
+    lines = (
+        "#!/bin/sh",
+        "set -eu",
+        "if [ -f /opt/brig-auth/environment.sh ]; then . /opt/brig-auth/environment.sh; fi",
+        *prepare,
+        "exec " + shlex.join(command) + ' "$@"',
+    )
     return (
         "RUN printf '%s\\n' "
         + " ".join(shlex.quote(line) for line in lines)
@@ -96,6 +102,8 @@ AGENTS = {
                 (
                     "/opt/brig-codex/packages/standalone/current/bin/codex",
                     "--dangerously-bypass-approvals-and-sandbox",
+                    "--enable",
+                    "respect_system_proxy",
                     "-c",
                     'cli_auth_credentials_store="file"',
                     "-c",

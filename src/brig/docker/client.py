@@ -72,13 +72,15 @@ class DockerClient:
             )
         self._checked = True
 
-    def inspect(self, project: Project, *, agent: str | None = None):
+    def inspect(
+        self, project: Project, *, agent: str | None = None, proxy: bool = False
+    ):
         self.check()
         result = self.run(
             [
                 "container",
                 "inspect",
-                f"{project_prefix(project)}-agent-{agent}"
+                f"{project_prefix(project)}-{'credential' if proxy else 'agent'}-{agent}"
                 if agent
                 else f"{project_prefix(project)}-dev",
             ],
@@ -94,7 +96,9 @@ class DockerClient:
             container = json.loads(result.stdout)[0]
             labels = container["Config"].get("Labels") or {}
             if labels.get("org.brig.project-id") != project.id or (
-                agent is not None and labels.get("org.brig.agent") != agent
+                agent is not None
+                and labels.get("org.brig.auth-proxy" if proxy else "org.brig.agent")
+                != agent
             ):
                 raise BrigError(
                     tr(

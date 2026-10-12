@@ -88,6 +88,7 @@ class DockerfileTests(unittest.TestCase):
             [
                 "COPY --from=composer_binary /usr/bin/composer /usr/local/bin/composer",
                 "COPY --from=claude_binary /usr/local/bin/claude /opt/brig-claude/claude",
+                "COPY proxy/ /opt/brig-proxy/",
             ],
         )
         self.assertNotIn("composer install", contents)

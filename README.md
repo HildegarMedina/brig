@@ -82,17 +82,26 @@ brig run my-project
 Brig builds the image if needed and starts the containers automatically. The first
 startup downloads the required images and packages. Inside the terminal, you can
 run `python --version` and work on your application. From the host, open a
-selected agent with `brig agent --project my-project`. Follow its sign-in prompts
-the first time.
+selected agent from the host. Sign in through a trusted helper before opening it:
 
-Each selected agent's login and global configuration persist across projects for
-the same host user and Brig data directory. Conversation files are stored per project.
-New projects reuse the login; you do not need to sign in for each one.
+```bash
+brig auth login codex --project my-project
+brig agent codex --project my-project
+```
 
-Each selected agent runs in its own container, with the profile's languages and
-tools, its own home, and only its own login/configuration volumes. The development
-container has no agent executables or credential mounts. All share the project
-folder and can access the project's database services.
+Use `claude` or `opencode` instead for those agents. To use an API key, run
+`brig auth set-key codex --project my-project`; Brig prompts without displaying
+it. See [protected credentials](docs/how-to/credentials.md) for supported providers.
+
+Each agent's login persists across projects for the same host user and Brig data
+directory. Settings and conversation state are private to each project.
+
+Each selected agent runs in its own container with the profile's languages and
+tools. A separate credential proxy holds its real login and authenticates approved
+provider requests. The agent receives a public certificate and inert login
+placeholders, with no mount of the real credential store. Development has no
+agent executables or credential mounts. Agents share the writable project folder
+and can access the project's database services.
 
 Agents run with full tool permissions inside their own containers. They can edit files and run commands without
 permission approvals. Docker provides the isolation boundary; edits to the
@@ -167,6 +176,7 @@ Start with the [documentation index](docs/README.md).
 - [Tutorial: your first project](docs/tutorials/first-project.md).
 - [How-to: manage projects](docs/how-to/projects.md).
 - [How-to: import profiles](docs/how-to/import-profiles.md).
+- [How-to: protected credentials](docs/how-to/credentials.md).
 - [How-to: agent isolation](docs/how-to/agent-isolation.md).
 - [How-to: choose your language](docs/how-to/languages.md).
 - [Explanation: architecture and execution flow](docs/explanation/architecture.md).

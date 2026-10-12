@@ -5,6 +5,7 @@ import sys
 from pathlib import Path
 
 from brig.components.agents import AGENTS, validate_agent
+from brig.docker.authentication import authenticate
 from brig.docker.client import DockerClient
 from brig.docker.compose import agent_history_volumes, project_prefix, render_compose
 from brig.docker.credentials import DatabaseCredentials
@@ -62,8 +63,13 @@ class DockerEngine:
             f"{prefix}-network",
             (f"{prefix}-home",)
             + tuple(
-                f"{prefix}-{agent}-home"
+                f"{prefix}-{agent}-runtime-home"
                 for agent in project.configuration.selected_agents
+            )
+            + tuple(
+                f"{prefix}-credential-{agent}-{kind}"
+                for agent in project.configuration.selected_agents
+                for kind in ("ca", "view")
             )
             + tuple(
                 volume
@@ -112,12 +118,14 @@ class DockerEngine:
         self.client.inspect(project)  # Verify ownership before making changes.
         for agent in project.configuration.selected_agents:
             self.client.inspect(project, agent=agent)
+            self.client.inspect(project, agent=agent, proxy=True)
         directory, image = self.prepare(project)
         self.volumes.ensure_agent_volumes(project)
         command = self._compose(project, directory)
         missing = False
         for name in [
             image,
+            f"{image}-credential-proxy",
             *[
                 f"{image}-agent-{agent}"
                 for agent in project.configuration.selected_agents
@@ -142,6 +150,7 @@ class DockerEngine:
                     *command,
                     "build",
                     "dev",
+                    f"credential_{project.configuration.selected_agents[0]}",
                     *[
                         f"agent_{agent}"
                         for agent in project.configuration.selected_agents
@@ -278,3 +287,7 @@ class DockerEngine:
             interactive=not command,
             agent=agent,
         )
+
+    def authenticate_agent(self, project, agent, *, provider=None, key=None):
+        with self.workspace.lock(project):
+            return authenticate(self, project, agent, provider=provider, key=key)
