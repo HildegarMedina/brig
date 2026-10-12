@@ -15,12 +15,14 @@ from brig.auth_proxy.storage import write_json
 def prepare(agent: str, secrets: Path, private: Path, public: Path):
     private.mkdir(parents=True, exist_ok=True)
     public.mkdir(parents=True, exist_ok=True)
+    public.chmod(0o755)
     CertStore.from_store(private, "mitmproxy", 2048)
     certificate = (private / "mitmproxy-ca-cert.pem").read_bytes()
     (public / "cert.pem").write_bytes(Path(certifi.where()).read_bytes() + certificate)
     (public / "ready").unlink(missing_ok=True)
     store = CredentialStore(secrets, agent)
     write_json(public / "auth.json", login_view(store))
+    (public / "auth.json").chmod(0o644)
     variable = ""
     if agent == "claude":
         try:

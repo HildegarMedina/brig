@@ -277,7 +277,7 @@ class UiPathTests(unittest.TestCase):
         ):
             dashboard.run()
         agent.assert_called_once_with("website", "claude")
-        shell.assert_called_once_with("website")
+        shell.assert_called_once_with("website", agent="claude")
         choose.assert_called_once_with(
             "Interface language",
             ["Automatic", "English", "Español", "Português"],

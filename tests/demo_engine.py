@@ -47,7 +47,7 @@ class DemoEngine:
             "Simulation only: no agent was launched and no credentials are needed."
         )
 
-    def shell(self, project: Project, command=None) -> str:
+    def shell(self, project: Project, command=None, *, agent=None) -> str:
         self._require_running(project)
         return (
             f"Would open a shell inside {self.describe(project).development} at /workspace.\n"

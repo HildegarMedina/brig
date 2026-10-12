@@ -27,7 +27,20 @@ def authenticate(engine, project, agent, *, provider=None, key=None):
                 "-it",
                 "--mount",
                 mount + AGENTS[agent].config_directory,
+                "--env",
+                "HOME=/home/brig",
+                "--env",
+                f"{AGENTS[agent].config_environment or 'OPENCODE_CONFIG_DIR'}={AGENTS[agent].config_directory}",
+                "--env",
+                "XDG_DATA_HOME=/home/brig/.local/share",
+                "--env",
+                "OPENCODE_DB=/home/brig/.local/state/opencode/brig.db",
+                "--entrypoint",
+                "/bin/sh",
                 image,
+                "-ec",
+                'exec "$@"',
+                "brig-login",
             ]
         )
         native = (
@@ -42,6 +55,17 @@ def authenticate(engine, project, agent, *, provider=None, key=None):
                 "-ec",
                 "umask 077; if [ -s /home/brig/.local/share/opencode/brig-export.json ]; then opencode auth import < /home/brig/.local/share/opencode/brig-export.json >/dev/null 2>&1; fi; opencode auth login openai; if opencode auth export > /home/brig/.local/share/opencode/.brig-export.tmp; then mv /home/brig/.local/share/opencode/.brig-export.tmp /home/brig/.local/share/opencode/brig-export.json; else rm -f /home/brig/.local/share/opencode/.brig-export.tmp; fi",
             ]
+        binary = {
+            "codex": "/opt/brig-codex/packages/standalone/current/bin/codex",
+            "claude": "/opt/brig-claude/claude",
+            "opencode": "/opt/brig-opencode/opencode",
+        }[agent]
+        if agent == "opencode":
+            native[-1] = native[-1].replace("opencode ", binary + " ")
+        else:
+            native[0] = binary
+        if agent == "codex":
+            native[1:1] = ["-c", 'cli_auth_credentials_store="file"']
         command.extend(native)
         options = {}
     else:

@@ -159,7 +159,9 @@ class DockerEngineTests(unittest.TestCase):
         with redirect_stderr(io.StringIO()):
             self.app.shell("api", ["python", "-c", 'print("$HOME; literal")'])
         command, options = self.runner.calls[-1]
-        self.assertEqual(command[1:4], ["exec", "--workdir", "/workspace"])
+        self.assertEqual(command[1], "exec")
+        self.assertIn("--user", command)
+        self.assertEqual(command[command.index("--workdir") + 1], "/workspace")
         self.assertEqual(command[-3:], ["python", "-c", 'print("$HOME; literal")'])
         self.assertNotIn("shell", options)
         self.assertNotIn("capture_output", options)
@@ -189,18 +191,11 @@ class DockerEngineTests(unittest.TestCase):
             redirect_stderr(io.StringIO()),
         ):
             self.app.run_agent("api", "claude")
-        self.assertEqual(
-            self.runner.calls[-1][0],
-            [
-                "docker",
-                "exec",
-                "-it",
-                "--workdir",
-                "/workspace",
-                self.engine.describe(self.project).agents["claude"],
-                "claude",
-            ],
-        )
+        command = self.runner.calls[-1][0]
+        self.assertIn("-it", command)
+        self.assertIn(self.engine.describe(self.project).development, command)
+        self.assertEqual(command[-1], "claude")
+        self.assertEqual(command[command.index("--user") + 1], "11234:4321")
         self.assertTrue(self.app.project("api").running)
 
     def test_shared_agent_storage_rejects_unowned_volume(self):

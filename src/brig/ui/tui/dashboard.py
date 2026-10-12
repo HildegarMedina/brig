@@ -9,6 +9,7 @@ from brig.errors import BrigError, Cancelled
 from brig.i18n import LANGUAGES, current_language, resolve_language, set_language, tr
 from brig.i18n.preferences import load_language, save_language
 from brig.models import Project
+from brig.ui.agent_selection import choose_agent
 from brig.ui.presentation import configuration_lines, project_lines
 from brig.ui.tui.dashboard_render import DashboardItem, DashboardRenderer
 from brig.ui.tui.terminal import Terminal
@@ -112,10 +113,16 @@ class Dashboard:
                 )
             elif key == "a":
                 action = partial(
-                    self.app.run_agent, item.name, project.configuration.agent
+                    self.app.run_agent,
+                    item.name,
+                    choose_agent(project, terminal=self.ui),
                 )
             else:
-                action = partial(self.app.shell, item.name)
+                action = partial(
+                    self.app.shell,
+                    item.name,
+                    agent=choose_agent(project, terminal=self.ui),
+                )
             self.ui.external(action)
 
     def run(self, section: str = "Projects", *, read_only=False):

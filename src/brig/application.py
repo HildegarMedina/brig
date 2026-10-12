@@ -9,6 +9,7 @@ from uuid import uuid4
 from brig.attachments import attach_files, detach_files
 from brig.auth_proxy.providers import PROVIDERS
 from brig.components.agents import (
+    resolve_project_agent,
     validate_agents,
     validate_project_agent,
 )
@@ -362,10 +363,11 @@ class Application:
             self.project(name), agent, provider=provider, key=key
         )
 
-    def shell(self, name: str, command=None) -> str:
+    def shell(self, name: str, command=None, *, agent=None) -> str:
+        chosen = resolve_project_agent(self.project(name).configuration, agent)
         self.engine.validate_shell(command)
         self.start(name)
-        return self.engine.shell(self.project(name), command)
+        return self.engine.shell(self.project(name), command, agent=chosen)
 
     def _set_running(self, name: str, running: bool) -> str:
         project = self.project(name)

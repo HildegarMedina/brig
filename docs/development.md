@@ -36,9 +36,9 @@ Lifecycle locks cover preparation and start/stop operations. JSON and YAML saves
 remain coordinated in `JsonStateStore` so failures preserve the previous state.
 The simulation engine lives in `tests/demo_engine.py`.
 
-The `dev` Dockerfile target adds the profile's default agent to its languages
-and tools. Compose starts one work container and its matching credential proxy.
-The work container reuses that agent's project home and conversation volumes;
+The `dev` Dockerfile target adds all profile-selected agents to its languages
+and tools. Compose starts one work container and a credential proxy per selected agent.
+The work container reuses each agent's project home and conversation volumes;
 real login stores are mounted only in trusted proxy/helper containers. Shell and
 agent execution target the same managed work container. Startup also validates
 legacy agent/proxy ownership before removing former containers as orphans.
@@ -137,7 +137,7 @@ The Docker tests verify:
 - Running Node.js, Claude, and Playwright; navigating a local page, clicking a
   button, saving a screenshot, and checking agent storage permissions.
 
-- Executing each default agent (Claude, Codex, and OpenCode) in its project work container without Node.js; checking protected
+- Executing each selected agent (Claude, Codex, and OpenCode) in its project work container without Node.js; checking protected
   fixture credentials, private conversation state, and persistence after recreation.
 
 Tests use temporary profiles and folders. Cleanup selects only resources labeled

@@ -3,9 +3,9 @@
 from pathlib import Path
 
 from brig.application import Application
-from brig.components.agents import AGENTS
 from brig.errors import BrigError, Cancelled
 from brig.i18n import tr
+from brig.ui.agent_selection import choose_agent
 from brig.ui.listings import list_rows
 from brig.ui.presentation import configuration_lines, project_lines
 from brig.ui.tui.browser import choose_list
@@ -129,17 +129,14 @@ class ProjectViews:
                         lambda: self.app.stop(name)
                     )
                 elif choice == 3:
-                    agents = project.configuration.selected_agents
-                    selected = self.ui.choose(
-                        tr("Run agent"),
-                        [AGENTS[agent].name for agent in agents],
-                    )
+                    agent = choose_agent(project, terminal=self.ui)
                     message = getattr(self.ui, "external", lambda action: action())(
-                        lambda agent=agents[selected]: self.app.run_agent(name, agent)
+                        lambda agent=agent: self.app.run_agent(name, agent)
                     )
                 elif choice == 4:
+                    agent = choose_agent(project, terminal=self.ui)
                     message = getattr(self.ui, "external", lambda action: action())(
-                        lambda: self.app.shell(name)
+                        lambda agent=agent: self.app.shell(name, agent=agent)
                     )
                 elif choice == 5:
                     latest = self.app.profile(project.profile).latest

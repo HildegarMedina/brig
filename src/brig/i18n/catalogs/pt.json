@@ -385,5 +385,10 @@
   "↑↓ move · enter select · esc back": "↑↓ mover · enter selecionar · esc voltar",
   "↑↓ move · space toggle · enter next · esc back": "↑↓ mover · espaço marcar · enter avançar · esc voltar",
   "↑↓ scroll · enter / esc close": "↑↓ rolar · enter / esc fechar",
-  "This project uses '{active}'. Only its default agent is installed and authorized.": "Este projeto usa '{active}'. Somente seu agente padrão está instalado e autorizado."
+  "This project uses '{active}'. Only its default agent is installed and authorized.": "Este projeto usa '{active}'. Somente seu agente padrão está instalado e autorizado.",
+  "This project has several agents. Choose an agent before entering.": "Este projeto tem vários agentes. Escolha um antes de entrar.",
+  "Choose an agent for '{project}'": "Escolha um agente para '{project}'",
+  "This project has several agents. Specify --agent for run/shell or an agent name for brig agent.": "Este projeto tem vários agentes. Informe --agent para run/shell ou o nome do agente para brig agent.",
+  "select an installed agent before entering": "escolha um agente instalado antes de entrar",
+  "agent name; choose interactively when several are installed": "nome do agente; escolha interativamente se houver vários instalados"
 }

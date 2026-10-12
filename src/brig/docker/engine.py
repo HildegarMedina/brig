@@ -4,11 +4,12 @@ import os
 import sys
 from pathlib import Path
 
-from brig.components.agents import AGENTS, validate_project_agent
+from brig.components.agents import AGENTS, resolve_project_agent, validate_project_agent
 from brig.docker.authentication import authenticate
 from brig.docker.client import DockerClient
 from brig.docker.compose import agent_history_volumes, project_prefix, render_compose
 from brig.docker.credentials import DatabaseCredentials
+from brig.docker.isolation import agent_environment, agent_uid
 from brig.docker.volumes import DockerVolumes
 from brig.docker.workspace import DockerWorkspace
 from brig.engine import Environment
@@ -44,7 +45,7 @@ class DockerEngine:
             self.gid,
             agent_volumes={
                 agent: self.agent_volume_name(agent)
-                for agent in [project.configuration.agent]
+                for agent in project.configuration.selected_agents
             },
         )
         self.client.check()
@@ -61,18 +62,19 @@ class DockerEngine:
             f"{prefix}-dev",
             {name: f"{prefix}-{name}" for name in project.configuration.services},
             f"{prefix}-network",
-            tuple(
+            (f"{prefix}-work-home",)
+            + tuple(
                 f"{prefix}-{agent}-runtime-home"
-                for agent in [project.configuration.agent]
+                for agent in project.configuration.selected_agents
             )
             + tuple(
                 f"{prefix}-credential-{agent}-{kind}"
-                for agent in [project.configuration.agent]
+                for agent in project.configuration.selected_agents
                 for kind in ("ca", "view")
             )
             + tuple(
                 volume
-                for agent in [project.configuration.agent]
+                for agent in project.configuration.selected_agents
                 if AGENTS[agent].config_directory
                 for volume in (self.agent_volume_name(agent),)
                 + tuple(
@@ -85,7 +87,7 @@ class DockerEngine:
                 if "mongodb" in project.configuration.services
                 else ()
             ),
-            {project.configuration.agent: f"{prefix}-dev"},
+            {agent: f"{prefix}-dev" for agent in project.configuration.selected_agents},
         )
 
     def is_running(self, project: Project) -> bool:
@@ -142,7 +144,7 @@ class DockerEngine:
                     *command,
                     "build",
                     "dev",
-                    f"credential_{project.configuration.agent}",
+                    f"credential_{project.configuration.selected_agents[0]}",
                 ],
                 capture=False,
             )
@@ -215,9 +217,12 @@ class DockerEngine:
                 )
             )
 
-    def shell(self, project: Project, command=None) -> str:
+    def shell(self, project: Project, command=None, *, agent=None) -> str:
+        agent = resolve_project_agent(project.configuration, agent)
         self.validate_shell(command)
-        return self._execute(project, command or ["/bin/bash"], interactive=not command)
+        return self._execute(
+            project, command or ["/bin/bash"], interactive=not command, agent=agent
+        )
 
     def _execute(
         self, project: Project, command, *, interactive: bool, agent: str | None = None
@@ -229,7 +234,9 @@ class DockerEngine:
                     "Project container is stopped. Run 'brig run' to start it and enter."
                 )
             )
-        args = ["docker", "exec"]
+        args = ["docker", "exec", "--user", f"{agent_uid(agent, self.uid)}:{self.gid}"]
+        for key, value in agent_environment(agent).items():
+            args.extend(["--env", f"{key}={value}"])
         if interactive:
             args.append("-it")
         args.extend(
@@ -239,6 +246,10 @@ class DockerEngine:
                 self.describe(project).agents[agent]
                 if agent
                 else self.describe(project).development,
+                "/bin/sh",
+                "-ec",
+                '. "$HOME/.brig-environment.sh"; exec "$@"',
+                "brig-session",
                 *command,
             ]
         )

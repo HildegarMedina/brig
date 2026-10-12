@@ -137,13 +137,14 @@ Names use the `brig-PROJECT_ID` prefix:
 | Active agent | Runs inside `brig-ID-dev` |
 | Service container | `brig-ID-SERVICE` |
 | Network | `brig-ID-network` |
-| Work home volume | `brig-ID-AGENT-runtime-home` → `/home/brig` in the work container |
+| Agent home volume | `brig-ID-AGENT-runtime-home` → `/opt/brig-agent-home/AGENT` |
+| Common work home | `brig-ID-work-home` → `/home/brig` |
 | Legacy development home | `brig-ID-home`, retained but not mounted |
 | Protected agent login | `brig-AGENT-UID-SCOPE` → `/secrets` in its proxy only |
 | Credential proxy | `brig-ID-credential-AGENT` |
 | Private certificate authority | Project-specific volume in the proxy only |
-| Public authentication view | Project-specific volume → `/opt/brig-auth`, read-only in the agent |
-| Claude conversation files | `brig-ID-claude-history` → `/home/brig/.config/claude/projects` |
+| Public authentication view | Project-specific volume → `/opt/brig-auth/AGENT`, read-only in the agent |
+| Claude conversation files | `brig-ID-claude-history` → `/opt/brig-agent-home/claude/.config/claude/projects` |
 | Data volume | `brig-ID-SERVICE-data` |
 | MongoDB configuration volume | `brig-ID-mongodb-config` |
 | Development image | `brig-dev-brig-ID:HASH` |
@@ -155,7 +156,7 @@ ownership labels and, for a service's data, its major version. Existing developm
 containers with conflicting names are not automatically adopted.
 
 `SCOPE` hashes the engine's absolute runtime directory. All projects in the same
-Brig data directory for the same host user share their active agent's login.
+Brig data directory for the same host user share each selected agent's login.
 Each agent has its own external volume named `brig-AGENT-UID-SCOPE`, with agent,
 user, and scope ownership labels. It survives `down` and project deletion.
 Only the trusted authentication helper and matching credential proxy mount it.

@@ -47,18 +47,18 @@ class AuthDockerTests(unittest.TestCase):
                 any(mount["target"] == "/workspace" for mount in proxy["volumes"])
             )
             self.assertTrue(
-                next(m for m in service["volumes"] if m["target"] == "/opt/brig-auth")[
-                    "read_only"
-                ]
+                next(
+                    m
+                    for m in service["volumes"]
+                    if m["target"] == f"/opt/brig-auth/{agent}"
+                )["read_only"]
             )
             self.assertFalse(
                 any("_ca" in mount["source"] for mount in service["volumes"])
             )
             self.assertNotIn("ports", proxy)
             self.assertEqual(proxy["cap_drop"], ["ALL"])
-            self.assertEqual(
-                service["environment"]["HTTP_PROXY"], f"http://credential_{agent}:8080"
-            )
+            self.assertNotIn("HTTP_PROXY", service.get("environment", {}))
 
     def test_native_login_helpers_never_mount_workspace_or_public_proxy_view(self):
         with (
@@ -79,11 +79,19 @@ class AuthDockerTests(unittest.TestCase):
                 self.assertNotIn("/opt/brig-auth", " ".join(command))
                 self.assertIn("-it", command)
                 if agent == "codex":
-                    self.assertEqual(command[-3:], ["codex", "login", "--device-auth"])
+                    self.assertEqual(command[-2:], ["login", "--device-auth"])
+                    self.assertIn('cli_auth_credentials_store="file"', command)
+                    self.assertIn(
+                        "/opt/brig-codex/packages/standalone/current/bin/codex", command
+                    )
                 elif agent == "claude":
-                    self.assertEqual(command[-3:], ["claude", "auth", "login"])
+                    self.assertEqual(
+                        command[-3:], ["/opt/brig-claude/claude", "auth", "login"]
+                    )
                 else:
-                    self.assertIn("opencode auth export >", command[-1])
+                    self.assertIn(
+                        "/opt/brig-opencode/opencode auth export >", command[-1]
+                    )
                 self.assertIn("--force-recreate", self.case.runner.calls[-1][0])
 
     def test_keys_use_stdin_not_arguments_and_helpers_have_no_network(self):

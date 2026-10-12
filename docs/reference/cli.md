@@ -110,9 +110,9 @@ Removing a copy does not erase content already read or saved by an agent.
 ## Run a project
 
 ```text
-brig run [NAME] [--project NAME] [--command PROGRAM ARGUMENTS...]
+brig run [NAME] [--project NAME] [--agent AGENT] [--command PROGRAM ARGUMENTS...]
 brig up [--project NAME]
-brig shell [--project NAME] [--command PROGRAM ARGUMENTS...]
+brig shell [--project NAME] [--agent AGENT] [--command PROGRAM ARGUMENTS...]
 brig down [--project NAME]
 ```
 
@@ -133,6 +133,11 @@ After `--command`, every option belongs to the program, for example:
 brig run my-api --command python -m unittest -v
 ```
 
+Before entering, a project with multiple agents requires a selection or
+`--agent AGENT`. Single-agent projects enter directly. The selected identity
+controls the session's private home and proxy. The shell and agent chat use the
+same work container.
+
 Opening Bash requires stdin and stdout connected to a terminal. Executing a
 program with `--command` does not require a TTY. Brig does not interpret arguments
 with a shell; specify one as the program if needed.
@@ -143,18 +148,20 @@ with a shell; specify one as the program if needed.
 brig agent [AGENT] [--project NAME] [--command PROGRAM ARGUMENTS...]
 ```
 
-Builds a missing image, starts the project, and launches its default agent in
-the same work container used by `brig run`, at `/workspace`. The container has
-the profile's languages, tools, and one coding agent. Settings and conversations
-are project-specific; real credentials stay in a separate proxy. An interactive
-terminal is required unless `--command` is supplied. Omitting `AGENT` uses the
-profile's default. An explicitly requested agent must match that default, even
-when a legacy profile lists several selected agents.
+Builds a missing image, starts the project, and launches the chosen agent in
+the same work container used by `brig run`, at `/workspace`. All selected agents
+are installed. Each agent has a distinct user and private project-specific home,
+configuration, and histories; real credentials stay in its external proxy.
+
+With one agent, omitting `AGENT` uses it directly. With several, Brig requires an
+interactive choice before startup; the saved default does not bypass the picker.
+An explicit agent skips selection. Noninteractive multi-agent sessions must
+specify the agent. An explicitly requested agent must be selected in the profile.
 
 ```bash
 brig agent codex --project my-api
-brig run my-api
-# Inside the project terminal:
+brig run my-api --agent codex
+# Inside that agent's project terminal:
 codex
 ```
 
@@ -162,7 +169,7 @@ To run a program in the same environment without a TTY:
 
 ```bash
 brig agent codex --project my-api --command codex --version
-brig run my-api --command codex --version
+brig run my-api --agent codex --command codex --version
 ```
 
 Use the interactive agent command for normal chat. Arguments following
@@ -180,7 +187,7 @@ trusted helper without the project workspace. OpenCode login selects OpenAI.
 `--stdin`. Provider defaults to Anthropic for Claude and OpenAI otherwise.
 Codex supports OpenAI, Claude supports Anthropic, and OpenCode supports the
 providers listed in [protected credentials](../how-to/credentials.md).
-Only the project's default agent can be authenticated. Keys are never CLI
+Any selected agent can be authenticated. Keys are never CLI
 arguments. Success recreates that project's proxy and work container; restart other
 running projects if switching authentication modes. Login persists across
 projects; settings and conversations remain project-specific.
@@ -208,7 +215,7 @@ and [OpenCode permissions](https://opencode.ai/docs/permissions/).
 After updating Brig, run `brig down --project NAME` followed by `brig run NAME`
 from the host. The changed Dockerfile selects a new image and regenerates the
 launchers. Existing projects do not need a new profile version for this change.
-The work container reuses the default agent's runtime home, login, and nested
+The work container reuses each selected agent's runtime home, login, and nested
 conversation volume names. Legacy development homes remain unmounted. See
 [agent isolation and upgrading](../how-to/agent-isolation.md).
 
@@ -224,7 +231,7 @@ Use Left/Right or Tab to switch sections, Up/Down to select, Enter to open actio
 and Esc to exit. Press `c` to create, `r` to refresh, and Page Up/Down to scroll the
 detail panel. In Settings, Enter opens the language selector and saves the
 selected preference; the dashboard updates immediately. In Projects, `s` starts or stops the selected project, `a` opens its
-default agent, and `o` opens its shell. Existing confirmation and wizard flows
+agent picker, and `o` opens a shell after selecting an agent when several exist. Existing confirmation and wizard flows
 handle editing and deletion. Status is refreshed on entry, on `r`, and after actions.
 
 `brig profile list` and `brig project list` open the same dashboard for that

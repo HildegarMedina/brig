@@ -19,12 +19,13 @@ and services are optional. A profile can select several runtimes and services.
 
 Profiles select an `agents` list and a default `agent` from that list. Existing
 versions containing only `agent` select that one agent automatically. Claude Code,
-Codex, and OpenCode are supported. Only the default agent runs in a project;
-legacy lists of selected agents are retained for profile compatibility.
+Codex, and OpenCode are supported individually or together. All selected agents
+are installed in the project work container. Multiple-agent entry requires a
+choice; the profile default does not bypass selection.
 
 Selected agents use their official native installers, without requiring Node.js.
 A common Dockerfile stage provides the profile languages and tools. The final
-`dev` target adds the default agent's executable and configuration. The project
+`dev` target adds all selected agents' executables, users, and configuration. The project
 shell and agent run in that same container.
 Claude uses its stable channel; Codex and OpenCode resolve their latest releases
 when the build stage runs. Unlike runtime and tool versions, agent releases are

@@ -15,6 +15,7 @@ from brig.application import Application
 from brig.components.agents import AGENTS, validate_agents
 from brig.docker.compose import compose_definition
 from brig.docker.dockerfile import render_dockerfile
+from brig.docker.isolation import agent_config
 from brig.errors import BrigError
 from brig.models import ProfileVersion
 from brig.persistence.profile_yaml import profile_path
@@ -77,7 +78,7 @@ class AgentTests(unittest.TestCase):
             contents = profile_path(Path(folder) / "data", "both-agents", 1).read_text()
             self.assertIn('agents:\n  - "claude"\n  - "codex"', contents)
             project = app.create_project("both-project", Path(folder), "both-agents")
-            self.assertNotIn("AS claude_binary", render_dockerfile(project))
+            self.assertIn("AS claude_binary", render_dockerfile(project))
             self.assertIn("AS codex_binary", render_dockerfile(project))
             app.save_profile(
                 "both-agents",
@@ -141,7 +142,7 @@ class AgentTests(unittest.TestCase):
                         )
                         mounts = definition["services"]["dev"]["volumes"]
                         for directory in AGENTS[selected].history_directories:
-                            target = f"{AGENTS[selected].config_directory}/{directory}"
+                            target = f"{agent_config(selected)}/{directory}"
                             self.assertTrue(
                                 any(
                                     mount.get("target") == target
@@ -178,12 +179,22 @@ class AgentTests(unittest.TestCase):
                         )
                     )[1]
                     script = script.replace(executable, shlex.quote(str(binary)))
-                    script = script.replace(
-                        "/home/brig/.local/state", str(directory / "state")
-                    )
+                    home = directory / agent
+                    home.mkdir()
+                    (home / ".brig-environment.sh").write_text("")
+                    script = script.replace(f"/opt/brig-agent-home/{agent}", str(home))
+                    # The unit fixture supplies the identity; Docker tests check
+                    # actual UID enforcement and rejection of other users.
+                    identity = directory / "id"
+                    identity.write_text("#!/bin/sh\nprintf '1234\\n'\n")
+                    identity.chmod(0o755)
                     launcher = directory / f"{agent}-launcher"
                     launcher.write_text(script)
-                    environment = dict(os.environ, OPENCODE_PERMISSION='{"*":"ask"}')
+                    environment = dict(
+                        os.environ,
+                        PATH=str(directory) + ":" + os.environ["PATH"],
+                        OPENCODE_PERMISSION='{"*":"ask"}',
+                    )
                     result = subprocess.run(
                         ["/bin/sh", str(launcher), "--example", "literal ; $HOME"],
                         env=environment,

@@ -100,19 +100,20 @@ major version does not trigger an automatic migration.
 
 Each project has resource names derived from its internal ID, a Docker network,
 and persistent data, work-home, and conversation volumes. One work container
-mounts the project folder, its default agent's home and histories, and a
+mounts the project folder, each selected agent's private home and histories, and a
 read-only public authentication view. The shell and coding agent share tools,
 processes, and localhost. No container mounts the Docker socket or uses
 privileged mode.
 
 The generated Dockerfile has a `development` stage for runtimes, tools, clients,
-and the unprivileged user. The final `dev` target adds the default agent's binary
-and configuration directories. Compose builds one work image and one credential
-proxy image. Other agents listed in legacy profiles are inactive; their binaries,
-login mounts, and proxies are not included.
+and the unprivileged user. The final `dev` target adds all selected agents' binaries, distinct users,
+configuration directories, and trusted bootstrap. Compose builds one work image and one credential
+proxy image. All selected agents share the work container but have private homes. Root-only
+initialization assigns ownership, shares code through group ACLs, and installs
+per-UID firewall rules blocking direct connections to other agents' proxies.
 
 Agent adapters in `components/agents.py` define installation, command,
-dependencies, and configuration location. The active agent has a trusted credential
+dependencies, and configuration location. Each selected agent has a trusted credential
 proxy on a dedicated internal network, with its own egress network and no
 workspace or published ports. A separate Python 3.12 image runs mitmproxy;
 profile language selections do not affect this internal dependency.

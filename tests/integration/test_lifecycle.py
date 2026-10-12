@@ -11,6 +11,7 @@ from uuid import uuid4
 
 from brig.components.versions import LiveVersionCatalog
 from brig.docker.engine import DockerEngine
+from brig.docker.isolation import agent_uid
 from brig.models import Profile, ProfileVersion, Project, State
 from brig.persistence.store import JsonStateStore
 
@@ -141,7 +142,7 @@ class DockerLifecycleTests(unittest.TestCase):
         prefix = f"brig-{self.project_id}"
         program = (
             "import os,pathlib,socket; "
-            "assert os.getuid()==" + str(os.getuid()) + "; "
+            "assert os.getuid()==" + str(agent_uid("claude", os.getuid())) + "; "
             "assert pathlib.Path.cwd()==pathlib.Path('/workspace'); "
             "pathlib.Path('created_inside.txt').write_text('from container'); "
             "s=socket.create_connection(('redis',6379)); "
@@ -170,7 +171,7 @@ class DockerLifecycleTests(unittest.TestCase):
             "--command",
             "sh",
             "-ec",
-            "test -f /usr/local/bin/claude; test ! -L /usr/local/bin/claude; echo retained > /home/brig/agent-test-config",
+            'test -f /usr/local/bin/claude; test ! -L /usr/local/bin/claude; echo retained > "$HOME/agent-test-config"',
         )
         self.assertEqual(
             (self.source / "created_inside.txt").read_text(), "from container"
@@ -219,7 +220,7 @@ class DockerLifecycleTests(unittest.TestCase):
                 "integration-project",
                 "--command",
                 "cat",
-                "/home/brig/agent-test-config",
+                "/opt/brig-agent-home/claude/agent-test-config",
             ).stdout.strip(),
             "retained",
         )

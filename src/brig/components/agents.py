@@ -34,7 +34,8 @@ def command_wrapper(name: str, command: tuple[str, ...], *, prepare=()) -> str:
     lines = (
         "#!/bin/sh",
         "set -eu",
-        "if [ -f /opt/brig-auth/environment.sh ]; then . /opt/brig-auth/environment.sh; fi",
+        f'if [ "$(id -u)" != "$(id -u brig-agent-{name})" ]; then echo "Open this agent with brig agent {name} from the host." >&2; exit 1; fi',
+        f". /opt/brig-agent-home/{name}/.brig-environment.sh",
         *prepare,
         "exec " + shlex.join(command) + ' "$@"',
     )
@@ -107,13 +108,13 @@ AGENTS = {
                     "-c",
                     'cli_auth_credentials_store="file"',
                     "-c",
-                    'sqlite_home="/home/brig/.local/state/codex"',
+                    'sqlite_home="/opt/brig-agent-home/codex/.local/state/codex"',
                     "-c",
-                    'log_dir="/home/brig/.local/state/codex/logs"',
+                    'log_dir="/opt/brig-agent-home/codex/.local/state/codex/logs"',
                     "-c",
                     "check_for_update_on_startup=false",
                 ),
-                prepare=("mkdir -p /home/brig/.local/state/codex",),
+                prepare=("mkdir -p /opt/brig-agent-home/codex/.local/state/codex",),
             ),
             "",
         ),
@@ -138,13 +139,13 @@ AGENTS = {
         image=(
             "COPY --from=opencode_binary /root/.opencode/bin/opencode /opt/brig-opencode/opencode",
             "ENV OPENCODE_CONFIG_DIR=/home/brig/.local/share/opencode/config",
-            "ENV OPENCODE_DB=/home/brig/.local/state/opencode/brig.db",
+            "ENV OPENCODE_DB=/opt/brig-agent-home/opencode/.local/state/opencode/brig.db",
             "ENV OPENCODE_DISABLE_AUTOUPDATE=1",
             command_wrapper(
                 "opencode",
                 ("/opt/brig-opencode/opencode", "--auto"),
                 prepare=(
-                    "mkdir -p /home/brig/.local/state/opencode",
+                    "mkdir -p /opt/brig-agent-home/opencode/.local/state/opencode",
                     """export OPENCODE_PERMISSION='{"*":"allow"}'""",
                 ),
             ),
@@ -186,9 +187,14 @@ def validate_project_agent(configuration, agent: str) -> None:
                 value0=agent
             )
         )
-    if agent != configuration.agent:
-        raise BrigError(
-            tr(
-                "This project uses '{active}'. Only its default agent is installed and authorized."
-            ).format(active=configuration.agent)
-        )
+
+
+def resolve_project_agent(configuration, agent=None):
+    if agent is None:
+        if len(configuration.selected_agents) != 1:
+            raise BrigError(
+                tr("This project has several agents. Choose an agent before entering.")
+            )
+        agent = configuration.selected_agents[0]
+    validate_project_agent(configuration, agent)
+    return agent

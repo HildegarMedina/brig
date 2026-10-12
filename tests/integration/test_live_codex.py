@@ -65,7 +65,7 @@ class LiveCodexTests(unittest.TestCase):
         self.assertEqual((self.source / "brig-e2e.txt").read_text(), "BRIG_E2E_OK\n")
         check = (
             "from pathlib import Path; import json; "
-            "home=Path('/home/brig/.config/codex'); "
+            "home=Path('/opt/brig-agent-home/codex/.config/codex'); "
             "assert list((home/'sessions').rglob('*.jsonl')); "
             "auth=json.loads((home/'auth.json').read_text()); "
             "assert auth['tokens']['refresh_token']=='sk-brig-proxy-managed-not-a-real-credential'; "
@@ -82,6 +82,6 @@ class LiveCodexTests(unittest.TestCase):
             [
                 "python",
                 "-c",
-                "from pathlib import Path; assert not list(Path('/home/brig/.config/codex/sessions').rglob('*.jsonl'))",
+                "from pathlib import Path; assert not list(Path('/opt/brig-agent-home/codex/.config/codex/sessions').rglob('*.jsonl'))",
             ],
         )

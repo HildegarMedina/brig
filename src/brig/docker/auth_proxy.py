@@ -46,6 +46,10 @@ def add_credential_proxy(
         "internal": True,
         "labels": labels,
     }
+    networks[f"credential_{agent}_egress"] = {
+        "name": f"{prefix}-credential-{agent}-egress",
+        "labels": labels,
+    }
     services[name] = {
         "image": f"{image}-credential-proxy",
         "build": {
@@ -63,7 +67,7 @@ def add_credential_proxy(
             {"type": "volume", "source": private, "target": "/certificates"},
             {"type": "volume", "source": public, "target": "/public"},
         ],
-        "networks": [network, "credential_egress"],
+        "networks": [network, f"credential_{agent}_egress"],
         "cap_drop": ["ALL"],
         "security_opt": ["no-new-privileges:true"],
         "healthcheck": {
@@ -78,18 +82,22 @@ def add_credential_proxy(
             "retries": 60,
         },
     }
-    service["networks"] = ["default", network]
+    service.setdefault("networks", ["default"]).append(network)
     service.setdefault("depends_on", {})[name] = {"condition": "service_healthy"}
     service["volumes"].append(
         {
             "type": "volume",
             "source": public,
-            "target": "/opt/brig-auth",
+            "target": f"/opt/brig-auth/{agent}",
             "read_only": True,
         }
     )
-    cert = "/opt/brig-auth/cert.pem"
-    service["environment"] = {
+
+
+def proxy_environment(agent):
+    name = f"credential_{agent}"
+    cert = f"/opt/brig-auth/{agent}/cert.pem"
+    return {
         **{
             key: f"http://{name}:8080"
             for key in (
@@ -113,12 +121,3 @@ def add_credential_proxy(
         },
         "NO_PROXY": "localhost,127.0.0.1,postgresql,mysql,mariadb,mongodb,redis",
     }
-    service["command"] = [
-        "/bin/sh",
-        "-ec",
-        'mkdir -p "$BRIG_AUTH_CONFIG"; cp /opt/brig-auth/auth.json "$BRIG_AUTH_CONFIG/$BRIG_AUTH_FILE"; exec sleep infinity',
-    ]
-    service["environment"].update(
-        BRIG_AUTH_CONFIG=service.pop("brig_auth_config"),
-        BRIG_AUTH_FILE=".credentials.json" if agent == "claude" else "auth.json",
-    )

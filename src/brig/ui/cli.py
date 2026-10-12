@@ -12,7 +12,7 @@ from brig import __version__
 from brig.application import Application
 from brig.auth_proxy.providers import PROVIDERS
 from brig.docker.engine import DockerEngine
-from brig.errors import BrigError
+from brig.errors import BrigError, Cancelled
 from brig.i18n import (
     LANGUAGES,
     current_language,
@@ -24,6 +24,7 @@ from brig.i18n import (
 )
 from brig.i18n.preferences import load_language, save_language
 from brig.persistence.store import JsonStateStore, default_data_directory
+from brig.ui.agent_selection import choose_agent
 from brig.ui.listings import profile_list, project_list
 from brig.ui.presentation import project_lines
 from brig.ui.tui import launch
@@ -173,11 +174,15 @@ def parser() -> argparse.ArgumentParser:
                 nargs=argparse.REMAINDER,
                 help=tr("execute a program instead of opening an interactive terminal"),
             )
+        if name in ("run", "shell"):
+            command.add_argument(
+                "--agent", help=tr("select an installed agent before entering")
+            )
         if name == "agent":
             command.add_argument(
                 "agent",
                 nargs="?",
-                help=tr("agent name; defaults to the profile's agent"),
+                help=tr("agent name; choose interactively when several are installed"),
             )
     return root
 
@@ -252,18 +257,21 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             raise BrigError(
                 tr("--command needs a program, e.g. --command python --version.")
             )
+        chosen = choose_agent(project, args.agent)
         if args.command_program is not None:
             return app.run_agent(
                 project.name,
-                args.agent or project.configuration.agent,
+                chosen,
                 args.command_program,
             )
-        return app.run_agent(project.name, args.agent or project.configuration.agent)
+        return app.run_agent(project.name, chosen)
     if args.command in ("run", "shell") and args.command_program == []:
         raise BrigError(
             tr("--command needs a program, e.g. --command python --version.")
         )
-    return app.shell(project.name, args.command_program)
+    return app.shell(
+        project.name, args.command_program, agent=choose_agent(project, args.agent)
+    )
 
 
 def _main(argv: list[str] | None = None) -> int:
@@ -335,7 +343,7 @@ def _main(argv: list[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 1
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, Cancelled):
         return 130
 
 

@@ -75,7 +75,8 @@ exit
 ```
 
 Your project is mounted at `/workspace`: edits there also change the files on your
-machine. The shell runs as an unprivileged user matching your host UID/GID.
+machine. The shell runs as the chosen agent's unprivileged user; shared group
+permissions let your host user and the selected agents edit the code.
 Git, curl, jq, and ripgrep are included; selected databases also get CLI clients.
 You install application dependencies and start your application yourself.
 Publishing application ports requires manual setup.
@@ -99,17 +100,17 @@ brig auth set-key codex --project my-api
 ```
 
 Use `claude` or `opencode` for another agent selected in your profile.
-`brig agent --project my-api` opens the default agent. OpenCode's login command
+With several agents, `brig run my-api` and `brig agent --project my-api` ask which
+to use before entering. Use `brig run my-api --agent codex` to choose explicitly. OpenCode's login command
 selects OpenAI; other supported providers use `set-key --provider PROVIDER`.
 See [protected credentials](docs/how-to/credentials.md) for the provider list.
 
-The profile's default agent is installed in the project container alongside its
-languages and tools. You can also enter with `brig run my-api` and run `codex`
-directly there. Settings and conversation history belong to that project.
-Login is reused across projects for the same agent, host user, and Brig data
-directory. A separate proxy holds real provider credentials; the project receives
-placeholders instead of the credential store. Only the default agent is active,
-even when an older profile lists several agents.
+All selected agents are installed in the same project container alongside its
+languages and tools. Each session runs as its chosen agent's Linux user, with
+private project-specific settings and history. Login is reused across projects
+for the same agent, host user, and Brig data directory. Separate proxies hold
+real provider credentials; the project receives inert placeholders. Network
+rules block an agent from connecting directly to another agent's proxy.
 
 Agents run commands without tool approval prompts. They share your project folder
 and can modify or delete its files, read secrets stored there, and use the project's

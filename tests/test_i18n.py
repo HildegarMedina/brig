@@ -277,6 +277,7 @@ class I18nTests(unittest.TestCase):
         fake = Mock()
         fake.shell.return_value = ""
         fake.resolve_project.return_value.name = "api"
+        fake.resolve_project.return_value.configuration.selected_agents = ["claude"]
         with (
             patch("brig.ui.cli.Application", return_value=fake),
             patch("brig.ui.cli.DockerEngine"),
@@ -295,7 +296,7 @@ class I18nTests(unittest.TestCase):
                 0,
             )
         fake.shell.assert_called_once_with(
-            "api", ["python", "--lang", "pt", "--data-dir", "/not-brig"]
+            "api", ["python", "--lang", "pt", "--data-dir", "/not-brig"], agent="claude"
         )
 
     def test_cli_backend_error_is_translated(self):

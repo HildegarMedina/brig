@@ -1,6 +1,6 @@
 # Protect agent provider credentials
 
-Sign in from the host, using the default agent in the project's saved profile:
+Sign in from the host, using any agent selected in the project's saved profile:
 
 ```bash
 brig auth login codex --project my-api
@@ -28,7 +28,7 @@ for `openai`, `anthropic`, `google`, `openrouter`, `groq`, `mistral`, and `xai`.
 Azure, AWS, Copilot, custom endpoints, and other provider authentication schemes
 are not supported by the protected proxy.
 
-After saving authentication, Brig recreates that project's proxy and work container.
+Leave active chats before changing authentication. After saving authentication, Brig recreates that project's proxy and work container.
 Open the agent normally:
 
 ```bash

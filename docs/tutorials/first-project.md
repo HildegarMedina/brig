@@ -107,8 +107,9 @@ exit
 ```
 
 `/workspace` is the registered folder. The `hello.txt` file also appears in
-`~/projects/my-api` on the host. The terminal uses your UID/GID so newly created
-files are not owned by root.
+`~/projects/my-api` on the host. Each agent session uses its own UID and your host
+group. Shared permissions keep the code editable from the host; new files are
+owned by the agent user, not root.
 
 Leaving Bash keeps the environment running. You can enter again with `brig run`
 from that folder or `brig run my-api` from any other folder.

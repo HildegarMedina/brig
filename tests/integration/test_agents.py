@@ -6,6 +6,7 @@ import unittest
 
 from brig.components.agents import AGENTS
 from brig.docker.engine import DockerEngine
+from brig.docker.isolation import agent_config, agent_uid
 from brig.models import ProfileVersion
 from brig.persistence.store import JsonStateStore
 from tests.integration import test_lifecycle
@@ -20,6 +21,8 @@ class AgentLifecycleTests(unittest.TestCase):
     inspect = test_lifecycle.DockerLifecycleTests.inspect
 
     def brig(self, *args, success=True, cwd=None, input_data=None):
+        if args[0] in ("run", "shell"):
+            args = (args[0], "--agent", self.active_agent, *args[1:])
         result = test_lifecycle.DockerLifecycleTests.brig(
             self, *args, success=False, cwd=cwd, input_data=input_data
         )
@@ -42,8 +45,13 @@ class AgentLifecycleTests(unittest.TestCase):
         return self.brig("agent", agent, "--project", project, "--command", *command)
 
     def test_work_container_has_agent_shared_login_and_project_history(self):
+        shared_file = self.source / "host-code-test.txt"
+        shared_file.write_text("host")
+        shared_file.chmod(0o644)
+        (self.source / "root-link").symlink_to("/usr/local/lib/brig/bootstrap.sh")
         for agent, integration in AGENTS.items():
             with self.subTest(agent=agent):
+                self.active_agent = agent
                 store = JsonStateStore(self.data)
                 state = store.load()
                 version = ProfileVersion(
@@ -102,28 +110,72 @@ class AgentLifecycleTests(unittest.TestCase):
                     "run", "integration-project", "--command", agent, "--version"
                 )
                 self.assertTrue(result.stdout.strip())
+                if agent == "claude":
+                    # No recreation between these writes: a file created by
+                    # one UID must be editable by the other selected agents.
+                    for collaborator in AGENTS:
+                        edit = (
+                            "from pathlib import Path; "
+                            "p=Path('shared-code-test.txt'); "
+                            f"p.write_text((p.read_text() if p.exists() else '') + {collaborator!r}); "
+                            "assert Path('host-code-test.txt').read_text().startswith('host'); "
+                            f"Path('host-code-test.txt').write_text(Path('host-code-test.txt').read_text() + {collaborator!r})"
+                        )
+                        self.agent(
+                            "integration-project", collaborator, "python", "-c", edit
+                        )
+                    self.assertEqual(
+                        (self.source / "shared-code-test.txt").read_text(),
+                        "".join(AGENTS),
+                    )
                 self.assertTrue(
                     self.agent(
                         "integration-project", agent, agent, "--version"
                     ).stdout.strip()
                 )
                 history_paths = [
-                    f"{integration.config_directory}/{name}"
+                    f"{agent_config(agent)}/{name}"
                     for name in integration.history_directories
                 ]
                 program = (
                     "from pathlib import Path; import shutil; "
                     f"paths = {history_paths!r}; "
                     "[Path(path, 'brig-history-test').write_text('private') for path in paths]; "
-                    "Path('/home/brig/brig-settings-test').write_text('private'); "
-                    "Path('/home/brig/.local/state').mkdir(parents=True, exist_ok=True); "
-                    "Path('/home/brig/.local/state/brig-state-test').write_text('private'); "
-                    f"assert all(shutil.which(name) is None for name in {list(set(AGENTS) - {agent})!r}); "
+                    "Path.home().joinpath('brig-settings-test').write_text('private'); "
+                    "Path.home().joinpath('.local/state').mkdir(parents=True, exist_ok=True); "
+                    "Path.home().joinpath('.local/state/brig-state-test').write_text('private'); "
+                    f"assert all(shutil.which(name) is not None for name in {list(AGENTS)!r}); "
                     "assert not Path('/secrets').exists(); "
                     "assert not Path('/certificates').exists(); "
                     "assert not Path('/var/run/docker.sock').exists(); "
-                    "assert 'brig-fixture-not-a-real-key' not in Path('/opt/brig-auth/auth.json').read_text(); "
-                    f"assert 'brig-fixture-not-a-real-key' not in Path({integration.config_directory!r}, {('.credentials.json' if agent == 'claude' else 'auth.json')!r}).read_text()"
+                    f"assert 'brig-fixture-not-a-real-key' not in Path('/opt/brig-auth/{agent}/auth.json').read_text(); "
+                    f"assert 'brig-fixture-not-a-real-key' not in Path({agent_config(agent)!r}, {('.credentials.json' if agent == 'claude' else 'auth.json')!r}).read_text()"
+                )
+                network_check = (
+                    "import os, socket; from pathlib import Path; "
+                    f"assert os.getuid() == {agent_uid(agent, __import__('os').getuid())}; "
+                    "status = Path('/proc/self/status').read_text(); "
+                    "assert 'CapEff:\t0000000000000000' in status; "
+                    "assert 'NoNewPrivs:\t1' in status; "
+                    "assert not os.access('/usr/local/lib/brig/bootstrap.sh', os.W_OK); "
+                    f"socket.create_connection(('credential_{agent}', 8080), 2).close(); "
+                    f"others = {list(set(AGENTS) - {agent})!r}; "
+                    "\nfor other in others:\n"
+                    "    address = socket.gethostbyname('credential_' + other)\n"
+                    "    try: socket.create_connection((address, 8080), 2)\n"
+                    "    except OSError: pass\n"
+                    "    else: raise AssertionError('other proxy is reachable')\n"
+                    "    try: Path('/opt/brig-agent-home', other, '.brig-environment.sh').read_text()\n"
+                    "    except PermissionError: pass\n"
+                    "    else: raise AssertionError('other home is readable')\n"
+                )
+                self.brig(
+                    "run",
+                    "integration-project",
+                    "--command",
+                    "python",
+                    "-c",
+                    network_check,
                 )
                 self.brig(
                     "run", "integration-project", "--command", "python", "-c", program
@@ -131,9 +183,9 @@ class AgentLifecycleTests(unittest.TestCase):
                 other_program = (
                     "from pathlib import Path; "
                     f"assert all(not Path(path, 'brig-history-test').exists() for path in {history_paths!r}); "
-                    "assert not Path('/home/brig/brig-settings-test').exists(); "
-                    "assert not Path('/home/brig/.local/state/brig-state-test').exists(); "
-                    "assert Path('/opt/brig-auth/auth.json').is_file()"
+                    "assert not Path.home().joinpath('brig-settings-test').exists(); "
+                    "assert not Path.home().joinpath('.local/state/brig-state-test').exists(); "
+                    f"assert Path('/opt/brig-auth/{agent}/auth.json').is_file()"
                 )
                 self.brig(
                     "run", "other-project", "--command", "python", "-c", other_program
@@ -141,9 +193,7 @@ class AgentLifecycleTests(unittest.TestCase):
                 shared = DockerEngine(self.data / "runtime").agent_volume_name(agent)
                 for project_id in (self.project_id, self.other_id):
                     container = self.inspect("container", f"brig-{project_id}-dev")
-                    self.assertEqual(
-                        container["Config"]["Labels"]["org.brig.agent"], agent
-                    )
+                    self.assertEqual(container["State"]["Health"]["Status"], "healthy")
                     self.assertFalse(container["HostConfig"]["Privileged"])
                     self.assertNotIn(
                         shared, [mount.get("Name") for mount in container["Mounts"]]
@@ -151,7 +201,7 @@ class AgentLifecycleTests(unittest.TestCase):
                     public = next(
                         mount
                         for mount in container["Mounts"]
-                        if mount["Destination"] == "/opt/brig-auth"
+                        if mount["Destination"] == f"/opt/brig-auth/{agent}"
                     )
                     self.assertFalse(public["RW"])
                     proxy = self.inspect(
@@ -187,15 +237,18 @@ class AgentLifecycleTests(unittest.TestCase):
                         set(resources.stdout.split()),
                         {
                             f"brig-{project_id}-dev",
-                            f"brig-{project_id}-credential-{agent}",
+                            *[
+                                f"brig-{project_id}-credential-{name}"
+                                for name in AGENTS
+                            ],
                         },
                     )
                 self.brig("down", "--project", "integration-project")
                 retained_program = (
                     "from pathlib import Path; "
                     f"assert all(Path(path, 'brig-history-test').read_text() == 'private' for path in {history_paths!r}); "
-                    "assert Path('/home/brig/brig-settings-test').read_text() == 'private'; "
-                    "assert Path('/home/brig/.local/state/brig-state-test').read_text() == 'private'"
+                    "assert Path.home().joinpath('brig-settings-test').read_text() == 'private'; "
+                    "assert Path.home().joinpath('.local/state/brig-state-test').read_text() == 'private'"
                 )
                 self.agent(
                     "integration-project", agent, "python", "-c", retained_program

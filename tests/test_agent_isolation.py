@@ -15,6 +15,7 @@ import yaml
 from brig.components.agents import AGENTS
 from brig.docker.compose import compose_definition, render_compose
 from brig.docker.dockerfile import render_dockerfile
+from brig.docker.isolation import agent_config, agent_home, agent_uid
 from brig.errors import BrigError
 from brig.ui.cli import main
 from tests import test_docker_engine
@@ -29,13 +30,19 @@ class AgentIsolationTests(unittest.TestCase):
         self.project.configuration.agents = list(AGENTS)
         self.definition = compose_definition(self.project, "brig-test:tag", 1234, 4321)
 
-    def test_one_work_container_has_only_the_active_agent_proxy_and_history(self):
+    def test_one_work_container_has_all_selected_agents_with_private_homes(self):
         for agent, integration in AGENTS.items():
             self.project.configuration.agent = agent
             definition = compose_definition(self.project, "brig-test:tag", 1234, 4321)
             services = definition["services"]
             self.assertEqual(
-                set(services), {"dev", f"credential_{agent}", "postgresql", "redis"}
+                set(services),
+                {
+                    "dev",
+                    "postgresql",
+                    "redis",
+                    *[f"credential_{name}" for name in AGENTS],
+                },
             )
             service = services["dev"]
             self.assertEqual(service["build"]["target"], "dev")
@@ -44,13 +51,13 @@ class AgentIsolationTests(unittest.TestCase):
             self.assertEqual(mounts["/workspace"]["source"], self.project.path)
             self.assertEqual(mounts["/home/brig"]["source"], "home")
             self.assertNotIn(integration.config_directory, mounts)
-            self.assertTrue(mounts["/opt/brig-auth"]["read_only"])
+            self.assertTrue(mounts[f"/opt/brig-auth/{agent}"]["read_only"])
             self.assertNotIn(f"{agent}_config", [m["source"] for m in mounts.values()])
             proxy = services[f"credential_{agent}"]
             self.assertEqual(proxy["volumes"][0]["source"], f"{agent}_config")
             self.assertNotIn("default", proxy["networks"])
             for history in integration.history_directories:
-                self.assertIn(f"{integration.config_directory}/{history}", mounts)
+                self.assertIn(f"{agent_config(agent)}/{history}", mounts)
             self.assertEqual(service["env_file"], ["development.env"])
             self.assertEqual(
                 service["depends_on"]["redis"], {"condition": "service_healthy"}
@@ -72,10 +79,13 @@ class AgentIsolationTests(unittest.TestCase):
             self.assertEqual(
                 volumes[f"{agent}_history"]["name"], f"{prefix}-{agent}-history"
             )
-            self.assertEqual(volumes["home"]["name"], f"{prefix}-{agent}-runtime-home")
+            self.assertEqual(
+                volumes[f"{agent}_home"]["name"], f"{prefix}-{agent}-runtime-home"
+            )
 
     def test_inactive_agents_have_no_image_proxy_or_credential_mount(self):
-        definition = self.definition
+        self.project.configuration.agents = ["claude"]
+        definition = compose_definition(self.project, "brig-test", 1234, 4321)
         text = render_dockerfile(self.project)
         for agent in ("codex", "opencode"):
             self.assertNotIn(f"credential_{agent}", definition["services"])
@@ -83,6 +93,7 @@ class AgentIsolationTests(unittest.TestCase):
             self.assertNotIn(f"AS {agent}_binary", text)
 
     def test_agent_without_persistent_configuration_has_project_home(self):
+        self.project.configuration.agents = ["claude"]
         with patch.dict(
             AGENTS,
             claude=replace(
@@ -91,10 +102,10 @@ class AgentIsolationTests(unittest.TestCase):
         ):
             definition = compose_definition(self.project, "brig-test", 1234, 4321)
             contents = render_dockerfile(self.project)
-        self.assertEqual(len(definition["services"]["dev"]["volumes"]), 2)
+        self.assertEqual(len(definition["services"]["dev"]["volumes"]), 3)
         self.assertNotIn("None/projects", contents)
 
-    def test_work_image_contains_tools_and_only_default_agent(self):
+    def test_work_image_contains_tools_and_every_selected_agent(self):
         for agent in AGENTS:
             self.project.configuration.agent = agent
             text = render_dockerfile(self.project)
@@ -102,9 +113,10 @@ class AgentIsolationTests(unittest.TestCase):
             self.assertIn("redis-tools", text)
             self.assertIn("FROM development AS dev", text)
             self.assertIn(f"/opt/brig-{agent}", text)
-            self.assertTrue(text.endswith("USER brig\n\n"))
-            for other in set(AGENTS) - {agent}:
-                self.assertNotIn(f"/opt/brig-{other}", text)
+            self.assertIn('ENTRYPOINT ["/usr/local/lib/brig/bootstrap.sh"]', text)
+            for other in AGENTS:
+                self.assertIn(f"/opt/brig-{other}", text)
+                self.assertIn(f"brig-agent-{other}", text)
 
     def test_compose_yaml_parses_with_targets_and_nested_mounts(self):
         rendered = render_compose(self.project, "brig-test:tag", 1234, 4321)
@@ -112,7 +124,9 @@ class AgentIsolationTests(unittest.TestCase):
 
     def test_description_lists_same_container_for_shell_and_active_agent(self):
         environment = self.case.engine.describe(self.project)
-        self.assertEqual(environment.agents, {"claude": environment.development})
+        self.assertEqual(
+            environment.agents, {agent: environment.development for agent in AGENTS}
+        )
         self.assertIn(
             f"brig-{self.project.id}-claude-runtime-home", environment.volumes
         )
@@ -123,28 +137,31 @@ class AgentIsolationTests(unittest.TestCase):
         with redirect_stderr(io.StringIO()):
             self.case.app.run_agent("api", "claude", ["python", "--version"])
             agent_command = self.case.runner.calls[-1][0]
-            self.case.app.shell("api", ["python", "--version"])
+            self.case.app.shell("api", ["python", "--version"], agent="claude")
             shell_command = self.case.runner.calls[-1][0]
         self.assertEqual(agent_command, shell_command)
         self.assertNotIn("-it", agent_command)
-        self.assertEqual(
-            agent_command[-3:], [f"brig-{self.project.id}-dev", "python", "--version"]
-        )
+        self.assertEqual(agent_command[-2:], ["python", "--version"])
         self.assertEqual(self.case.app.state.profiles, before)
 
-    def test_selected_nondefault_agent_is_rejected_before_docker(self):
-        for action in (
-            lambda: self.case.app.run_agent("api", "codex", ["codex", "--version"]),
-            lambda: self.case.app.authenticate_agent("api", "codex", key="fixture-key"),
-            lambda: self.case.engine.run_agent(
-                self.project, "codex", ["codex", "--version"]
-            ),
-            lambda: self.case.engine.authenticate_agent(
-                self.project, "codex", key="fixture-key"
-            ),
-        ):
-            with self.assertRaisesRegex(BrigError, "default agent"):
-                action()
+    def test_all_selected_agents_execute_with_distinct_users_and_proxy_environments(
+        self,
+    ):
+        users = set()
+        for agent in AGENTS:
+            with redirect_stderr(io.StringIO()):
+                self.case.app.run_agent("api", agent, ["python", "--version"])
+            command = self.case.runner.calls[-1][0]
+            user = command[command.index("--user") + 1]
+            users.add(user)
+            self.assertEqual(user, f"{agent_uid(agent, 1234)}:4321")
+            self.assertIn(f"HTTPS_PROXY=http://credential_{agent}:8080", command)
+            self.assertIn(f"HOME={agent_home(agent)}", command)
+        self.assertEqual(len(users), 3)
+
+    def test_ambiguous_shell_is_rejected_before_start(self):
+        with self.assertRaisesRegex(BrigError, "Choose an agent"):
+            self.case.app.shell("api", ["python", "--version"])
         self.assertEqual(self.case.runner.calls, [])
 
     def test_existing_agent_with_wrong_role_is_rejected_before_start(self):
@@ -226,8 +243,8 @@ class AgentIsolationTests(unittest.TestCase):
                 0,
             )
             self.assertEqual(
-                self.case.runner.calls[-1][0][-3:],
-                [f"brig-{self.project.id}-dev", "python", "--version"],
+                self.case.runner.calls[-1][0][-2:],
+                ["python", "--version"],
             )
             self.assertEqual(
                 main(["--data-dir", folder, "agent", "--project", "api", "--command"]),
