@@ -44,6 +44,7 @@ class ImageCleanupTests(unittest.TestCase):
     def test_only_unused_old_project_tags_are_removed(self):
         old = f"{self.repository}:{'a' * 24}"
         proxy = old + "-credential-proxy"
+        legacy = [old + "-agent-" + agent for agent in ("claude", "codex", "opencode")]
         used = f"{self.repository}:{'b' * 24}"
         alias = f"{self.repository}:{'c' * 24}"
         self.listing = "\n".join(
@@ -52,6 +53,10 @@ class ImageCleanupTests(unittest.TestCase):
                 f"proxy-current {self.current}-credential-proxy",
                 f"current {alias}",
                 f"proxy-current {alias}-credential-proxy",
+                *[
+                    f"legacy-{index} {reference}"
+                    for index, reference in enumerate(legacy)
+                ],
                 f"old {old}",
                 f"proxy {proxy}",
                 f"used {used}",
@@ -62,10 +67,13 @@ class ImageCleanupTests(unittest.TestCase):
         )
         self.used.add("used")
         message = self.engine.clean(self.project)
-        self.assertIn("removed 2", message)
+        self.assertIn("removed 5", message)
         self.assertEqual(
             [args for args in self.calls if args[1:3] == ["image", "rm"]],
-            [["docker", "image", "rm", old], ["docker", "image", "rm", proxy]],
+            [
+                ["docker", "image", "rm", reference]
+                for reference in [*legacy, old, proxy]
+            ],
         )
         self.assertTrue(
             all(

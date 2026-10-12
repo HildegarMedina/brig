@@ -197,7 +197,8 @@ class DockerEngine:
                 image_id for image_id, reference in images if reference in keep
             }
             pattern = re.compile(
-                re.escape(repository) + r":[0-9a-f]{24}(?:-credential-proxy)?"
+                re.escape(repository)
+                + r":[0-9a-f]{24}(?:-credential-proxy|-agent-(?:claude|codex|opencode))?"
             )
             removed = 0
             for image_id, reference in images:

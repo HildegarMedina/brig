@@ -165,7 +165,7 @@ brig project clean my-api
 
 Cleanup keeps the images for the project's current configuration and any image
 used by a running or stopped container. It removes only old Brig development and
-credential proxy image tags for this project. Source files, volumes, database
+credential proxy image tags for this project, including legacy agent images. Source files, volumes, database
 images, and build cache are kept. The result reports removed tags; shared Docker
 layers mean this count does not represent a fixed amount of reclaimed space.
 
