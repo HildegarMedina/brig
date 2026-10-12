@@ -99,19 +99,32 @@ major version does not trigger an automatic migration.
 ## What isolation means
 
 Each project has resource names derived from its internal ID, a Docker network,
-and separate data, home, and conversation volumes. The development container mounts
-the project's registered folder, its private volumes, and a shared volume for the
-agent's login and global configuration. It does not mount the Docker socket or use
-privileged mode.
+and separate data, development-home, agent-home, and conversation volumes.
+Development mounts the project's registered folder and its own home. Each selected
+agent runs in a separate container, mounting the same project folder, its own
+home, and only that agent's login/configuration and conversation volumes.
+The images contain one agent executable each; development contains no agents.
+No container mounts the Docker socket or uses privileged mode.
 
-Selected agents are installed as native executables during the image build.
-Agent adapters in `components/agents.py` define installation, command, dependencies, and
-configuration location. The profile selects which adapters to include and which one is the
-default. A shared external volume keeps each agent's login per host user and Brig
-data directory; nested per-project storage keeps conversation files separate.
-`brig agent` prepares the environment and launches the selected executable with
-an interactive terminal. The user follows the selected agent's authentication
-or provider connection prompts.
+The generated Dockerfile has a shared `development` stage for runtimes, tools,
+clients, and the unprivileged user. Each `agent_AGENT` target derives from it and
+adds that adapter's executable and private directories. Compose builds a `dev`
+image and one image per selected agent, reusing the common layers. All connect
+to the project network and wait for the same database healthchecks.
+
+Agent adapters in `components/agents.py` define installation, command,
+dependencies, and configuration location. Shared external volumes retain each
+agent's login per host user and Brig data directory; nested per-project volumes
+retain conversation files. `brig agent` starts the project and executes in the
+selected agent container after checking both its project and agent ownership
+labels. `--command` executes a supplied program in that same container without
+requiring a TTY. The user follows the agent's authentication prompts.
+
+Each agent can still read its own mounted credentials, the shared workspace,
+and project database credentials. This change does not implement an external
+authentication proxy or restrict network egress. Separate containers reduce
+direct access to other agents' homes and logins; writable project files remain
+a shared trust boundary.
 
 The development container uses a user whose UID/GID matches the host user. Service
 containers retain the users and permissions required by their official images.

@@ -43,6 +43,11 @@ class DockerRunner:
                     "Config": {
                         "Labels": {
                             "org.brig.project-id": self.owner or self.project_id,
+                            **(
+                                {"org.brig.agent": args[-1].split("-agent-")[-1]}
+                                if "-agent-" in args[-1]
+                                else {}
+                            ),
                             "com.docker.compose.project.config_files": self.config,
                         }
                     },
@@ -183,7 +188,7 @@ class DockerEngineTests(unittest.TestCase):
                 "-it",
                 "--workdir",
                 "/workspace",
-                self.engine.describe(self.project).development,
+                self.engine.describe(self.project).agents["claude"],
                 "claude",
             ],
         )

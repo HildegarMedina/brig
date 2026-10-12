@@ -62,6 +62,10 @@ class DockerEngine:
             f"{prefix}-network",
             (f"{prefix}-home",)
             + tuple(
+                f"{prefix}-{agent}-home"
+                for agent in project.configuration.selected_agents
+            )
+            + tuple(
                 volume
                 for agent in project.configuration.selected_agents
                 if AGENTS[agent].config_directory
@@ -76,6 +80,10 @@ class DockerEngine:
                 if "mongodb" in project.configuration.services
                 else ()
             ),
+            {
+                agent: f"{prefix}-agent-{agent}"
+                for agent in project.configuration.selected_agents
+            },
         )
 
     def is_running(self, project: Project) -> bool:
@@ -102,21 +110,45 @@ class DockerEngine:
 
     def _start(self, project: Project) -> str:
         self.client.inspect(project)  # Verify ownership before making changes.
+        for agent in project.configuration.selected_agents:
+            self.client.inspect(project, agent=agent)
         directory, image = self.prepare(project)
         self.volumes.ensure_agent_volumes(project)
         command = self._compose(project, directory)
-        found = self.client.run(["image", "inspect", image], check=False)
-        if found.returncode:
-            if "no such" not in (found.stderr or "").lower():
-                raise BrigError(
-                    tr("Cannot inspect project image: ") + (found.stderr or "").strip()
-                )
+        missing = False
+        for name in [
+            image,
+            *[
+                f"{image}-agent-{agent}"
+                for agent in project.configuration.selected_agents
+            ],
+        ]:
+            found = self.client.run(["image", "inspect", name], check=False)
+            if found.returncode:
+                if "no such" not in (found.stderr or "").lower():
+                    raise BrigError(
+                        tr("Cannot inspect project image: ")
+                        + (found.stderr or "").strip()
+                    )
+                missing = True
+        if missing:
             print(
                 tr("Building image for {value0}…").format(value0=project.name),
                 file=sys.stderr,
                 flush=True,
             )
-            self.client.run([*command, "build", "dev"], capture=False)
+            self.client.run(
+                [
+                    *command,
+                    "build",
+                    "dev",
+                    *[
+                        f"agent_{agent}"
+                        for agent in project.configuration.selected_agents
+                    ],
+                ],
+                capture=False,
+            )
         print(
             tr("Starting {value0}…").format(value0=project.name),
             file=sys.stderr,
@@ -190,8 +222,14 @@ class DockerEngine:
         self.validate_shell(command)
         return self._execute(project, command or ["/bin/bash"], interactive=not command)
 
-    def _execute(self, project: Project, command, *, interactive: bool) -> str:
-        container = self.client.inspect(project)
+    def _execute(
+        self, project: Project, command, *, interactive: bool, agent: str | None = None
+    ) -> str:
+        container = (
+            self.client.inspect(project, agent=agent)
+            if agent
+            else self.client.inspect(project)
+        )
         if not container or not container["State"]["Running"]:
             raise BrigError(
                 tr(
@@ -205,7 +243,9 @@ class DockerEngine:
             [
                 "--workdir",
                 "/workspace",
-                self.describe(project).development,
+                self.describe(project).agents[agent]
+                if agent
+                else self.describe(project).development,
                 *command,
             ]
         )
@@ -223,7 +263,7 @@ class DockerEngine:
             )
         return ""
 
-    def run_agent(self, project: Project, agent: str) -> str:
+    def run_agent(self, project: Project, agent: str, command=None) -> str:
         validate_agent(agent)
         if agent not in project.configuration.selected_agents:
             raise BrigError(
@@ -231,5 +271,10 @@ class DockerEngine:
                     "Agent '{value0}' is not selected in this project's profile."
                 ).format(value0=agent)
             )
-        self.validate_shell()
-        return self._execute(project, list(AGENTS[agent].command), interactive=True)
+        self.validate_shell(command)
+        return self._execute(
+            project,
+            command or list(AGENTS[agent].command),
+            interactive=not command,
+            agent=agent,
+        )

@@ -51,6 +51,12 @@ def project_lines(
         if app.engine.simulated
         else tr("Docker environment"),
         tr("Dev        {value0}").format(value0=environment.development),
+        *[
+            tr("Agent      {agent}: {container}").format(
+                agent=agent, container=container
+            )
+            for agent, container in environment.agents.items()
+        ],
         tr("Network    {value0}").format(value0=environment.network),
         *[
             tr("Service    {value0}: {value1}").format(value0=name, value1=container)

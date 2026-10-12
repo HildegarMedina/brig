@@ -97,16 +97,21 @@ filtered according to their declared requirements for the selected runtime. See
 
 ## An agent does not start
 
-Claude Code is installed in the development image. If an older container says
-`claude: command not found`, exit its terminal, update Brig, and run
-`brig run my-api` again. Brig builds the updated image and recreates the
-development container while preserving the source folder and named volumes.
+Agents are installed in their own images. `claude`, `codex`, and `opencode` are
+not installed in the development shell opened by `brig run`. Exit that shell and
+launch from the host:
 
-Use `claude --version` inside the container to check installation, or launch it
-directly with `brig agent --project my-api`. Follow its sign-in prompts on first
-use. For other selected agents, check `codex --version` or `opencode --version`
-and launch `brig agent codex --project my-api` or `brig agent opencode --project my-api`.
-Brig does not copy credentials from the host or automate sign-in.
+```bash
+brig agent --project my-api
+brig agent codex --project my-api --command codex --version
+```
+
+After updating Brig, run `brig down --project my-api` before starting the project
+again. Brig rebuilds the required images and recreates containers while retaining
+named volumes. Existing login and conversation-directory volumes are reused;
+see [agent isolation](agent-isolation.md) for legacy home storage.
+Follow the agent's sign-in prompts on first use. Brig does not copy credentials
+from the host or automate sign-in.
 
 Codex supports `codex login --device-auth` for headless authentication when your
 account permits it. OpenCode connects providers through `/connect` or

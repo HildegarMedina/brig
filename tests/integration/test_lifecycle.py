@@ -147,11 +147,19 @@ class DockerLifecycleTests(unittest.TestCase):
         )
         self.assertIn("isolated-project-ok", result.stdout)
         result = self.brig(
-            "run", "integration-project", "--command", "claude", "--version"
+            "agent",
+            "claude",
+            "--project",
+            "integration-project",
+            "--command",
+            "claude",
+            "--version",
         )
         self.assertIn("Claude Code", result.stdout)
         self.brig(
-            "run",
+            "agent",
+            "claude",
+            "--project",
             "integration-project",
             "--command",
             "sh",
@@ -188,12 +196,20 @@ class DockerLifecycleTests(unittest.TestCase):
         self.assertIn(
             "Claude Code",
             self.brig(
-                "run", "integration-project", "--command", "claude", "--version"
+                "agent",
+                "claude",
+                "--project",
+                "integration-project",
+                "--command",
+                "claude",
+                "--version",
             ).stdout,
         )
         self.assertEqual(
             self.brig(
-                "run",
+                "agent",
+                "claude",
+                "--project",
                 "integration-project",
                 "--command",
                 "cat",
@@ -203,7 +219,9 @@ class DockerLifecycleTests(unittest.TestCase):
         )
         self.brig("up", "--project", "other-project")
         self.brig(
-            "run",
+            "agent",
+            "claude",
+            "--project",
             "integration-project",
             "--command",
             "sh",
@@ -212,7 +230,9 @@ class DockerLifecycleTests(unittest.TestCase):
         )
         self.assertEqual(
             self.brig(
-                "run",
+                "agent",
+                "claude",
+                "--project",
                 "other-project",
                 "--command",
                 "sh",
@@ -244,7 +264,9 @@ class DockerLifecycleTests(unittest.TestCase):
         state.projects[0].configuration = version
         store.save(state)
         result = self.brig(
-            "run",
+            "agent",
+            "claude",
+            "--project",
             "integration-project",
             "--command",
             "sh",
@@ -386,7 +408,13 @@ class DockerLifecycleTests(unittest.TestCase):
         self.assertIn(
             "Claude Code",
             self.brig(
-                "run", "integration-project", "--command", "claude", "--version"
+                "agent",
+                "claude",
+                "--project",
+                "integration-project",
+                "--command",
+                "claude",
+                "--version",
             ).stdout,
         )
         mongo = subprocess.run(

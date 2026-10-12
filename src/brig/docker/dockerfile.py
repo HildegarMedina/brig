@@ -79,7 +79,7 @@ def render_dockerfile(project: Project) -> str:
     lines.extend(runtime_lines(configuration, integrations))
     lines.extend(database_client_lines(configuration))
     lines.extend(tool_lines(configuration))
-    lines.extend(user_lines(integrations, configuration.tools.get("composer")))
+    lines.extend(user_lines(configuration.tools.get("composer")))
     lines.extend(
         [
             f"LABEL org.brig.project={json.dumps(project.name)} \\",
@@ -91,6 +91,32 @@ def render_dockerfile(project: Project) -> str:
             'CMD ["sleep", "infinity"]',
         ]
     )
+    for name in sorted(configuration.selected_agents):
+        integration = AGENTS[name]
+        lines.extend([f"FROM development AS agent_{name}", "USER root"])
+        lines.extend(integration.image)
+        directories = (
+            [integration.config_directory] if integration.config_directory else []
+        )
+        if integration.config_directory:
+            directories.extend(
+                f"{integration.config_directory}/{history}"
+                for history in integration.history_directories
+            )
+        if directories:
+            paths = " ".join(directories)
+            lines.extend(
+                [
+                    f"RUN mkdir -p {paths} && chown -R brig:brig {paths} && chmod 700 {paths}"
+                ]
+            )
+        if integration.config_directory and integration.config_environment:
+            lines.append(
+                f"ENV {integration.config_environment}={integration.config_directory}"
+            )
+        lines.extend(["USER brig", ""])
+    # A plain Dockerfile build also defaults to the development environment.
+    lines.extend(["FROM development AS dev", ""])
     return "\n".join(lines) + "\n"
 
 
@@ -145,7 +171,7 @@ def runtime_lines(configuration, integrations) -> list[str]:
     )
     lines.extend(
         [
-            f"FROM {base}",
+            f"FROM {base} AS development",
             "",
             "ARG BRIG_UID=1000",
             "ARG BRIG_GID=1000",
@@ -266,51 +292,16 @@ def tool_lines(configuration) -> list[str]:
     return lines
 
 
-def user_lines(integrations, composer) -> list[str]:
-    lines = []
-    for integration in integrations:
-        lines.extend(integration.image)
-    agent_directories = " ".join(
-        directory
-        for integration in integrations
-        if integration.config_directory
-        for directory in (
-            integration.config_directory,
-            *(
-                f"{integration.config_directory}/{history}"
-                for history in integration.history_directories
-            ),
-        )
-    )
-    lines.extend(
-        [
-            "# Match these build arguments to the owner of the bind-mounted project folder.",
-            "RUN set -eux; \\",
-            '    groupadd --gid "$BRIG_GID" brig; \\',
-            '    useradd --uid "$BRIG_UID" --gid brig --create-home --shell /bin/bash brig; \\',
-            f"    mkdir -p /workspace /home/brig/.config/composer /home/brig/.cache/composer {agent_directories}; \\",
-            "    chown -R brig:brig /workspace /home/brig",
-            "",
-        ]
-    )
-    for integration in integrations:
-        if integration.config_directory:
-            private_directories = integration.config_directory
-            for history in integration.history_directories:
-                private_directories += f" {integration.config_directory}/{history}"
-            lines.extend(
-                [
-                    f"RUN chmod 700 {private_directories}",
-                    "",
-                ]
-            )
-            if integration.config_environment:
-                lines.extend(
-                    [
-                        f"ENV {integration.config_environment}={integration.config_directory}",
-                        "",
-                    ]
-                )
+def user_lines(composer) -> list[str]:
+    lines = [
+        "# Match these build arguments to the owner of the bind-mounted project folder.",
+        "RUN set -eux; \\",
+        '    groupadd --gid "$BRIG_GID" brig; \\',
+        '    useradd --uid "$BRIG_UID" --gid brig --create-home --shell /bin/bash brig; \\',
+        "    mkdir -p /workspace /home/brig/.config/composer /home/brig/.cache/composer; \\",
+        "    chown -R brig:brig /workspace /home/brig",
+        "",
+    ]
     if composer:
         lines.extend(
             [

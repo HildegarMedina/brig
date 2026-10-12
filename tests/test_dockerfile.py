@@ -73,7 +73,7 @@ class DockerfileTests(unittest.TestCase):
 
     def test_exact_images_nonroot_user_and_runtime_workspace(self):
         contents = render_dockerfile(php_project({"mysql": "8.4.3"}))
-        self.assertIn("FROM php:8.3.15-cli-bookworm\n", contents)
+        self.assertIn("FROM php:8.3.15-cli-bookworm AS development\n", contents)
         self.assertIn("FROM composer:2.8.5 AS composer_binary\n", contents)
         self.assertIn(
             "COPY --from=composer_binary /usr/bin/composer /usr/local/bin/composer",

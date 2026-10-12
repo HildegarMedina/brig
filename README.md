@@ -81,15 +81,20 @@ brig run my-project
 
 Brig builds the image if needed and starts the containers automatically. The first
 startup downloads the required images and packages. Inside the terminal, you can
-run `python --version`, work on your application, or type `claude` to start Claude
-Code. Follow its sign-in prompts the first time.
+run `python --version` and work on your application. From the host, open a
+selected agent with `brig agent --project my-project`. Follow its sign-in prompts
+the first time.
 
 Each selected agent's login and global configuration persist across projects for
 the same host user and Brig data directory. Conversation files are stored per project.
 New projects reuse the login; you do not need to sign in for each one.
 
-Agents run with full tool permissions inside the container, including when you
-launch them directly from its shell. They can edit files and run commands without
+Each selected agent runs in its own container, with the profile's languages and
+tools, its own home, and only its own login/configuration volumes. The development
+container has no agent executables or credential mounts. All share the project
+folder and can access the project's database services.
+
+Agents run with full tool permissions inside their own containers. They can edit files and run commands without
 permission approvals. Docker provides the isolation boundary; edits to the
 mounted project folder are reflected on the host.
 
@@ -117,6 +122,11 @@ Inside a registered folder, `brig run` selects that project automatically. Run
 
 Brig currently prepares the environment. Application dependency installation,
 HTTP server startup, and application port publishing require manual setup.
+
+After updating an existing installation, run `brig down --project my-project`
+and then `brig agent --project my-project` from the host. Existing login and
+conversation-directory volumes are reused. See [agent isolation](docs/how-to/agent-isolation.md)
+for the storage changes and security limits.
 
 ## Choose your language
 
@@ -157,6 +167,7 @@ Start with the [documentation index](docs/README.md).
 - [Tutorial: your first project](docs/tutorials/first-project.md).
 - [How-to: manage projects](docs/how-to/projects.md).
 - [How-to: import profiles](docs/how-to/import-profiles.md).
+- [How-to: agent isolation](docs/how-to/agent-isolation.md).
 - [How-to: choose your language](docs/how-to/languages.md).
 - [Explanation: architecture and execution flow](docs/explanation/architecture.md).
 - [Reference: commands](docs/reference/cli.md).

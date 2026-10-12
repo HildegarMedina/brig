@@ -72,10 +72,17 @@ class DockerClient:
             )
         self._checked = True
 
-    def inspect(self, project: Project):
+    def inspect(self, project: Project, *, agent: str | None = None):
         self.check()
         result = self.run(
-            ["container", "inspect", f"{project_prefix(project)}-dev"], check=False
+            [
+                "container",
+                "inspect",
+                f"{project_prefix(project)}-agent-{agent}"
+                if agent
+                else f"{project_prefix(project)}-dev",
+            ],
+            check=False,
         )
         if result.returncode:
             if "no such" in (result.stderr or "").lower():
@@ -86,7 +93,9 @@ class DockerClient:
         try:
             container = json.loads(result.stdout)[0]
             labels = container["Config"].get("Labels") or {}
-            if labels.get("org.brig.project-id") != project.id:
+            if labels.get("org.brig.project-id") != project.id or (
+                agent is not None and labels.get("org.brig.agent") != agent
+            ):
                 raise BrigError(
                     tr(
                         "A container with this project's name exists but is not managed by Brig. Resolve the name conflict before continuing."

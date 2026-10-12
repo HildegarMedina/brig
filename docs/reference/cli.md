@@ -140,12 +140,13 @@ with a shell; specify one as the program if needed.
 ## Agents
 
 ```text
-brig agent [AGENT] [--project NAME]
+brig agent [AGENT] [--project NAME] [--command PROGRAM ARGUMENTS...]
 ```
 
 Builds a missing image, starts the selected project, and launches its selected
-agent inside the development container at `/workspace`. An interactive terminal
-is required. Omitting `AGENT` uses the profile's default agent. Only agents in the
+agent inside its own container at `/workspace`. Each selected agent has its own
+image and home, and mounts only its own login/configuration and conversation
+volumes. An interactive terminal is required unless `--command` is supplied. Omitting `AGENT` uses the profile's default agent. Only agents in the
 project's pinned version can be launched.
 
 ```bash
@@ -153,16 +154,26 @@ brig agent codex --project my-api
 brig agent opencode --project my-api
 ```
 
-You can also enter with `brig run my-api` and type `claude`, `codex`, or `opencode`
-if selected. Follow the agent's sign-in or provider connection prompts on first
+The development shell opened by `brig run` contains the profile tools and no
+agent executable or credential mount. Launch agents from the host using
+`brig agent`. To run a program inside one agent's environment without a TTY:
+
+```bash
+brig agent codex --project my-api --command codex --version
+brig agent claude --project my-api --command python --version
+```
+
+Use the interactive agent command for normal chat. Arguments following
+`--command` belong to the program and are forwarded without shell interpretation.
+Only the selected agent's credentials are available in that environment. Follow the agent's sign-in or provider connection prompts on first
 use. Credentials and global configuration persist in an external volume for that
 agent, shared across projects under the same Brig data directory and host user.
 Signing out affects that agent's shared login. Brig does not copy host credentials
 or perform authentication. Conversation directories and conversation databases
 use project-specific storage; see [storage](storage.md).
 
-Brig's container launchers enable full tool permissions by default for both
-`brig agent` and direct `claude`, `codex`, or `opencode` commands in the shell:
+Brig's launchers enable full tool permissions by default for `brig agent` and
+commands executed in the corresponding agent container:
 
 | Agent | Container launcher setting |
 | --- | --- |
@@ -184,6 +195,9 @@ and [OpenCode permissions](https://opencode.ai/docs/permissions/).
 After updating Brig, run `brig down --project NAME` followed by `brig run NAME`
 from the host. The changed Dockerfile selects a new image and regenerates the
 launchers. Existing projects do not need a new profile version for this change.
+The agent containers reuse existing login and nested conversation volume names;
+new agent homes are separate from the legacy development home. See
+[agent isolation and upgrading](../how-to/agent-isolation.md).
 
 ## Terminal interface
 

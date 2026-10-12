@@ -139,7 +139,7 @@ class AgentTests(unittest.TestCase):
                         definition = compose_definition(
                             project, "brig-test", 1000, 1000
                         )
-                        mounts = definition["services"]["dev"]["volumes"]
+                        mounts = definition["services"][f"agent_{selected}"]["volumes"]
                         for directory in AGENTS[selected].history_directories:
                             target = f"{AGENTS[selected].config_directory}/{directory}"
                             self.assertTrue(

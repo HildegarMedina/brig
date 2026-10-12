@@ -320,7 +320,7 @@ class Application:
     def detach(self, name: str) -> str:
         return detach_files(self.project(name))
 
-    def run_agent(self, name: str, agent: str) -> str:
+    def run_agent(self, name: str, agent: str, command=None) -> str:
         validate_agent(agent)
         project = self.project(name)
         if agent not in project.configuration.selected_agents:
@@ -329,8 +329,10 @@ class Application:
                     "Agent '{value0}' is not selected in this project's profile."
                 ).format(value0=agent)
             )
-        self.engine.validate_shell()
+        self.engine.validate_shell(command) if command else self.engine.validate_shell()
         self.start(name)
+        if command is not None:
+            return self.engine.run_agent(self.project(name), agent, command)
         return self.engine.run_agent(self.project(name), agent)
 
     def shell(self, name: str, command=None) -> str:

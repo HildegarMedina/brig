@@ -145,7 +145,7 @@ def parser() -> argparse.ArgumentParser:
                 nargs="?",
                 help=tr("project name; defaults to this folder's project"),
             )
-        if name in ("run", "shell"):
+        if name in ("run", "shell", "agent"):
             command.add_argument(
                 "--command",
                 dest="command_program",
@@ -216,6 +216,16 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
     if args.command == "down":
         return app.stop(project.name)
     if args.command == "agent":
+        if args.command_program == []:
+            raise BrigError(
+                tr("--command needs a program, e.g. --command python --version.")
+            )
+        if args.command_program is not None:
+            return app.run_agent(
+                project.name,
+                args.agent or project.configuration.agent,
+                args.command_program,
+            )
         return app.run_agent(project.name, args.agent or project.configuration.agent)
     if args.command in ("run", "shell") and args.command_program == []:
         raise BrigError(

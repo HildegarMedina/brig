@@ -13,6 +13,7 @@
   "--command needs a program, e.g. --command python --version.": "--command necesita un programa, p. ej. --command python --version.",
   "A base version requires a base profile.": "Una versión base requiere un perfil base.",
   "A container with this project's name exists but is not managed by Brig. Resolve the name conflict before continuing.": "Existe un contenedor con el nombre de este proyecto, pero Brig no lo administra. Resuelve el conflicto de nombres antes de continuar.",
+  "Agent      {agent}: {container}": "Agente     {agent}: {container}",
   "Agent '{value0}' is not selected in this project's profile.": "El agente '{value0}' no está seleccionado en el perfil de este proyecto.",
   "Agents     {value0}": "Agentes    {value0}",
   "All versions and their YAML files will be deleted.": "Se eliminarán todas las versiones y sus archivos YAML.",

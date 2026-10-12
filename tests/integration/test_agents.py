@@ -37,6 +37,9 @@ class AgentLifecycleTests(unittest.TestCase):
                 check=False,
             )
 
+    def agent(self, project, agent, *command):
+        return self.brig("agent", agent, "--project", project, "--command", *command)
+
     def test_native_agents_share_credentials_and_keep_project_state(self):
         store = JsonStateStore(self.data)
         state = store.load()
@@ -53,97 +56,117 @@ class AgentLifecycleTests(unittest.TestCase):
             project.configuration = version
         store.save(state)
         for agent in version.selected_agents:
-            result = self.brig(
-                "run", "integration-project", "--command", agent, "--version"
-            )
+            result = self.agent("integration-project", agent, agent, "--version")
             self.assertTrue(result.stdout.strip())
-        self.brig(
-            "run",
+        self.agent(
             "integration-project",
-            "--command",
+            "codex",
             "sh",
             "-ec",
             """
             umask 077
             printf '{"OPENAI_API_KEY":"brig-fixture-not-a-real-key"}' > "$CODEX_HOME/auth.json"
-            printf '{"openai":{"type":"api","key":"brig-fixture-not-a-real-key"}}' > /home/brig/.local/share/opencode/auth.json
             printf private > "$CODEX_HOME/sessions/brig-test"
             printf private > "$CODEX_HOME/archived_sessions/brig-test"
-            printf private > /home/brig/.local/share/opencode/project/brig-test
+            mkdir -p /home/brig/.local/state/codex
             printf private > /home/brig/.local/state/codex/brig-test
-            test -w /home/brig/.local/share/opencode
+            test ! -e /home/brig/.local/share/opencode/auth.json
+            test ! -d /home/brig/.config/claude
             test "$(stat -c %a "$CODEX_HOME")" = 700
         """,
         )
-        self.brig("run", "other-project", "--command", "codex", "login", "status")
-        self.brig("run", "other-project", "--command", "opencode", "auth", "list")
-        result = self.brig(
-            "run",
+        self.agent(
             "integration-project",
-            "--command",
             "opencode",
-            "session",
-            "list",
-            success=False,
+            "sh",
+            "-ec",
+            """
+            umask 077
+            printf '{"openai":{"type":"api","key":"brig-fixture-not-a-real-key"}}' > /home/brig/.local/share/opencode/auth.json
+            printf private > /home/brig/.local/share/opencode/project/brig-test
+            test ! -e /home/brig/.config/codex/auth.json
+            test ! -d /home/brig/.config/claude
+        """,
         )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.brig(
-            "run",
+        self.agent("other-project", "codex", "codex", "login", "status")
+        self.agent("other-project", "opencode", "opencode", "auth", "list")
+        self.agent("integration-project", "opencode", "opencode", "session", "list")
+        self.agent(
             "integration-project",
-            "--command",
+            "opencode",
             "python",
             "-c",
             "import os, sqlite3; db = sqlite3.connect('file:' + os.environ['OPENCODE_DB'] + '?mode=rw', uri=True); "
             "db.execute('CREATE TABLE brig_fixture (marker TEXT)'); "
             "db.execute(\"INSERT INTO brig_fixture VALUES ('private')\"); db.commit()",
         )
-        self.brig(
-            "run",
+        self.agent("other-project", "opencode", "opencode", "session", "list")
+        self.agent(
             "other-project",
-            "--command",
+            "opencode",
             "python",
             "-c",
             "import os, sqlite3; db = sqlite3.connect('file:' + os.environ['OPENCODE_DB'] + '?mode=rw', uri=True); "
             "assert not db.execute(\"SELECT name FROM sqlite_master WHERE name = 'brig_fixture'\").fetchall()",
         )
-        self.brig(
-            "run",
+        self.agent(
             "other-project",
-            "--command",
+            "codex",
             "sh",
             "-ec",
             """
             test -f "$CODEX_HOME/auth.json"
-            test -f /home/brig/.local/share/opencode/auth.json
             test ! -f "$CODEX_HOME/sessions/brig-test"
             test ! -f "$CODEX_HOME/archived_sessions/brig-test"
-            test ! -f /home/brig/.local/share/opencode/project/brig-test
             test ! -f /home/brig/.local/state/codex/brig-test
         """,
         )
-        self.brig("down", "--project", "integration-project")
-        self.brig("run", "integration-project", "--command", "codex", "login", "status")
-        self.brig(
-            "run",
-            "integration-project",
-            "--command",
-            "python",
-            "-c",
-            "import os, sqlite3; db = sqlite3.connect('file:' + os.environ['OPENCODE_DB'] + '?mode=rw', uri=True); "
-            "assert db.execute('SELECT marker FROM brig_fixture').fetchone() == ('private',)",
+        self.agent(
+            "other-project",
+            "opencode",
+            "sh",
+            "-ec",
+            """
+            test -f /home/brig/.local/share/opencode/auth.json
+            test ! -f /home/brig/.local/share/opencode/project/brig-test
+        """,
         )
         self.brig(
             "run",
             "integration-project",
             "--command",
+            "sh",
+            "-ec",
+            """
+            test ! -e /home/brig/.config/codex/auth.json
+            test ! -e /home/brig/.local/share/opencode/auth.json
+            test ! -d /home/brig/.config/claude
+        """,
+        )
+        for agent in version.selected_agents:
+            container = self.inspect(
+                "container", f"brig-{self.project_id}-agent-{agent}"
+            )
+            self.assertEqual(container["Config"]["Labels"]["org.brig.agent"], agent)
+            self.assertFalse(container["HostConfig"]["Privileged"])
+        self.brig("down", "--project", "integration-project")
+        self.agent("integration-project", "codex", "codex", "login", "status")
+        self.agent(
+            "integration-project",
+            "codex",
             "sh",
             "-ec",
             """
             test -f "$CODEX_HOME/sessions/brig-test"
             test -f "$CODEX_HOME/archived_sessions/brig-test"
             test -f /home/brig/.local/state/codex/brig-test
-            test -f /home/brig/.local/share/opencode/project/brig-test
-            test "$OPENCODE_DB" = /home/brig/.local/state/opencode/brig.db
-            test -f "$OPENCODE_DB"
         """,
+        )
+        self.agent(
+            "integration-project",
+            "opencode",
+            "python",
+            "-c",
+            "import os, sqlite3; db = sqlite3.connect('file:' + os.environ['OPENCODE_DB'] + '?mode=rw', uri=True); "
+            "assert db.execute('SELECT marker FROM brig_fixture').fetchone() == ('private',)",
         )

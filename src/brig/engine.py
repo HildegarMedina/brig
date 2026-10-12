@@ -1,6 +1,6 @@
 """Environment description and execution contract."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from brig.models import Project
@@ -12,6 +12,7 @@ class Environment:
     services: dict[str, str]
     network: str
     volumes: tuple[str, ...]
+    agents: dict[str, str] = field(default_factory=dict)
 
 
 class EnvironmentEngine(Protocol):
@@ -28,6 +29,6 @@ class EnvironmentEngine(Protocol):
 
     def stop(self, project: Project) -> str: ...
 
-    def run_agent(self, project: Project, agent: str) -> str: ...
+    def run_agent(self, project: Project, agent: str, command=None) -> str: ...
 
     def shell(self, project: Project, command=None) -> str: ...

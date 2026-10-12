@@ -33,6 +33,14 @@ Lifecycle locks cover preparation and start/stop operations. JSON and YAML saves
 remain coordinated in `JsonStateStore` so failures preserve the previous state.
 The simulation engine lives in `tests/demo_engine.py`.
 
+Dockerfile targets derive each agent image from the shared development stage.
+Compose gives each agent an independent home and mounts only its own
+configuration and histories. Agent execution checks both project and agent labels
+before `docker exec`; it must never fall back to development. Boundary tests
+verify mount separation, target contents, CLI forwarding, image cache reuse, and
+foreign-container rejection. Integration tests verify credential fixtures remain
+unavailable to other agents and development; they never use real login tokens.
+
 Profile imports reuse the state codec and inheritance validation. The YAML reader
 uses a restricted PyYAML SafeLoader, rejects duplicate keys and aliases, and
 limits each document to 1 MiB. The merge operates on a copied state; Application
@@ -121,14 +129,14 @@ The five enabled tests verify:
 - Building a missing image, reusing the container, mounting the correct folder,
   writing files with the user's UID, and preserving Redis data. Starting another
   project and verifying that stopping the first does not affect it.
-  Checking that Claude executes before and after recreation, its shared storage
+  Checking that Claude executes in its own container before and after recreation, its shared storage
   is visible to both projects, and their conversation files remain separate.
 - Starting PostgreSQL, MySQL, MariaDB, MongoDB, and Redis with a PHP project;
   checking health, PDO connections, and MongoDB authentication.
 - Running Node.js, Claude, and Playwright; navigating a local page, clicking a
   button, saving a screenshot, and checking agent storage permissions.
 
-- Executing native Claude, Codex, and OpenCode without Node.js; checking shared
+- Executing native Claude, Codex, and OpenCode in separate containers without Node.js; checking shared
   fixture credentials, private conversation state, and persistence after recreation.
 
 Tests use temporary profiles and folders. Cleanup selects only resources labeled

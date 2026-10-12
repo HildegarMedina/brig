@@ -134,14 +134,17 @@ Names use the `brig-PROJECT_ID` prefix:
 | Resource | Name or location |
 | --- | --- |
 | Development container | `brig-ID-dev` |
+| Agent container | `brig-ID-agent-AGENT` |
 | Service container | `brig-ID-SERVICE` |
 | Network | `brig-ID-network` |
+| Agent home volume | `brig-ID-AGENT-home` → `/home/brig` in that agent container |
 | Home volume | `brig-ID-home` → `/home/brig` |
 | Shared Claude configuration | `brig-claude-UID-SCOPE` → `/home/brig/.config/claude` |
 | Claude conversation files | `brig-ID-claude-history` → `/home/brig/.config/claude/projects` |
 | Data volume | `brig-ID-SERVICE-data` |
 | MongoDB configuration volume | `brig-ID-mongodb-config` |
 | Development image | `brig-dev-brig-ID:HASH` |
+| Agent image | `brig-dev-brig-ID:HASH-agent-AGENT` |
 
 Source files live in the registered host folder, mounted at `/workspace`. Named
 volumes are managed by Docker and are not inside Brig's data directory. They have
@@ -153,7 +156,10 @@ Brig data directory for the same host user share each selected agent's login and
 global configuration. Each agent has its own external volume named
 `brig-AGENT-UID-SCOPE`, with agent, user, and scope ownership labels. It survives
 `down` and project deletion; another data directory or host user gets separate
-storage. Brig does not mount host agent credentials.
+storage. Brig does not mount host agent credentials. Only the matching agent
+container mounts that volume. Development has no agent credential mounts, and
+agent containers never share their home volume. They share the writable project
+folder and project network.
 
 | Agent | Shared storage | Project-specific conversation storage |
 | --- | --- | --- |
@@ -169,6 +175,10 @@ manage credentials and token refresh; Brig does not guarantee a login never expi
 
 Agent executables and their installation resources live outside `/home/brig`,
 so persistent home volumes do not hide them when containers are recreated.
+Login and nested conversation-directory volume names are unchanged by agent
+separation. Existing local SQLite databases and logs in the legacy development
+home are preserved there but are not automatically copied to the new agent homes.
+See [upgrade guidance](../how-to/agent-isolation.md#upgrade-existing-projects).
 
 ## What each operation preserves
 

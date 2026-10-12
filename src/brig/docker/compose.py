@@ -90,6 +90,7 @@ def compose_definition(
             "build": {
                 "context": ".",
                 "dockerfile": "Dockerfile",
+                "target": "dev",
                 "args": {"BRIG_UID": str(uid), "BRIG_GID": str(gid)},
             },
             "container_name": f"{prefix}-dev",
@@ -116,7 +117,11 @@ def compose_definition(
         add_database_service(services, volumes, name, version, prefix, labels)
         dependencies[name] = {"condition": "service_healthy"}
     if dependencies:
-        services["dev"]["depends_on"] = dependencies
+        for service in [
+            "dev",
+            *[f"agent_{agent}" for agent in configuration.selected_agents],
+        ]:
+            services[service]["depends_on"] = dependencies
     return {
         "name": prefix,
         "services": services,
@@ -175,9 +180,25 @@ def add_database_service(services, volumes, name, version, prefix, labels) -> No
 
 
 def add_agent_storage(project, services, volumes, labels, uid, agent_volumes) -> None:
-    configuration = project.configuration
-    for agent in sorted(configuration.selected_agents):
+    for agent in sorted(project.configuration.selected_agents):
         integration = AGENTS[agent]
+        home = f"{agent}_home"
+        volumes[home] = {
+            "name": f"{project_prefix(project)}-{agent}-home",
+            "labels": labels,
+        }
+        service = dict(services["dev"])
+        service.update(
+            image=f"{services['dev']['image']}-agent-{agent}",
+            build={**services["dev"]["build"], "target": f"agent_{agent}"},
+            container_name=f"{project_prefix(project)}-agent-{agent}",
+            labels={**labels, "org.brig.agent": agent},
+            volumes=[
+                dict(services["dev"]["volumes"][0]),
+                {"type": "volume", "source": home, "target": "/home/brig"},
+            ],
+        )
+        services[f"agent_{agent}"] = service
         if not integration.config_directory:
             continue
         shared = f"{agent}_config"
@@ -185,19 +206,11 @@ def add_agent_storage(project, services, volumes, labels, uid, agent_volumes) ->
             "name": (agent_volumes or {}).get(agent, f"brig-{agent}-{uid}"),
             "external": True,
         }
-        services["dev"]["volumes"].append(
-            {
-                "type": "volume",
-                "source": shared,
-                "target": integration.config_directory,
-            }
+        service["volumes"].append(
+            {"type": "volume", "source": shared, "target": integration.config_directory}
         )
         for history, volume, target in agent_history_volumes(project, agent):
             volumes[history] = {"name": volume, "labels": labels}
-            services["dev"]["volumes"].append(
-                {
-                    "type": "volume",
-                    "source": history,
-                    "target": target,
-                }
+            service["volumes"].append(
+                {"type": "volume", "source": history, "target": target}
             )

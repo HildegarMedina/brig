@@ -22,6 +22,9 @@ versions containing only `agent` select that one agent automatically. Claude Cod
 Codex, and OpenCode can be selected individually or together.
 
 Selected agents use their official native installers, without requiring Node.js.
+A common Dockerfile stage provides the profile languages and tools. Each
+`agent_AGENT` target adds only that agent's executable and configuration; the
+`dev` target includes no agent. Separate images reuse the common build layers.
 Claude uses its stable channel; Codex and OpenCode resolve their latest releases
 when the build stage runs. Unlike runtime and tool versions, agent releases are
 not pinned in profile YAML. Docker reuses installed binaries with an image or
