@@ -1,5 +1,8 @@
 # Development and maintenance
 
+Start with the [contribution guide](../CONTRIBUTING.md) for the pull request
+workflow and suggested tasks. This page covers implementation details.
+
 ## Prepare the repository
 
 ```bash
@@ -35,7 +38,9 @@ The simulation engine lives in `tests/demo_engine.py`.
 
 Dockerfile targets derive each agent image from the shared development stage.
 Compose gives each agent an independent home and mounts only its own
-configuration and histories. Agent execution checks both project and agent labels
+public authentication view and histories. Real credential volumes are mounted
+only in trusted proxy/helper containers. Agent execution checks project, agent,
+and proxy labels
 before `docker exec`; it must never fall back to development. Boundary tests
 verify mount separation, target contents, CLI forwarding, image cache reuse, and
 foreign-container rejection. Integration tests verify credential fixtures remain
@@ -82,7 +87,7 @@ module exclusions. A failing test or coverage below 100% blocks the commit, even
 when only documentation changes. Run `uv run --locked python scripts/check_coverage.py` to
 check the unit suite and coverage directly.
 
-Unit tests need neither Docker nor network access: they use controlled providers
+Unit tests need neither Docker nor external network access: they use controlled providers
 and the simulation engine as test dependencies. Real engine boundary tests replace
 subprocess execution but generate real files in temporary directories. Docker
 integration tests run separately using the command below.
@@ -129,14 +134,13 @@ The five enabled tests verify:
 - Building a missing image, reusing the container, mounting the correct folder,
   writing files with the user's UID, and preserving Redis data. Starting another
   project and verifying that stopping the first does not affect it.
-  Checking that Claude executes in its own container before and after recreation, its shared storage
-  is visible to both projects, and their conversation files remain separate.
+  Checking that Claude executes in its own container before and after recreation, settings and conversation files remain separate between projects.
 - Starting PostgreSQL, MySQL, MariaDB, MongoDB, and Redis with a PHP project;
   checking health, PDO connections, and MongoDB authentication.
 - Running Node.js, Claude, and Playwright; navigating a local page, clicking a
   button, saving a screenshot, and checking agent storage permissions.
 
-- Executing native Claude, Codex, and OpenCode in separate containers without Node.js; checking shared
+- Executing native Claude, Codex, and OpenCode in separate containers without Node.js; checking protected
   fixture credentials, private conversation state, and persistence after recreation.
 
 Tests use temporary profiles and folders. Cleanup selects only resources labeled

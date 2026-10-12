@@ -1,197 +1,198 @@
 # Brig
 
-Brig runs your projects in isolated Docker development environments from the
-command line. Choose your languages, tools, databases, and coding agents in a
-reusable profile, then attach that profile to a local project folder.
+Brig gives each project a Docker development environment with the languages,
+tools, databases, and AI coding agents you choose, managed from your terminal.
 
-It supports PHP, Python, and Node.js, plus PostgreSQL, MySQL, MariaDB, MongoDB,
-and Redis. Claude Code, Codex, and OpenCode are available agents.
+Projects often need different runtime versions, repeated database setup, and a
+place where an agent can work without accessing your whole machine. Brig was
+built to make that setup reusable: describe it once in a versioned YAML profile,
+use it across projects, and keep each project's environment separate.
 
-## How it works
+You can combine PHP, Python, and Node.js; add package managers, Playwright,
+PostgreSQL, MySQL, MariaDB, MongoDB, or Redis; and work with Claude Code, Codex,
+or OpenCode. The interface is available in English, Spanish, and Portuguese.
 
-- **Profile:** a readable YAML definition of your environment. Available versions
-  are fetched when you choose components; your selections are saved as a version.
-  Profiles can inherit a fixed version of another profile and add components.
-- **Project:** a local folder with a snapshot of a profile version. Editing the
-  profile does not automatically change existing projects.
-- **Run:** Brig generates the Docker configuration, builds a missing image, starts
-  the selected services, and opens a terminal inside the project's container.
+## Tutorial: from an empty folder to an agent-assisted project
 
-Your folder is mounted at `/workspace`, so code changes appear on your machine.
-The terminal runs as an unprivileged user with your UID/GID. Each project has its
-own containers, network, and data volumes.
+### 1. Install Brig
 
-Git, Bash, curl, jq, and ripgrep are included. Selecting a database also installs
-its command-line client in the development environment.
-Playwright is an optional tool for Chromium browser automation, also available
-with Python or PHP profiles. When Node.js is missing, its option explains that
-Node.js will also be installed. Selecting Playwright adds Node.js to the profile
-and asks you to choose its version.
-
-## Install
-
-Requires Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/). Running
-environments also requires Docker Engine and the Docker Compose v2 plugin or
-newer, accessible as your regular user. The installer checks these dependencies
-and automatically installs missing packages on supported Debian and Ubuntu hosts.
-
-From this repository:
+You need Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/).
+Download or clone this repository, then run from its folder as your regular user:
 
 ```bash
 ./scripts/install.sh
 brig --help
 ```
 
-If the command is not found, run `uv tool update-shell` and open another terminal.
-After updating the code, run `./scripts/install.sh` again. Run it as your regular
-user; system changes use `sudo`. If Docker access is newly configured, log out and
-back in before starting projects. Existing working Docker installations are reused.
-See [installation details](docs/tutorials/first-project.md#1-prepare-your-machine).
+The installer checks Docker Engine, Docker Compose, and your access to Docker.
+It installs missing Docker dependencies on supported Debian and Ubuntu hosts.
+If it adds your user to the Docker group, log out and back in before continuing.
+Other Linux distributions need Docker and Compose installed manually.
 
-## Start from zero
+If `brig` is not found, run `uv tool update-shell` and open another terminal.
+Re-run `./scripts/install.sh` after updating the repository.
+[Installation details](docs/tutorials/first-project.md#1-prepare-your-machine).
 
-### 1. Create a profile
+### 2. Choose your language and create a profile
 
 ```bash
+brig language en
 brig profile create
 ```
 
-For example, name it `python-dev`, select Python and an available version, choose
-any tools or databases you need, select your agents and a default agent, and save. Tools and
-databases are optional. Use Space to select components and Enter to continue.
-Names use `kebab-case`, such as `python-dev` or `my-project`.
+Use `es` for Spanish or `pt` for Portuguese. Name the profile `python-dev`,
+choose Python and one of the available versions, then select Codex as your agent.
+You can add tools such as uv, a database such as PostgreSQL, or other agents.
+Choose a default agent and save.
 
-### 2. Register a project folder
+Use arrows to navigate, Space to select components, Enter to continue, and Esc
+to go back. Versions are fetched when you choose components and your selections
+are saved as profile **version 1**. Nothing updates automatically.
+
+Playwright is optional. If you select it without Node.js, Brig explains the
+requirement and asks you to choose the Node.js version it will also install.
+
+### 3. Register your project and open its environment
 
 ```bash
-mkdir -p ~/projects/my-project
-cd ~/projects/my-project
+mkdir -p ~/projects/my-api
+cd ~/projects/my-api
 brig project init
+brig run my-api
 ```
 
-Name the project `my-project`, keep the current folder, select `python-dev`, and
-save. You can also register an existing application folder. This step registers
-the folder and its environment; create or install your application inside it.
+In the wizard, name the project `my-api`, keep the current folder, and choose
+`python-dev`. You can register an existing application folder in the same way.
 
-### 3. Enter the environment
+Brig builds missing images, starts your services, and opens Bash inside the
+project's development container. The first startup downloads images and packages.
+Try:
 
 ```bash
-brig run my-project
+python --version
+pwd
+exit
 ```
 
-Brig builds the image if needed and starts the containers automatically. The first
-startup downloads the required images and packages. Inside the terminal, you can
-run `python --version` and work on your application. From the host, open a
-selected agent from the host. Sign in through a trusted helper before opening it:
+Your project is mounted at `/workspace`: edits there also change the files on your
+machine. The shell runs as an unprivileged user matching your host UID/GID.
+Git, curl, jq, and ripgrep are included; selected databases also get CLI clients.
+You install application dependencies and start your application yourself.
+Publishing application ports requires manual setup.
+
+`exit` returns to your host; the environment keeps running. Inside a registered
+folder, `brig run` works without specifying its name.
+
+### 4. Sign in and open a coding agent
+
+From your host:
 
 ```bash
-brig auth login codex --project my-project
-brig agent codex --project my-project
+brig auth login codex --project my-api
+brig agent codex --project my-api
 ```
 
-Use `claude` or `opencode` instead for those agents. To use an API key, run
-`brig auth set-key codex --project my-project`; Brig prompts without displaying
-it. See [protected credentials](docs/how-to/credentials.md) for supported providers.
-
-Each agent's login persists across projects for the same host user and Brig data
-directory. Settings and conversation state are private to each project.
-
-Each selected agent runs in its own container with the profile's languages and
-tools. A separate credential proxy holds its real login and authenticates approved
-provider requests. The agent receives a public certificate and inert login
-placeholders, with no mount of the real credential store. Development has no
-agent executables or credential mounts. Agents share the writable project folder
-and can access the project's database services.
-
-Agents run with full tool permissions inside their own containers. They can edit files and run commands without
-permission approvals. Docker provides the isolation boundary; edits to the
-mounted project folder are reflected on the host.
-
-Type `exit` in Bash to return to your machine. The environment keeps running.
-From the host, you can open the default agent or another selected agent:
+Follow the login instructions. If you prefer an API key, use the hidden prompt:
 
 ```bash
-brig agent --project my-project
-brig agent codex --project my-project
-brig agent opencode --project my-project
+brig auth set-key codex --project my-api
 ```
 
-### 4. Everyday commands
+Use `claude` or `opencode` for another agent selected in your profile.
+`brig agent --project my-api` opens the default agent. OpenCode's login command
+selects OpenAI; other supported providers use `set-key --provider PROVIDER`.
+See [protected credentials](docs/how-to/credentials.md) for the provider list.
 
-| Command | Result |
-| --- | --- |
-| `brig run my-project` | Prepare the environment and enter its terminal |
-| `brig agent --project my-project` | Prepare the environment and open its default agent |
-| `brig up --project my-project` | Start in the background |
-| `brig down --project my-project` | Stop and remove containers; keep code, data, and login |
-| `brig project list` | List registered projects and their status |
+Each agent has its own container and project-specific settings and conversation
+state. Login is reused across projects for the same host user and Brig data
+directory. A separate proxy holds the real provider credentials; agents receive
+placeholders instead of the credential store.
 
-Inside a registered folder, `brig run` selects that project automatically. Run
-`brig` without arguments to use the interactive menu.
+Agents run commands without tool approval prompts. They share your project folder
+and can modify or delete its files, read secrets stored there, and use the project's
+databases. Provider credential protection does not protect secrets in your code.
+[Isolation and upgrade details](docs/how-to/agent-isolation.md).
 
-Brig currently prepares the environment. Application dependency installation,
-HTTP server startup, and application port publishing require manual setup.
+### 5. Give your agent an image or document
 
-After updating an existing installation, run `brig down --project my-project`
-and then `brig agent --project my-project` from the host. Existing login and
-conversation-directory volumes are reused. See [agent isolation](docs/how-to/agent-isolation.md)
-for the storage changes and security limits.
-
-## Choose your language
-
-Brig's interface and messages are available in English, Spanish, and Portuguese.
-Save your preference from Settings in `brig`, or from the command line:
-
-```bash
-brig language es
-brig language pt
-brig language en
-```
-
-Use `brig --lang es profile list` for one invocation, or `brig language auto` to
-follow your terminal locale. `BRIG_LANG` also selects the language. Commands,
-profile names, and YAML keys stay the same in every language.
-See [language settings](docs/how-to/languages.md) for the selection order.
-
-## Share and import profiles
-
-Copy saved profile YAML files or their folders to another machine, then import:
-
-```bash
-brig profile import ./shared-profiles/
-brig profile list
-```
-
-Import preserves names, version history, and pinned inheritance. Include the base
-profiles and their referenced versions, unless they are already saved locally.
-For a new profile, include its history starting at version 1. Identical versions
-are skipped; conflicting versions are rejected without changing your profiles.
-Existing projects keep their configuration. Import works without Docker or internet.
-See [import profiles](docs/how-to/import-profiles.md) for examples.
-
-## Documentation
-
-Start with the [documentation index](docs/README.md).
-
-- [Tutorial: your first project](docs/tutorials/first-project.md).
-- [How-to: manage projects](docs/how-to/projects.md).
-- [How-to: import profiles](docs/how-to/import-profiles.md).
-- [How-to: protected credentials](docs/how-to/credentials.md).
-- [How-to: agent isolation](docs/how-to/agent-isolation.md).
-- [How-to: choose your language](docs/how-to/languages.md).
-- [Explanation: architecture and execution flow](docs/explanation/architecture.md).
-- [Reference: commands](docs/reference/cli.md).
-- [Reference: storage and persistence](docs/reference/storage.md).
-- [Reference: components and versions](docs/reference/components.md).
-- [Troubleshooting](docs/how-to/troubleshooting.md).
-
-Share a local screenshot or document with a project's agent from the host:
+Open another host terminal and attach a local file:
 
 ```bash
 brig project attach my-api ~/Downloads/design.png
 ```
 
-Give the printed `/workspace/.brig/context/attachments/…` path to the agent.
-Copies are available without restarting the container. Remove them with
-`brig project detach my-api`; `brig down --project my-api` also cleans attachments.
-Original files are preserved. See [project context](docs/how-to/projects.md#share-images-and-context-with-an-agent).
+Brig copies it into the project and prints a `/workspace/.brig/context/attachments/…`
+path. Give that path to your agent: “Use this image as the design reference.”
+You can attach several files without restarting the environment.
+
+```bash
+brig project detach my-api
+```
+
+This removes attachment copies and preserves the original files. Stopping the
+project also clears those copies. [More about project context](docs/how-to/projects.md#share-images-and-context-with-an-agent).
+
+### 6. Reuse and evolve your environment
+
+Create a second profile based on the first:
+
+```bash
+brig profile create --base python-dev --base-version 1
+```
+
+Name it `python-web`. Inherited components are already included; the wizard offers
+components you can add. The base version stays fixed, and Brig prevents deleting
+profiles referenced by projects or inherited profiles.
+
+To change your original profile and apply its latest version to the project:
+
+```bash
+brig profile edit python-dev
+brig down --project my-api
+brig project update my-api
+brig run my-api
+```
+
+Editing saves a new profile version; existing projects keep their saved version
+until you update them. To explicitly update a child's inherited base, use
+`brig profile edit python-web --update-base`.
+
+To share profiles, copy their saved YAML folders from
+`${XDG_DATA_HOME:-~/.local/share}/brig/profiles/`, including base profiles and
+version histories. On the receiving machine:
+
+```bash
+brig profile import ./shared-profiles/
+```
+
+Import works offline and preserves versions and inheritance.
+[Sharing details](docs/how-to/import-profiles.md).
+
+### 7. Manage your projects from the terminal
+
+```bash
+brig
+```
+
+The dashboard has Projects, Profiles, and Settings. Use Tab or Left/Right to
+switch tabs, Up/Down to select, Enter for actions, and Esc to go back or exit.
+You can also work directly with commands:
+
+| Command | What it does |
+| --- | --- |
+| `brig project list` | View projects and their status |
+| `brig profile list` | View profiles and their latest versions |
+| `brig project show my-api` | Inspect its folder, profile version, and Docker resources |
+| `brig up --project my-api` | Start the environment in the background |
+| `brig down --project my-api` | Remove containers and clear attachments; keep source files, data, and login |
+| `brig project dockerfile my-api` | Inspect the generated Dockerfile |
+| `brig project delete my-api` | Remove a stopped project's registration; keep its files and volumes |
+
+## Learn more or contribute
+
+See the [documentation index](docs/README.md) for guides, the
+[command reference](docs/reference/cli.md) for all options, and
+[troubleshooting](docs/how-to/troubleshooting.md) when something fails.
+
+Want to help improve Brig? Read the [contribution guide](CONTRIBUTING.md) for
+setup, expectations, and suggested tasks.

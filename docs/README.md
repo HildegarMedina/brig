@@ -19,6 +19,7 @@ terminal inside its development container.
 | Look up commands and options | [Command reference](reference/cli.md) |
 | Find definitions, credentials, and data | [Storage and persistence](reference/storage.md) |
 | Look up components, versions, and compatibility | [Components and versions](reference/components.md) |
+| Find contribution guidelines and suggested tasks | [Contributing](../CONTRIBUTING.md) |
 | Change the code and run tests | [Development and maintenance](development.md) |
 
 ## Current scope
