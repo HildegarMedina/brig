@@ -22,6 +22,8 @@ class StateStore(Protocol):
 
     def delete_profile(self, state: State, profile: Profile) -> None: ...
 
+    def replace_profiles(self, state: State, names: list[str]) -> None: ...
+
 
 def default_data_directory() -> Path:
     base = os.environ.get("XDG_DATA_HOME")
@@ -128,42 +130,48 @@ class JsonStateStore:
                 temporary.unlink(missing_ok=True)
 
     def delete_profile(self, state: State, profile: Profile) -> None:
-        directory = profile_path(self.path.parent, profile.name, 1).parent.parent
-        temporary = None
-        committed = False
         try:
-            # Move version files aside before committing state. A failed save
-            # restores the complete directory, including all previous versions.
-            temporary = Path(
-                tempfile.mkdtemp(dir=self.path.parent, prefix=".delete-profile-")
-            )
-            staged = temporary / "versions"
-            moved = False
-            if directory.exists():
-                os.replace(directory, staged)
-                moved = True
-            try:
-                self.save(state)
-                committed = True
-            except Exception:
-                if moved:
-                    try:
-                        os.replace(staged, directory)
-                    except OSError as error:
-                        raise BrigError(
-                            tr(
-                                "Deletion failed and versions could not be restored. Original YAML files are preserved at {value0}: {value1}"
-                            ).format(value0=staged, value1=error)
-                        ) from error
-                raise
+            self.replace_profiles(state, [profile.name])
         except OSError as error:
             raise BrigError(
                 tr("Cannot delete profile '{value0}': {value1}").format(
                     value0=profile.name, value1=error
                 )
             ) from error
+
+    def replace_profiles(self, state: State, names: list[str]) -> None:
+        """Rewrite the version documents of the named profiles from state.
+
+        Version files are moved aside before committing state; a failed save
+        restores every directory, including all previous versions.
+        """
+        directories = [
+            profile_path(self.path.parent, name, 1).parent.parent for name in names
+        ]
+        temporary = Path(
+            tempfile.mkdtemp(dir=self.path.parent, prefix=".replace-profiles-")
+        )
+        moved = []
+        committed = False
+        try:
+            for index, directory in enumerate(directories):
+                if directory.exists():
+                    staged = temporary / str(index)
+                    os.replace(directory, staged)
+                    moved.append((staged, directory))
+            self.save(state)
+            committed = True
         finally:
-            if temporary is not None and (
-                committed or not (temporary / "versions").exists()
-            ):
-                shutil.rmtree(temporary, ignore_errors=True)
+            if not committed:
+                for staged, directory in moved:
+                    try:
+                        # Remove documents a failed save may have created.
+                        shutil.rmtree(directory, ignore_errors=True)
+                        os.replace(staged, directory)
+                    except OSError as error:
+                        raise BrigError(
+                            tr(
+                                "Profile changes failed and versions could not be restored. Original YAML files are preserved at {value0}: {value1}"
+                            ).format(value0=staged, value1=error)
+                        ) from error
+            shutil.rmtree(temporary, ignore_errors=True)

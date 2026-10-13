@@ -83,21 +83,39 @@ class ProjectViews:
                     tr("Could not complete action"), [str(error)], error=True
                 )
 
+    def rename_project(self, name: str) -> str:
+        project = self.app.project(name)
+        new_name = self.ui.input(
+            tr("Rename project '{value0}'").format(value0=project.name),
+            project.name,
+            required_message=tr("Enter a project name."),
+            validator=self.app.validate_project_name,
+        )
+        self.ui.notice(
+            tr("Project renamed"), [self.app.rename_project(project.name, new_name)]
+        )
+        return new_name
+
     def delete_project(self, name: str) -> bool:
-        project = self.app.project_for_deletion(name)
+        project = self.app.project(name)
         if not self.ui.confirm(
             tr("Delete project '{value0}'").format(value0=project.name),
             [
                 tr("Name       {value0}").format(value0=project.name),
                 tr("Folder     {value0}").format(value0=project.path or tr("(none)")),
                 tr("Profile    {value0}").format(value0=project.profile),
-                tr("Only the Brig registration will be deleted."),
+                tr(
+                    "The environment will be stopped and its containers, images, and volumes deleted, including databases and agent history."
+                ),
                 tr("Your local folder, code, and profile will be kept."),
             ],
             action="Delete project",
         ):
             return False
-        self.ui.notice(tr("Project deleted"), [self.app.delete_project(project.name)])
+        message = getattr(self.ui, "external", lambda action: action())(
+            lambda: self.app.delete_project(project.name)
+        )
+        self.ui.notice(tr("Project deleted"), [message])
         return True
 
     def project_detail(self, name: str) -> None:
@@ -113,6 +131,7 @@ class ProjectViews:
                         tr("Run agent"),
                         tr("Shell"),
                         tr("Apply profile update"),
+                        tr("Rename project"),
                         tr("Delete project"),
                         tr("View Dockerfile"),
                     ],
@@ -153,6 +172,9 @@ class ProjectViews:
                         continue
                     message = self.app.update_project(name)
                 elif choice == 6:
+                    # Reopen the detail view under the new name.
+                    return self.project_detail(self.rename_project(name))
+                elif choice == 7:
                     if self.delete_project(name):
                         return
                     continue

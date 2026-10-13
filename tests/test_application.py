@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import patch
 
 from brig.application import Application
 from brig.errors import BrigError
@@ -43,16 +44,58 @@ class ApplicationTests(unittest.TestCase):
         self.assertEqual(self.app.profile("python"), profile)
         self.app.create_project("first", Path(project.path), "python")
 
-    def test_running_project_must_be_stopped_before_deletion(self):
+    def test_deletion_removes_the_environment_before_the_registration(self):
+        project = self.create_project()
+        with patch.object(self.app.engine, "remove") as remove:
+            self.app.delete_project("first")
+        remove.assert_called_once_with(project)
+        self.assertEqual(self.app.state.projects, [])
+
+    def test_failed_environment_removal_keeps_the_registration(self):
         self.create_project()
-        self.app.start("first")
         before = deepcopy(self.app.state)
-        with self.assertRaisesRegex(BrigError, "brig down --project first"):
+        with (
+            patch.object(
+                self.app.engine, "remove", side_effect=BrigError("Docker failed")
+            ),
+            self.assertRaisesRegex(BrigError, "Docker failed"),
+        ):
             self.app.delete_project("first")
         self.assertEqual(self.app.state, before)
-        self.app.stop("first")
-        self.app.delete_project("first")
-        self.assertEqual(self.app.state.projects, [])
+        self.assertEqual(self.store.load(), before)
+
+    def test_rename_project_keeps_its_id_and_rejects_taken_names(self):
+        project = self.create_project()
+        self.create_project("second")
+        self.app.rename_project("first", "renamed")
+        renamed = self.app.project("renamed")
+        self.assertEqual(renamed.id, project.id)
+        self.assertEqual(self.store.load().projects[0].name, "renamed")
+        before = deepcopy(self.app.state)
+        for name in ("second", "renamed", "Bad Name"):
+            with self.assertRaises(BrigError):
+                self.app.rename_project("renamed", name)
+        self.assertEqual(self.app.state, before)
+
+    def test_rename_profile_updates_projects_and_children(self):
+        self.create_project()
+        self.app.save_profile(
+            "child", {"python": "3.11.11"}, {"uv": "0.5.24"}, {}, base="python"
+        )
+        folder = self.root / "inherited"
+        folder.mkdir()
+        self.app.create_project("inherited", folder, "child")
+        self.app.rename_profile("python", "py")
+        self.assertEqual(self.app.project("first").profile, "py")
+        self.assertEqual(self.app.profile("child").latest.extends.profile, "py")
+        inherited = self.app.project("inherited")
+        self.assertEqual(inherited.profile, "child")
+        self.assertEqual(inherited.configuration.extends.profile, "py")
+        self.assertEqual(self.store.load(), self.app.state)
+        with self.assertRaisesRegex(BrigError, "Unknown profile"):
+            self.app.profile("python")
+        with self.assertRaisesRegex(BrigError, "already exists"):
+            self.app.rename_profile("py", "child")
 
     def test_failed_project_deletion_preserves_state(self):
         self.create_project()

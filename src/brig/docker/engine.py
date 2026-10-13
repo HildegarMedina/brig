@@ -2,6 +2,7 @@
 
 import os
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -229,6 +230,47 @@ class DockerEngine:
             return tr(
                 "Cleaned {value0}: removed {value1} old image tags. Current images, containers, and volumes were kept."
             ).format(value0=project.name, value1=removed)
+
+    def remove(self, project: Project) -> None:
+        """Delete the project's containers, networks, volumes, images and files.
+
+        Only resources labelled with the project ID or named with its unique
+        prefix are removed; shared agent logins are kept.
+        """
+        prefix = project_prefix(project)
+        label = f"label=org.brig.project-id={project.id}"
+        with self.workspace.lock(project):
+            self.client.inspect(project)  # Verify ownership before deleting.
+            self._stop(project)
+
+            def names(kind, *options):
+                result = self.client.run(
+                    [kind, "ls", *options, "--format", "{{.Name}}"]
+                )
+                return result.stdout.split()
+
+            containers = self.client.run(
+                ["container", "ls", "--all", "--quiet", "--filter", label]
+            ).stdout.split()
+            if containers:
+                self.client.run(["container", "rm", "--force", *containers])
+            for kind in ("network", "volume"):
+                found = set(names(kind, "--filter", label)) | {
+                    name for name in names(kind) if name.startswith(f"{prefix}-")
+                }
+                if found:
+                    self.client.run([kind, "rm", *sorted(found)])
+            repository = f"brig-dev-{prefix}"
+            images = [
+                reference
+                for reference in self.client.run(
+                    ["image", "ls", "--format", "{{.Repository}}:{{.Tag}}", repository]
+                ).stdout.split()
+                if reference.startswith(f"{repository}:")
+            ]
+            if images:
+                self.client.run(["image", "rm", *images])
+            shutil.rmtree(self.workspace.project_directory(project), ignore_errors=True)
 
     def stop(self, project: Project) -> str:
         with self.workspace.lock(project):

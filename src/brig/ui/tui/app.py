@@ -29,6 +29,9 @@ class InteractiveApp:
     def profile_wizard(self, name: str | None = None, **options) -> None:
         self.profile_views.profile_wizard(name, **options)
 
+    def rename_profile(self, name: str) -> None:
+        self.profile_views.rename_profile(name)
+
     def delete_profile(self, name: str) -> None:
         self.profile_views.delete_profile(name)
 

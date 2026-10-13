@@ -192,12 +192,27 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(JsonStateStore(self.data).load().projects, [])
 
-    def test_project_delete_with_yes_cannot_delete_running_project(self):
+    def test_project_delete_with_yes_removes_running_project_environment(self):
         JsonStateStore(self.data).save(demo_state())
-        status, _, errors = self.command("project", "delete", "api", "--yes")
+        status, output, _ = self.command("project", "delete", "api", "--yes")
+        self.assertEqual(status, 0)
+        self.assertIn("containers, images, and volumes", output)
+        self.assertNotIn("api", self.command("project", "list")[1])
+
+    def test_rename_profile_and_project(self):
+        JsonStateStore(self.data).save(demo_state())
+        status, output, _ = self.command("profile", "rename", "web_dev", "web")
+        self.assertEqual(status, 0)
+        self.assertIn("Renamed profile 'web_dev' to 'web'", output)
+        status, output, _ = self.command("project", "rename", "api", "backend")
+        self.assertEqual(status, 0)
+        self.assertIn("Renamed project 'api' to 'backend'", output)
+        state = JsonStateStore(self.data).load()
+        self.assertIn("web", [profile.name for profile in state.profiles])
+        self.assertIn("backend", [project.name for project in state.projects])
+        status, _, errors = self.command("project", "rename", "backend", "website")
         self.assertEqual(status, 1)
-        self.assertIn("brig down --project api", errors)
-        self.assertIn("api", self.command("project", "list")[1])
+        self.assertIn("already exists", errors)
 
     def test_first_run_lists_are_empty_and_remain_empty_on_reload(self):
         for _ in range(2):

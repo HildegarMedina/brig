@@ -75,6 +75,9 @@ class MemoryStore:
     def delete_profile(self, state, profile):
         self.save(state)
 
+    def replace_profiles(self, state, names):
+        self.save(state)
+
 
 def demo_state() -> State:
     web = ProfileVersion(

@@ -192,6 +192,18 @@ Export works without Docker or internet and refuses existing files. The engine
 generates its own copy under Brig's data directory. Editing an exported copy does
 not change the Dockerfile used by `run`.
 
+## Rename a definition
+
+```bash
+brig project rename my-api backend
+brig profile rename python-dev python
+```
+
+Renaming changes only the name. Docker resources are named by the project's
+internal ID, so containers, images, and volumes are kept, and a running project
+keeps running. A renamed profile's projects and child profiles follow the new
+name; its YAML documents move to the new profile folder.
+
 ## Stop or delete a definition
 
 ```bash
@@ -200,10 +212,10 @@ brig project delete my-api
 ```
 
 `down` removes containers, the network, and attachment copies while preserving
-volumes and permanent context. Deleting a
-project removes its Brig registration but keeps its folder, profile, runtime
-artifacts, and volumes. The deletion check queries Docker, including services
-left running after a failed startup.
+volumes and permanent context. Deleting a project stops it if needed and removes
+its containers, networks, images, volumes (including databases and agent
+history), runtime files, and Brig registration. Its folder, code, and profile are
+kept, as are the agent logins shared with other projects.
 
 A profile can only be deleted when no projects reference it:
 

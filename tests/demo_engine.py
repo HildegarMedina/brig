@@ -39,6 +39,9 @@ class DemoEngine:
             return f"{project.name} is already stopped (simulated)."
         return f"Stopped {project.name} (simulated). Project data is preserved."
 
+    def remove(self, project: Project) -> None:
+        pass
+
     def run_agent(self, project: Project, agent: str, command=None) -> str:
         validate_agent(agent)
         self._require_running(project)

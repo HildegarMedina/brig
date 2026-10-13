@@ -239,6 +239,32 @@ class Application:
             value0=profile.name
         )
 
+    def rename_profile(self, name: str, new_name: str) -> str:
+        profile = self.profile(name)
+        new_name = self.validate_profile_name(new_name)
+        candidate = deepcopy(self.state)
+        # Version documents embed the profile name and their base's name, so
+        # the renamed profile and every child inheriting it are rewritten.
+        affected = {profile.name}
+        for item in candidate.profiles:
+            if item.name == profile.name:
+                item.name = new_name
+            for version in item.versions:
+                if version.extends and version.extends.profile == profile.name:
+                    version.extends = ProfileParent(new_name, version.extends.version)
+                    affected.add(item.name)
+        for project in candidate.projects:
+            if project.profile == profile.name:
+                project.profile = new_name
+            extends = project.configuration.extends
+            if extends and extends.profile == profile.name:
+                project.configuration.extends = ProfileParent(new_name, extends.version)
+        self.store.replace_profiles(candidate, sorted(affected))
+        self.state = candidate
+        return tr("Renamed profile '{value0}' to '{value1}'.").format(
+            value0=profile.name, value1=new_name
+        )
+
     def create_project(self, name: str, path: Path, profile_name: str) -> Project:
         name = self.validate_project_name(name)
         directory = path.expanduser().resolve()
@@ -267,25 +293,31 @@ class Application:
         destination = write_dockerfile(output, contents)
         return tr("Dockerfile exported to {value0}").format(value0=destination)
 
-    def project_for_deletion(self, name: str) -> Project:
+    def rename_project(self, name: str, new_name: str) -> str:
         project = self.project(name)
-        if self.engine.has_running_resources(project):
-            raise BrigError(
-                tr(
-                    "Cannot delete running project '{value0}'. Stop it first with 'brig down --project {value1}'."
-                ).format(value0=project.name, value1=project.name)
-            )
-        return project
+        new_name = self.validate_project_name(new_name)
+        candidate = deepcopy(self.state)
+        # Docker resources are named by the project ID, so they stay in place.
+        next(
+            item for item in candidate.projects if item.id == project.id
+        ).name = new_name
+        self._commit(candidate)
+        return tr("Renamed project '{value0}' to '{value1}'.").format(
+            value0=project.name, value1=new_name
+        )
 
     def delete_project(self, name: str) -> str:
-        project = self.project_for_deletion(name)
+        project = self.project(name)
+        # Docker goes first: if removal fails, the registration remains so the
+        # deletion can be retried.
+        self.engine.remove(project)
         candidate = deepcopy(self.state)
         candidate.projects = [
             item for item in candidate.projects if item.id != project.id
         ]
         self._commit(candidate)
         return tr(
-            "Deleted project '{value0}' from Brig. Its local folder and profile were kept."
+            "Deleted project '{value0}' with its containers, images, and volumes. Its local folder and profile were kept."
         ).format(value0=project.name)
 
     def clean_project(self, name: str) -> str:

@@ -117,9 +117,11 @@ class UiPathTests(unittest.TestCase):
         interactive.profiles()
         interactive.projects()
         interactive.delete_project("website")
+        interactive.rename_profile("web_dev")
         interactive.profile_views.profiles.assert_called_once()
         interactive.project_views.projects.assert_called_once()
         interactive.project_views.delete_project.assert_called_once_with("website")
+        interactive.profile_views.rename_profile.assert_called_once_with("web_dev")
         with patch("brig.ui.tui.app.Dashboard") as dashboard:
             interactive.home()
             dashboard.return_value.run.assert_called_once_with()
@@ -131,13 +133,14 @@ class UiPathTests(unittest.TestCase):
         self.assertIn("brig profile create", ui.notice.call_args.args[1][0])
 
     def test_profile_actions_and_management_errors(self):
-        for action in (0, 1, 2):
+        for action in (0, 1, 2, 3):
             ui = Mock()
             ui.choose.return_value = action
             view = ProfileViews(self.app, ui, Path("/tmp"))
             with (
                 patch("brig.ui.tui.profiles.choose_list", side_effect=[0, Cancelled]),
                 patch.object(view, "profile_wizard") as edit,
+                patch.object(view, "rename_profile") as rename,
                 patch.object(view, "delete_profile") as delete,
             ):
                 view.profiles()
@@ -145,6 +148,8 @@ class UiPathTests(unittest.TestCase):
                 ui.notice.assert_called_once()
             elif action == 1:
                 edit.assert_called_once_with("web_dev")
+            elif action == 2:
+                rename.assert_called_once_with("web_dev")
             else:
                 delete.assert_called_once_with("web_dev")
         ui = Mock()
@@ -162,7 +167,7 @@ class UiPathTests(unittest.TestCase):
         )
 
     def test_project_actions_use_existing_application_flows(self):
-        for action in (0, 1, 2, 3, 4, 5, 7):
+        for action in (0, 1, 2, 3, 4, 5, 8):
             ui = Mock()
             ui.choose.side_effect = [action, *([0] if action == 3 else []), Cancelled]
             ui.confirm.return_value = True
@@ -174,11 +179,15 @@ class UiPathTests(unittest.TestCase):
         ui.confirm.return_value = False
         ProjectViews(self.app, ui, Path("/tmp")).project_detail("website")
         ui.notice.assert_not_called()
-        ui.choose.side_effect = [6, Cancelled]
+        ui.choose.side_effect = [7, Cancelled]
         view = ProjectViews(self.app, ui, Path("/tmp"))
         with patch.object(view, "delete_project", return_value=False) as delete:
             view.project_detail("website")
         delete.assert_called_once_with("website")
+        ui.choose.side_effect = [6, Cancelled]
+        with patch.object(view, "rename_project", return_value="website") as rename:
+            view.project_detail("website")
+        rename.assert_called_once_with("website")
 
     def test_project_view_errors_are_presented(self):
         ui = Mock()
@@ -242,7 +251,7 @@ class UiPathTests(unittest.TestCase):
 
     def test_dashboard_profile_edit_delete_back_and_cancel(self):
         case = test_dashboard.DashboardTests()
-        for action in (0, 1, 2, Cancelled()):
+        for action in (0, 1, 2, 3, Cancelled()):
             dashboard = case.dashboard([])
             with (
                 patch.object(dashboard.ui, "choose", side_effect=[action])
@@ -253,6 +262,8 @@ class UiPathTests(unittest.TestCase):
             if action == 0:
                 dashboard.views.profile_wizard.assert_called_once_with("web_dev")
             elif action == 1:
+                dashboard.views.rename_profile.assert_called_once_with("web_dev")
+            elif action == 2:
                 dashboard.views.delete_profile.assert_called_once_with("web_dev")
 
     def test_dashboard_shell_agent_settings_and_detail_scroll(self):

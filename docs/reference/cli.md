@@ -36,6 +36,7 @@ context after an invocation. See [language settings](../how-to/languages.md).
 | `brig profile import PATH [PATH ...]` | Import YAML files or folders with their histories and bases |
 | `brig profile list` | List names and latest versions |
 | `brig profile edit NAME [--update-base]` | Wizard that creates another version; optionally use the latest base version |
+| `brig profile rename NAME NEW_NAME` | Rename a profile; its projects and child profiles follow it |
 | `brig profile delete NAME [--yes]` | Delete an unreferenced profile and its YAML documents |
 
 Creating and editing require an interactive terminal and internet to fetch
@@ -81,7 +82,8 @@ See [import profiles](../how-to/import-profiles.md) for examples and file limits
 | `brig project show NAME` | Show snapshot, folder, and environment resources |
 | `brig project clean NAME` | Remove unused old project image tags; keep current images and data |
 | `brig project update NAME` | Adopt the latest profile version when the environment is stopped |
-| `brig project delete NAME [--yes]` | Remove a stopped project's registration |
+| `brig project rename NAME NEW_NAME` | Rename a project; its Docker environment is kept |
+| `brig project delete NAME [--yes]` | Stop the project and remove its containers, images, volumes, and registration; keep its folder and profile |
 | `brig project dockerfile [NAME] [--output FILE]` | Display or export its Dockerfile |
 | `brig project attach NAME FILE [FILE ...]` | Copy local files into project context and print their container paths |
 | `brig project detach NAME` | Remove all attachment copies for the project; preserve originals |

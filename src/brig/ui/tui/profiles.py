@@ -326,6 +326,18 @@ class ProfileViews:
         message = self.app.delete_profile(profile.name)
         self.ui.notice(tr("Profile deleted"), [message])
 
+    def rename_profile(self, name: str) -> None:
+        profile = self.app.profile(name)
+        new_name = self.ui.input(
+            tr("Rename profile '{value0}'").format(value0=profile.name),
+            profile.name,
+            required_message=tr("Enter a profile name."),
+            validator=self.app.validate_profile_name,
+        )
+        self.ui.notice(
+            tr("Profile renamed"), [self.app.rename_profile(profile.name, new_name)]
+        )
+
     def profiles(self) -> None:
         selected = 0
         while True:
@@ -345,6 +357,7 @@ class ProfileViews:
                         [
                             tr("View latest version"),
                             tr("Edit profile"),
+                            tr("Rename profile"),
                             tr("Delete profile"),
                         ],
                     )
@@ -354,6 +367,8 @@ class ProfileViews:
                         )
                     elif action == 1:
                         self.profile_wizard(name)
+                    elif action == 2:
+                        self.rename_profile(name)
                     else:
                         self.delete_profile(name)
             except Cancelled:

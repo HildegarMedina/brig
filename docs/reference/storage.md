@@ -82,7 +82,9 @@ An incompatible or corrupt file produces an error and is not silently replaced.
 State and YAML writes use temporary files. If saving a version fails, its newly
 created documents are removed. Import validates the complete batch before a
 single save, preserving previous definitions on validation or save failure.
-Existing versions cannot be overwritten. Imported schema 1 YAML is accepted and
+Existing versions cannot be overwritten; only renaming a profile rewrites its
+documents and its children's with the new name, restoring them all if the save
+fails. Imported schema 1 YAML is accepted and
 written in the current schema 2 format; source files remain unchanged.
 
 ## Engine artifacts
@@ -193,11 +195,13 @@ See [upgrade guidance](../how-to/agent-isolation.md#upgrade-existing-projects).
 | --- | --- | --- | --- | --- | --- |
 | Leave the terminal | Keep | Keep | Keep | Remain running | Keep |
 | `down` | Keep | Keep | Keep | Remove | Keep |
-| Delete a stopped project | Remove | Keep | Keep | Neither create nor remove | Keep |
+| Rename a project | Rename | Keep | Keep | Unchanged | Keep |
+| Rename a profile | Follow the new name | Keep | Move and rewrite its YAML and its children's | Unchanged | Unchanged |
+| Delete a project | Remove | Keep | Keep | Remove, with its images | Remove project volumes and runtime files; keep shared agent logins |
 | Delete an unreferenced profile | No associated projects | Keep | Remove profile and its YAML | Unchanged | Unchanged |
 
-Deleting a definition does not delete Docker data. Brig does not currently offer
-a command to purge volumes or historical artifacts.
+Deleting a project removes its databases and agent history permanently. Back up
+what you need first.
 
 ## Backups
 

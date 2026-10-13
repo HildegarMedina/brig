@@ -89,11 +89,19 @@ class Dashboard:
         else:
             try:
                 action = self.ui.choose(
-                    item.name, [tr("Edit profile"), tr("Delete profile"), tr("Back")]
+                    item.name,
+                    [
+                        tr("Edit profile"),
+                        tr("Rename profile"),
+                        tr("Delete profile"),
+                        tr("Back"),
+                    ],
                 )
                 if action == 0:
                     self.views.profile_wizard(item.name)
                 elif action == 1:
+                    self.views.rename_profile(item.name)
+                elif action == 2:
                     self.views.delete_profile(item.name)
             except Cancelled:
                 pass

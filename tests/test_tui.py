@@ -252,21 +252,42 @@ class WizardTests(unittest.TestCase):
         )
         self.assertEqual(terminal.messages[-1][0], "Project deleted")
 
-    def test_project_detail_returns_after_deletion_and_blocks_running_projects(self):
-        terminal = ScriptedTerminal(choices=[6])
+    def test_project_detail_returns_after_deletion_including_running_projects(self):
+        terminal = ScriptedTerminal(choices=[7])
         InteractiveApp(self.app, terminal, Path("/tmp")).project_detail("website")
         self.assertNotIn(
             "website", [project.name for project in self.app.state.projects]
         )
-        with self.assertRaisesRegex(BrigError, "Cannot delete running project"):
-            InteractiveApp(self.app, ScriptedTerminal(), Path("/tmp")).delete_project(
-                "api"
-            )
+        InteractiveApp(self.app, ScriptedTerminal(), Path("/tmp")).delete_project("api")
+        self.assertEqual(self.app.state.projects, [])
+
+    def test_project_deletion_requires_confirmation(self):
+        before = deepcopy(self.app.state)
+        terminal = ScriptedTerminal(confirmed=False)
+        InteractiveApp(self.app, terminal, Path("/tmp")).delete_project("website")
+        self.assertEqual(self.app.state, before)
+
+    def test_project_detail_renames_and_reopens_under_the_new_name(self):
+        terminal = ScriptedTerminal(inputs=["site"])
+        with patch.object(terminal, "choose", side_effect=[6, Cancelled()]) as choose:
+            InteractiveApp(self.app, terminal, Path("/tmp")).project_detail("website")
+        self.assertIn("site", [project.name for project in self.app.state.projects])
+        self.assertTrue(choose.call_args.args[0].startswith("site · "))
+
+    def test_profile_rename_from_profile_list(self):
+        terminal = ScriptedTerminal(inputs=["web"])
+        with (
+            patch.object(terminal, "choose", side_effect=[2, Cancelled()]),
+            patch("brig.ui.tui.profiles.choose_list", side_effect=[0, Cancelled()]),
+        ):
+            InteractiveApp(self.app, terminal, Path("/tmp")).profiles()
+        self.assertEqual(terminal.messages[-1][0], "Profile renamed")
+        self.assertIn("web", [profile.name for profile in self.app.state.profiles])
 
     def test_project_detail_previews_dockerfile_without_mutating_project(self):
         before = deepcopy(self.app.state)
         terminal = ScriptedTerminal()
-        with patch.object(terminal, "choose", side_effect=[7, Cancelled()]):
+        with patch.object(terminal, "choose", side_effect=[8, Cancelled()]):
             InteractiveApp(self.app, terminal, Path("/tmp")).project_detail("website")
         title, lines = terminal.messages[-1]
         self.assertEqual(title, "Generated Dockerfile")

@@ -94,6 +94,11 @@ def parser() -> argparse.ArgumentParser:
     edition.add_argument(
         "--update-base", action="store_true", help=tr("inherit the latest base version")
     )
+    renaming = profiles.add_parser(
+        "rename", help=tr("rename a profile; projects and child profiles follow it")
+    )
+    renaming.add_argument("name")
+    renaming.add_argument("new_name", metavar="NEW_NAME")
     deletion = profiles.add_parser(
         "delete", help=tr("delete an unused profile and its YAML versions")
     )
@@ -140,10 +145,13 @@ def parser() -> argparse.ArgumentParser:
         "clean",
         help=tr("remove unused old project images, keeping current images and data"),
     ).add_argument("name")
+    project_renaming = projects.add_parser("rename", help=tr("rename a project"))
+    project_renaming.add_argument("name")
+    project_renaming.add_argument("new_name", metavar="NEW_NAME")
     project_deletion = projects.add_parser(
         "delete",
         help=tr(
-            "unregister a stopped project while keeping its local folder and profile"
+            "delete a project with its containers, images, and volumes, keeping its local folder and profile"
         ),
     )
     project_deletion.add_argument("name")
@@ -216,6 +224,8 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
     if args.command == "profile":
         if args.action == "import":
             return app.import_profiles(args.paths)
+        if args.action == "rename":
+            return app.rename_profile(args.name, args.new_name)
         if args.action == "delete":
             return app.delete_profile(args.name)
         return profile_list(app)
@@ -228,6 +238,8 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             return app.project_dockerfile(args.name, Path.cwd(), args.output)
         if args.action == "clean":
             return app.clean_project(args.name)
+        if args.action == "rename":
+            return app.rename_project(args.name, args.new_name)
         if args.action == "delete":
             return app.delete_project(args.name)
         if args.action == "list":

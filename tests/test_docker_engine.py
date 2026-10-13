@@ -284,16 +284,12 @@ class DockerEngineTests(unittest.TestCase):
                 self.assertFalse(self.app.project("api").running)
                 self.assertFalse(self.store.state.projects[0].running)
 
-    def test_external_start_blocks_deletion_and_profile_updates_despite_stale_state(
-        self,
-    ):
+    def test_external_start_blocks_profile_updates_despite_stale_state(self):
         self.start()
         self.app.project("api").running = False
         self.app.save_profile("python-dev", {"python": "3.11.11"}, {}, {}, editing=True)
         with self.assertRaisesRegex(BrigError, "Stop the project"):
             self.app.update_project("api")
-        with self.assertRaisesRegex(BrigError, "Cannot delete running"):
-            self.app.delete_project("api")
 
     def test_missing_daemon_or_compose_reports_actionable_error_before_build(self):
         self.runner.failure = "version"

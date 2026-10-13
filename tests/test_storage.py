@@ -24,6 +24,46 @@ class StorageTests(unittest.TestCase):
     def test_missing_state_returns_none(self):
         self.assertIsNone(self.store.load())
 
+    def test_renaming_profile_rewrites_its_yaml_and_its_children(self):
+        app = Application(self.store, DemoEngine(), FakeVersionCatalog)
+        app.save_profile("base", {"php": "8.3.15"}, {}, {})
+        app.save_profile("base", {"php": "8.2.27"}, {}, {}, editing=True)
+        app.save_profile("child", {"php": "8.2.27"}, {}, {}, base="base")
+        root = self.store.path.parent
+        app.rename_profile("base", "core")
+        self.assertFalse(profile_path(root, "base", 1).parent.parent.exists())
+        for version in (1, 2):
+            self.assertIn(
+                'name: "core"', profile_path(root, "core", version).read_text()
+            )
+        self.assertIn('profile: "core"', profile_path(root, "child", 1).read_text())
+        self.assertEqual(self.store.load(), app.state)
+        self.assertEqual(list(root.glob(".replace-profiles-*")), [])
+        # Saving again verifies that every rewritten document matches state.
+        app.save_profile("core", {"php": "8.3.15"}, {}, {}, editing=True)
+
+    def test_failed_profile_rename_restores_previous_documents(self):
+        app = Application(self.store, DemoEngine(), FakeVersionCatalog)
+        app.save_profile("base", {"php": "8.3.15"}, {}, {})
+        root = self.store.path.parent
+        original = profile_path(root, "base", 1).read_text()
+        replace = __import__("os").replace
+
+        def fail_state(source, destination):
+            if destination == self.store.path:
+                raise OSError("write failure")
+            replace(source, destination)
+
+        with (
+            patch("brig.persistence.store.os.replace", side_effect=fail_state),
+            self.assertRaises(BrigError),
+        ):
+            app.rename_profile("base", "core")
+        self.assertEqual(profile_path(root, "base", 1).read_text(), original)
+        self.assertFalse(profile_path(root, "core", 1).exists())
+        self.assertEqual(app.profile("base").name, "base")
+        self.assertEqual(self.store.load(), app.state)
+
     def test_deleting_profile_removes_all_yaml_versions_and_allows_recreation(self):
         app = Application(self.store, DemoEngine(), FakeVersionCatalog)
         app.save_profile("custom", {"php": "8.3.15"}, {}, {})
@@ -33,7 +73,7 @@ class StorageTests(unittest.TestCase):
         app.delete_profile("custom")
         self.assertFalse(directory.exists())
         self.assertEqual(self.store.load(), app.state)
-        self.assertEqual(list(self.store.path.parent.glob(".delete-profile-*")), [])
+        self.assertEqual(list(self.store.path.parent.glob(".replace-profiles-*")), [])
         app.save_profile("custom", {"python": "3.12.8"}, {}, {})
         self.assertIn(
             'python: "3.12.8"',
@@ -66,7 +106,7 @@ class StorageTests(unittest.TestCase):
             {path.name: path.read_bytes() for path in directory.iterdir()}, documents
         )
         self.assertEqual(self.store.load(), app.state)
-        self.assertEqual(list(self.store.path.parent.glob(".delete-profile-*")), [])
+        self.assertEqual(list(self.store.path.parent.glob(".replace-profiles-*")), [])
 
     def test_failed_restore_preserves_original_yaml_in_staging_directory(self):
         app = Application(self.store, DemoEngine(), FakeVersionCatalog)
@@ -92,9 +132,7 @@ class StorageTests(unittest.TestCase):
             app.delete_profile("custom")
         self.assertEqual(self.store.path.read_bytes(), original)
         staged = list(
-            self.store.path.parent.glob(
-                ".delete-profile-*/versions/versions/version-1.yaml"
-            )
+            self.store.path.parent.glob(".replace-profiles-*/0/versions/version-1.yaml")
         )
         self.assertEqual(len(staged), 1)
         self.assertEqual(staged[0].read_bytes(), contents)
