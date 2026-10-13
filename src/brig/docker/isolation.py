@@ -100,6 +100,19 @@ def bootstrap_script(agents):
             f'chown "$actor_uid:$(id -g brig)" {home}/.brig-environment.sh',
             f"chmod 600 {home}/.brig-environment.sh",
         ]
+        if config and agent == "claude":
+            # The proxy holds the login, so skip Claude's interactive login step.
+            # Runs as the agent so root never follows a link it planted.
+            script = (
+                f"f={config}/.claude.json; "
+                'test -s "$f" || echo \'{}\' > "$f"; '
+                'jq \'.hasCompletedOnboarding = true\' "$f" > "$f.brig" && '
+                'mv "$f.brig" "$f" && chmod 600 "$f"'
+            )
+            lines.append(
+                'setpriv --reuid "$actor_uid" --regid "$(id -g brig)" --clear-groups '
+                f"sh -c {shlex.quote(script)} || true"
+            )
     lines += [
         "touch /run/brig/ready",
         "exec setpriv --reuid brig --regid brig --init-groups --bounding-set=-all --no-new-privs sleep infinity",

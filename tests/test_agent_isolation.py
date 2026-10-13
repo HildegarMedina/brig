@@ -2,11 +2,15 @@
 
 import io
 import json
+import shlex
+import shutil
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr
 from copy import deepcopy
 from dataclasses import replace
+from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
@@ -15,7 +19,12 @@ import yaml
 from brig.components.agents import AGENTS
 from brig.docker.compose import compose_definition, render_compose
 from brig.docker.dockerfile import render_dockerfile
-from brig.docker.isolation import agent_config, agent_home, agent_uid
+from brig.docker.isolation import (
+    agent_config,
+    agent_home,
+    agent_uid,
+    bootstrap_script,
+)
 from brig.errors import BrigError
 from brig.ui.cli import main
 from tests import test_docker_engine
@@ -104,6 +113,30 @@ class AgentIsolationTests(unittest.TestCase):
             contents = render_dockerfile(self.project)
         self.assertEqual(len(definition["services"]["dev"]["volumes"]), 3)
         self.assertNotIn("None/projects", contents)
+
+    @unittest.skipUnless(shutil.which("jq"), "jq is required")
+    def test_claude_onboarding_is_completed_as_the_agent(self):
+        line = next(
+            line
+            for line in bootstrap_script(["claude", "codex"]).splitlines()
+            if "hasCompletedOnboarding" in line
+        )
+        self.assertTrue(line.startswith('setpriv --reuid "$actor_uid"'))
+        script = shlex.split(line.removesuffix(" || true"))[-1]
+        with tempfile.TemporaryDirectory() as folder:
+            script = script.replace(agent_config("claude"), folder)
+            path = Path(folder) / ".claude.json"
+            subprocess.run(["sh", "-c", script], check=True)
+            self.assertEqual(
+                json.loads(path.read_text()), {"hasCompletedOnboarding": True}
+            )
+            path.write_text('{"theme": "dark", "hasCompletedOnboarding": false}')
+            subprocess.run(["sh", "-c", script], check=True)
+            self.assertEqual(
+                json.loads(path.read_text()),
+                {"theme": "dark", "hasCompletedOnboarding": True},
+            )
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
 
     def test_work_image_contains_tools_and_every_selected_agent(self):
         for agent in AGENTS:
