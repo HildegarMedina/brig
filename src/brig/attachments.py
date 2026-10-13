@@ -50,7 +50,12 @@ def attach_files(project: Project, files: list[Path]) -> str:
         for source in sources:
             directory = Path(tempfile.mkdtemp(prefix="brig-", dir=root))
             created.append(directory)
-            shutil.copyfile(source, directory / source.name)
+            # Agents run as other users in the shared brig group; mkdtemp's
+            # 0700 would also zero the ACL mask inherited from /workspace.
+            directory.chmod(0o770)
+            target = directory / source.name
+            shutil.copyfile(source, target)
+            target.chmod(0o660)
             paths.append(
                 f"/workspace/.brig/context/attachments/{directory.name}/{source.name}"
             )

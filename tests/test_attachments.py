@@ -1,6 +1,7 @@
 """Attachment copies, isolation, cleanup and CLI behavior without Docker."""
 
 import io
+import os
 import subprocess
 import tempfile
 import unittest
@@ -48,6 +49,16 @@ class AttachmentTests(unittest.TestCase):
         self.assertFalse(self.project.running)
         self.assertEqual((self.folder / ".brig/context/.gitignore").read_text(), "*\n")
         self.app.attach("api", [self.source])
+
+    def test_attachments_are_shared_with_the_agents_group(self):
+        self.source.chmod(0o600)
+        previous = os.umask(0o077)
+        try:
+            path = self.host_path(self.app.attach("api", [self.source]))
+        finally:
+            os.umask(previous)
+        self.assertEqual(path.parent.stat().st_mode & 0o777, 0o770)
+        self.assertEqual(path.stat().st_mode & 0o777, 0o660)
 
     def test_generated_ignore_excludes_context_in_git(self):
         subprocess.run(["git", "init", "-q", str(self.folder)], check=True)
