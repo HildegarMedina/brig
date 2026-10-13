@@ -61,6 +61,9 @@ Brig keeps the originals and prints the paths to independent copies, for example
 
 Use the actual returned path in your agent's prompt: "Build the interface using
 the image at `/workspace/.brig/context/attachments/brig-EXAMPLE/design.png`."
+Brig also tells Claude Code, Codex, and OpenCode where attachments and context
+live, so they can look there when you mention a file by name only. The returned
+path stays the most precise reference, especially when names repeat.
 Files are available immediately through the existing project mount, including
 when Claude, Codex, or OpenCode is already running. Supported document and image
 formats depend on the agent. Attaching a file does not submit it to the chat.

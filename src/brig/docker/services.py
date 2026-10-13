@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from brig.attachments import ATTACHMENTS_PATH, CONTEXT_PATH
+
 
 @dataclass(frozen=True)
 class ServiceDefinition:
@@ -117,6 +119,12 @@ def agent_instructions(services) -> str:
         "network. `localhost` and `127.0.0.1` refer to this container, not to the "
         "developer's machine, and you cannot reach the applications the developer "
         "runs there.",
+        "Files the developer attaches with Brig are copied to "
+        f"`{ATTACHMENTS_PATH}/<random>/<name>`, and reusable context lives in "
+        f"`{CONTEXT_PATH}/`. These folders are hidden and git-ignored, so most "
+        "search tools skip them: when the developer mentions a file you cannot "
+        f"find, look there explicitly (for example `find {CONTEXT_PATH} -name "
+        "'<name>'`). If several attachments share a name, ask which one to use.",
     ]
     if not services:
         lines.append(

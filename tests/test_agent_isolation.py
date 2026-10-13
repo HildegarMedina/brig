@@ -14,10 +14,12 @@ from copy import deepcopy
 from dataclasses import replace
 from pathlib import Path
 from subprocess import CompletedProcess
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import yaml
 
+from brig.attachments import ATTACHMENTS_PATH, CONTEXT_PATH, attach_files
 from brig.components.agents import AGENTS, INSTRUCTIONS_FILE
 from brig.docker.compose import compose_definition, render_compose
 from brig.docker.dockerfile import render_dockerfile
@@ -305,6 +307,20 @@ class AgentInstructionsTests(unittest.TestCase):
         self.assertIn("Brig sandbox", text)
         self.assertIn("No databases or caches are provided here.", text)
         self.assertNotIn("PGHOST", text)
+
+    def test_instructions_point_to_attachments_and_context(self):
+        for services in ({}, {"postgresql": "17"}):
+            text = agent_instructions(services)
+            self.assertIn(f"`{ATTACHMENTS_PATH}/<random>/<name>`", text)
+            self.assertIn(f"find {CONTEXT_PATH} -name", text)
+            self.assertIn("git-ignored", text)
+        with tempfile.TemporaryDirectory() as folder:
+            source = Path(folder) / "hello.txt"
+            source.write_text("world!")
+            project = SimpleNamespace(path=folder, name="api")
+            self.assertTrue(
+                attach_files(project, [source]).startswith(f"{ATTACHMENTS_PATH}/")
+            )
 
     def test_every_service_has_a_hint(self):
         self.assertEqual(set(SERVICE_HINTS), set(SERVICES))

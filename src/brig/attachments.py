@@ -8,6 +8,10 @@ from brig.errors import BrigError
 from brig.i18n import tr
 from brig.models import Project
 
+# Where the project folder's .brig/context appears inside the work container.
+CONTEXT_PATH = "/workspace/.brig/context"
+ATTACHMENTS_PATH = f"{CONTEXT_PATH}/attachments"
+
 
 def _context(project: Project) -> Path:
     if not project.path or not Path(project.path).is_dir():
@@ -56,9 +60,7 @@ def attach_files(project: Project, files: list[Path]) -> str:
             target = directory / source.name
             shutil.copyfile(source, target)
             target.chmod(0o660)
-            paths.append(
-                f"/workspace/.brig/context/attachments/{directory.name}/{source.name}"
-            )
+            paths.append(f"{ATTACHMENTS_PATH}/{directory.name}/{source.name}")
     except OSError as error:
         for directory in created:
             shutil.rmtree(directory, ignore_errors=True)
