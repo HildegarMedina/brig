@@ -104,8 +104,10 @@ private to the project environment and are not the databases, Redis, or other
 services your application uses outside Brig. Agents should use these variables
 instead of hosts or credentials described in `CLAUDE.md`, the README, `.env`
 files, or test configuration. Claude Code receives this guidance in its system
-prompt. The guidance names the variables, not their values, so passwords do not
-end up in the agent conversation.
+prompt and Codex as developer instructions; both outrank project `CLAUDE.md` and
+`AGENTS.md` files. For Codex, this replaces any `developer_instructions` set in
+its `config.toml`. The guidance names the variables, not their values, so
+passwords do not end up in the agent conversation.
 
 Configure your application to use these variables. Brig does not modify its
 `.env` file. PHP receives PDO MySQL for MySQL/MariaDB and PDO PostgreSQL for

@@ -6,6 +6,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import tomllib
 import unittest
 from contextlib import redirect_stderr
 from copy import deepcopy
@@ -328,47 +329,53 @@ class AgentInstructionsTests(unittest.TestCase):
         self.addCleanup(case.doCleanups)
         self.assertIn("PGPASSWORD", render_dockerfile(case.project))
 
-    def test_claude_wrapper_appends_instructions_to_the_system_prompt(self):
+    def test_instructions_fit_in_a_toml_multiline_literal(self):
+        self.assertNotIn("'''", agent_instructions(SERVICES))
+        self.assertNotIn("'''", agent_instructions({}))
+
+    def wrapper_prepare(self, agent):
         line = next(
             line
-            for line in AGENTS["claude"].image
-            if line.startswith("RUN printf") and "/usr/local/bin/claude" in line
+            for line in AGENTS[agent].image
+            if line.startswith("RUN printf") and f"/usr/local/bin/{agent}" in line
         )
         lines = shlex.split(line.removeprefix("RUN printf ").split(" > ")[0])[1:]
-        prepare = [
-            entry
-            for entry in lines
-            if "instructions" in entry
-            and INSTRUCTIONS_FILE in entry
-            or "append-system-prompt" in entry
-        ]
-        self.assertEqual(len(prepare), 2)
-        with tempfile.TemporaryDirectory() as folder:
-            path = Path(folder) / INSTRUCTIONS_FILE
-            script = "\n".join(
-                [
-                    *(
-                        entry.replace(
-                            f"/opt/brig-agent-home/claude/{INSTRUCTIONS_FILE}",
-                            str(path),
-                        )
-                        for entry in prepare
-                    ),
-                    "printf '%s\\n' \"$@\"",
-                ]
-            )
+        return [entry for entry in lines if "instructions" in entry]
 
-            def run():
-                return subprocess.run(
-                    ["sh", "-ec", script, "wrapper", "--resume"],
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                ).stdout
+    def run_prepare(self, agent, path):
+        script = "\n".join(
+            [
+                *(
+                    entry.replace(
+                        f"/opt/brig-agent-home/{agent}/{INSTRUCTIONS_FILE}", str(path)
+                    )
+                    for entry in self.wrapper_prepare(agent)
+                ),
+                "printf '%s\\n' \"$@\"",
+            ]
+        )
+        return subprocess.run(
+            ["sh", "-ec", script, "wrapper", "--resume"],
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
 
-            self.assertEqual(run(), "--resume\n")
-            path.write_text("line one\nline 'two'")
-            self.assertEqual(
-                run(),
-                "--append-system-prompt\nline one\nline 'two'\n--resume\n",
-            )
+    def test_wrappers_pass_instructions_with_higher_priority_than_project_files(self):
+        text = "line one\nline 'two'"
+        expected = {
+            "claude": ["--append-system-prompt", text],
+            "codex": ["-c", f"developer_instructions='''{text}'''"],
+        }
+        for agent, arguments in expected.items():
+            with self.subTest(agent=agent), tempfile.TemporaryDirectory() as folder:
+                self.assertEqual(len(self.wrapper_prepare(agent)), 2)
+                path = Path(folder) / INSTRUCTIONS_FILE
+                self.assertEqual(self.run_prepare(agent, path), "--resume\n")
+                path.write_text(text)
+                self.assertEqual(
+                    self.run_prepare(agent, path),
+                    "\n".join([*arguments, "--resume"]) + "\n",
+                )
+        value = expected["codex"][1].split("=", 1)[1]
+        self.assertEqual(tomllib.loads(f"value = {value}")["value"], text)

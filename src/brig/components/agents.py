@@ -34,6 +34,14 @@ class AgentIntegration:
 INSTRUCTIONS_FILE = ".brig-instructions.md"
 
 
+def instructions_prepare(name: str, arguments: str) -> tuple[str, ...]:
+    """Wrapper lines that prepend the instructions file as agent arguments."""
+    return (
+        f"instructions=/opt/brig-agent-home/{name}/{INSTRUCTIONS_FILE}",
+        f'if [ -s "$instructions" ]; then set -- {arguments} "$@"; fi',
+    )
+
+
 def command_wrapper(name: str, command: tuple[str, ...], *, prepare=()) -> str:
     lines = (
         "#!/bin/sh",
@@ -78,9 +86,8 @@ AGENTS = {
                     '{"skipDangerousModePermissionPrompt":true}',
                 ),
                 # The system prompt outranks project CLAUDE.md files.
-                prepare=(
-                    f"instructions=/opt/brig-agent-home/claude/{INSTRUCTIONS_FILE}",
-                    'if [ -s "$instructions" ]; then set -- --append-system-prompt "$(cat "$instructions")" "$@"; fi',
+                prepare=instructions_prepare(
+                    "claude", '--append-system-prompt "$(cat "$instructions")"'
                 ),
             ),
             "ENV DISABLE_AUTOUPDATER=1",
@@ -123,7 +130,15 @@ AGENTS = {
                     "-c",
                     "check_for_update_on_startup=false",
                 ),
-                prepare=("mkdir -p /opt/brig-agent-home/codex/.local/state/codex",),
+                # Developer instructions outrank project AGENTS.md files; the
+                # TOML multi-line literal keeps quotes and newlines verbatim.
+                prepare=(
+                    "mkdir -p /opt/brig-agent-home/codex/.local/state/codex",
+                    *instructions_prepare(
+                        "codex",
+                        "-c \"developer_instructions='''$(cat \"$instructions\")'''\"",
+                    ),
+                ),
             ),
             "",
         ),
