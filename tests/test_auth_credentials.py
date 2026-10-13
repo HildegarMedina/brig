@@ -421,6 +421,8 @@ class AuthCredentialTests(unittest.TestCase):
             self.assertEqual(
                 refresh("openai", "refresh-fixture")["access_token"], self.token
             )
+        request = opener.open.call_args.args[0]
+        self.assertEqual(request.get_header("User-agent"), "brig-credential-proxy")
         with self.assertRaises(CredentialError):
             NoRedirect().redirect_request(
                 None, None, 302, "", {}, "https://evil.example"

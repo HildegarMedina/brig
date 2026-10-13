@@ -53,8 +53,11 @@ def refresh(provider: str, token: str) -> dict:
     payload = json.dumps(
         {"grant_type": "refresh_token", "client_id": client, "refresh_token": token}
     ).encode()
+    # Cloudflare rejects Python's default User-Agent (error 1010).
     request = urllib.request.Request(
-        endpoint, payload, {"Content-Type": "application/json"}
+        endpoint,
+        payload,
+        {"Content-Type": "application/json", "User-Agent": "brig-credential-proxy"},
     )
     try:
         with urllib.request.build_opener(NoRedirect).open(
