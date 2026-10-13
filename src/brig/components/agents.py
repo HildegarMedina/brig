@@ -34,11 +34,11 @@ class AgentIntegration:
 INSTRUCTIONS_FILE = ".brig-instructions.md"
 
 
-def instructions_prepare(name: str, arguments: str) -> tuple[str, ...]:
-    """Wrapper lines that prepend the instructions file as agent arguments."""
+def instructions_prepare(name: str, statement: str) -> tuple[str, ...]:
+    """Wrapper lines that hand the instructions file to the agent when present."""
     return (
         f"instructions=/opt/brig-agent-home/{name}/{INSTRUCTIONS_FILE}",
-        f'if [ -s "$instructions" ]; then set -- {arguments} "$@"; fi',
+        f'if [ -s "$instructions" ]; then {statement}; fi',
     )
 
 
@@ -87,7 +87,8 @@ AGENTS = {
                 ),
                 # The system prompt outranks project CLAUDE.md files.
                 prepare=instructions_prepare(
-                    "claude", '--append-system-prompt "$(cat "$instructions")"'
+                    "claude",
+                    'set -- --append-system-prompt "$(cat "$instructions")" "$@"',
                 ),
             ),
             "ENV DISABLE_AUTOUPDATER=1",
@@ -136,7 +137,7 @@ AGENTS = {
                     "mkdir -p /opt/brig-agent-home/codex/.local/state/codex",
                     *instructions_prepare(
                         "codex",
-                        "-c \"developer_instructions='''$(cat \"$instructions\")'''\"",
+                        "set -- -c \"developer_instructions='''$(cat \"$instructions\")'''\" \"$@\"",
                     ),
                 ),
             ),
@@ -171,6 +172,12 @@ AGENTS = {
                 prepare=(
                     "mkdir -p /opt/brig-agent-home/opencode/.local/state/opencode",
                     """export OPENCODE_PERMISSION='{"*":"allow"}'""",
+                    # Merged into the user's config; the file is appended after
+                    # project AGENTS.md files in the system prompt.
+                    *instructions_prepare(
+                        "opencode",
+                        'export OPENCODE_CONFIG_CONTENT="{\\"instructions\\":[\\"$instructions\\"]}"',
+                    ),
                 ),
             ),
             "",

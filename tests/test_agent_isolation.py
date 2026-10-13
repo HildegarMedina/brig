@@ -2,6 +2,7 @@
 
 import io
 import json
+import os
 import shlex
 import shutil
 import subprocess
@@ -351,7 +352,7 @@ class AgentInstructionsTests(unittest.TestCase):
                     )
                     for entry in self.wrapper_prepare(agent)
                 ),
-                "printf '%s\\n' \"$@\"",
+                'printf \'%s\\n\' "$@" "${OPENCODE_CONFIG_CONTENT-}"',
             ]
         )
         return subprocess.run(
@@ -359,23 +360,38 @@ class AgentInstructionsTests(unittest.TestCase):
             check=True,
             capture_output=True,
             text=True,
-        ).stdout
+            env={"PATH": os.environ["PATH"]},
+        ).stdout.splitlines()
 
-    def test_wrappers_pass_instructions_with_higher_priority_than_project_files(self):
+    def test_wrappers_hand_instructions_to_every_agent(self):
         text = "line one\nline 'two'"
-        expected = {
-            "claude": ["--append-system-prompt", text],
-            "codex": ["-c", f"developer_instructions='''{text}'''"],
-        }
-        for agent, arguments in expected.items():
+        for agent in AGENTS:
             with self.subTest(agent=agent), tempfile.TemporaryDirectory() as folder:
                 self.assertEqual(len(self.wrapper_prepare(agent)), 2)
                 path = Path(folder) / INSTRUCTIONS_FILE
-                self.assertEqual(self.run_prepare(agent, path), "--resume\n")
+                self.assertEqual(self.run_prepare(agent, path), ["--resume", ""])
                 path.write_text(text)
+                expected = {
+                    "claude": ["--append-system-prompt", *text.splitlines()],
+                    "codex": [
+                        "-c",
+                        *f"developer_instructions='''{text}'''".splitlines(),
+                    ],
+                    "opencode": [],
+                }[agent]
+                content = json.dumps(
+                    {"instructions": [str(path)]}, separators=(",", ":")
+                )
                 self.assertEqual(
                     self.run_prepare(agent, path),
-                    "\n".join([*arguments, "--resume"]) + "\n",
+                    [
+                        *expected,
+                        "--resume",
+                        content if agent == "opencode" else "",
+                    ],
                 )
-        value = expected["codex"][1].split("=", 1)[1]
+
+    def test_codex_instructions_are_a_toml_literal(self):
+        text = "line one\nline 'two'"
+        value = f"'''{text}'''"
         self.assertEqual(tomllib.loads(f"value = {value}")["value"], text)
