@@ -112,7 +112,10 @@ specific project.
 
 ## Translation into a Docker environment
 
-Every development image includes Git, Bash, curl, jq, ripgrep, and unzip.
+Every development image includes Git, Bash, curl, jq, ripgrep, unzip, and tools
+agents use to explore code and diagnose problems: `fd`, `tree`, `less`, `file`,
+`diff`, `patch`, `make`, `ps`, `lsof`, `ss`, `nc`, `dig`, `wget`, `zip`, `xz`,
+`shellcheck`, and `sqlite3`.
 Database clients are added automatically for selected services, regardless of the
 application language: `psql` for PostgreSQL, `mysql` and `mariadb` for MySQL/MariaDB,
 `mongosh` for MongoDB, and `redis-cli` for Redis. These commands run from the

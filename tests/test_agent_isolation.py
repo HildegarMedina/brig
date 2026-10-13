@@ -30,6 +30,7 @@ from brig.docker.isolation import (
     bootstrap_script,
 )
 from brig.docker.services import SERVICE_HINTS, SERVICES, agent_instructions
+from brig.docker.tools import AGENT_TOOLS
 from brig.errors import BrigError
 from brig.ui.cli import main
 from tests import test_docker_engine
@@ -307,6 +308,14 @@ class AgentInstructionsTests(unittest.TestCase):
         self.assertIn("Brig sandbox", text)
         self.assertIn("No databases or caches are provided here.", text)
         self.assertNotIn("PGHOST", text)
+
+    def test_instructions_list_every_installed_tool(self):
+        for services in ({}, {"postgresql": "17"}):
+            text = agent_instructions(services)
+            for commands in AGENT_TOOLS.values():
+                for command in commands:
+                    self.assertIn(f"`{command}`", text)
+            self.assertIn("cannot install system packages", text)
 
     def test_instructions_point_to_attachments_and_context(self):
         for services in ({}, {"postgresql": "17"}):

@@ -8,6 +8,7 @@ from unittest.mock import patch
 
 from brig.application import Application
 from brig.docker.dockerfile import render_dockerfile
+from brig.docker.tools import AGENT_TOOLS
 from brig.errors import BrigError
 from brig.models import ProfileVersion, Project, State
 from brig.persistence.export import write_dockerfile
@@ -47,13 +48,22 @@ class DockerfileTests(unittest.TestCase):
             ("php", "8.3.15"),
             ("python", "3.12.8"),
             ("node", "22.13.1"),
+            ("go", "1.27.2"),
+            ("rust", "1.99.0"),
+            ("java", "21"),
         ):
             project = php_project()
             project.configuration.runtimes = {runtime: version}
             project.configuration.tools = {}
             plain = render_dockerfile(project)
-            for tool in ("curl", "jq", "ripgrep"):
-                self.assertIn(tool, plain)
+            install = next(
+                line.rstrip("; \\").split()
+                for line in plain.splitlines()
+                if "apt-get install" in line and "acl" in line
+            )
+            for tool in ("curl", "jq", "ripgrep", *AGENT_TOOLS):
+                self.assertIn(tool, install)
+            self.assertIn("    ln -s /usr/bin/fdfind /usr/local/bin/fd; \\", plain)
             self.assertNotIn("postgresql-client", plain)
             self.assertNotIn("default-mysql-client", plain)
             self.assertNotIn("redis-tools", plain)

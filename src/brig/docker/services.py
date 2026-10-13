@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 
 from brig.attachments import ATTACHMENTS_PATH, CONTEXT_PATH
+from brig.docker.tools import AGENT_TOOLS
 
 
 @dataclass(frozen=True)
@@ -125,6 +126,13 @@ def agent_instructions(services) -> str:
         "search tools skip them: when the developer mentions a file you cannot "
         f"find, look there explicitly (for example `find {CONTEXT_PATH} -name "
         "'<name>'`). If several attachments share a name, ask which one to use.",
+        "Besides git, curl, jq, rg and unzip, these commands are installed: "
+        + ", ".join(
+            f"`{command}`" for commands in AGENT_TOOLS.values() for command in commands
+        )
+        + ". Prefer them over ad hoc scripts, for example `lsof`, `ss`, `nc` "
+        "and `dig` to diagnose connections. You run as an unprivileged user and "
+        "cannot install system packages.",
     ]
     if not services:
         lines.append(

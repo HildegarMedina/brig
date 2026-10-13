@@ -7,6 +7,7 @@ from brig.components.agents import AGENTS, validate_agents
 from brig.components.catalog import validate_selection
 from brig.docker.auth_proxy import proxy_image_lines
 from brig.docker.isolation import agent_config, agent_home, bootstrap_script
+from brig.docker.tools import AGENT_TOOLS
 from brig.errors import BrigError
 from brig.i18n import tr
 from brig.models import Project
@@ -203,6 +204,7 @@ def system_packages(configuration, integrations):
         "iptables",
         "acl",
         "util-linux",
+        *AGENT_TOOLS,
     }
     for service in configuration.services:
         packages.update(DATABASE_CLIENTS.get(service, ()))
@@ -301,6 +303,8 @@ def runtime_lines(configuration, integrations) -> list[str]:
             "RUN set -eux; \\",
             "    apt-get update; \\",
             f"    apt-get install -y --no-install-recommends {' '.join(sorted(packages))}; \\",
+            # Debian names the fd binary fdfind; agents expect fd.
+            "    ln -s /usr/bin/fdfind /usr/local/bin/fd; \\",
         ]
     )
     if python and php:
