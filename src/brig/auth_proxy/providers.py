@@ -11,6 +11,14 @@ PROVIDERS = {
 }
 
 
+# Credential-free health checks, forwarded without provider credentials.
+PUBLIC = {("api.anthropic.com", "GET", "/api/hello")}
+
+
+def public(host: str, method: str, path: str) -> bool:
+    return (host, method, path.split("?", 1)[0]) in PUBLIC
+
+
 def provider_for(host: str) -> str | None:
     return next((name for name, hosts in PROVIDERS.items() if host in hosts), None)
 

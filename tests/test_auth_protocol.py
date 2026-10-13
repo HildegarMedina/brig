@@ -102,6 +102,22 @@ class AuthProtocolTests(unittest.TestCase):
         self.assertNotIn("x-goog-api-key", flow.request.headers)
         self.assertEqual(self.injector.redactors, {})
 
+    def test_public_health_check_is_forwarded_without_credentials(self):
+        flow = self.flow("https://api.anthropic.com/api/hello", "GET")
+        self.injector.request(flow)
+        self.assertIsNone(flow.response)
+        for name in ("authorization", "x-api-key", "cookie"):
+            self.assertNotIn(name, flow.request.headers)
+        self.assertEqual(self.injector.redactors, {})
+        for url, method in (
+            ("https://api.anthropic.com/api/hello", "POST"),
+            ("https://api.anthropic.com/api/oauth/profile", "GET"),
+            ("http://api.anthropic.com/api/hello", "GET"),
+        ):
+            flow = self.flow(url, method)
+            self.injector.request(flow)
+            self.assertEqual(flow.response.status_code, 403)
+
     def test_uncaught_adapter_failures_do_not_forward(self):
         flow = self.flow()
         with patch.object(

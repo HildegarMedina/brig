@@ -6,7 +6,7 @@ from mitmproxy import http
 
 from brig.auth_proxy.credentials import CredentialStore
 from brig.auth_proxy.placeholders import PLACEHOLDER, placeholder_jwt
-from brig.auth_proxy.providers import permitted, provider_for
+from brig.auth_proxy.providers import permitted, provider_for, public
 from brig.auth_proxy.redaction import Redactor
 
 SENSITIVE = (
@@ -73,6 +73,12 @@ class CredentialInjector:
                         )
                 except ValueError:
                     pass
+            return
+        if flow.request.scheme == "https" and public(
+            flow.request.host, flow.request.method, flow.request.path
+        ):
+            for name in SENSITIVE:
+                flow.request.headers.pop(name, None)
             return
         provider = provider_for(flow.request.host)
         if provider is None:
