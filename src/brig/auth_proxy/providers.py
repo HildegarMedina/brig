@@ -12,7 +12,10 @@ PROVIDERS = {
 
 
 # Credential-free health checks, forwarded without provider credentials.
-PUBLIC = {("api.anthropic.com", "GET", "/api/hello")}
+PUBLIC = {
+    ("api.anthropic.com", "GET", "/api/hello"),
+    ("platform.claude.com", "GET", "/v1/oauth/hello"),
+}
 
 
 def public(host: str, method: str, path: str) -> bool:

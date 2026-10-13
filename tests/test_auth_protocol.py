@@ -103,15 +103,21 @@ class AuthProtocolTests(unittest.TestCase):
         self.assertEqual(self.injector.redactors, {})
 
     def test_public_health_check_is_forwarded_without_credentials(self):
-        flow = self.flow("https://api.anthropic.com/api/hello", "GET")
-        self.injector.request(flow)
-        self.assertIsNone(flow.response)
-        for name in ("authorization", "x-api-key", "cookie"):
-            self.assertNotIn(name, flow.request.headers)
+        for url in (
+            "https://api.anthropic.com/api/hello",
+            "https://platform.claude.com/v1/oauth/hello",
+        ):
+            flow = self.flow(url, "GET")
+            self.injector.request(flow)
+            self.assertIsNone(flow.response)
+            for name in ("authorization", "x-api-key", "cookie"):
+                self.assertNotIn(name, flow.request.headers)
         self.assertEqual(self.injector.redactors, {})
         for url, method in (
             ("https://api.anthropic.com/api/hello", "POST"),
             ("https://api.anthropic.com/api/oauth/profile", "GET"),
+            ("https://platform.claude.com/v1/oauth/hello", "POST"),
+            ("https://platform.claude.com/v1/oauth/token", "GET"),
             ("http://api.anthropic.com/api/hello", "GET"),
         ):
             flow = self.flow(url, method)

@@ -37,6 +37,12 @@ class CredentialInjector:
         )
 
     def request(self, flow: http.HTTPFlow):
+        if flow.request.scheme == "https" and public(
+            flow.request.host, flow.request.method, flow.request.path
+        ):
+            for name in SENSITIVE:
+                flow.request.headers.pop(name, None)
+            return
         if flow.request.host in (
             "auth.openai.com",
             "platform.claude.com",
@@ -73,12 +79,6 @@ class CredentialInjector:
                         )
                 except ValueError:
                     pass
-            return
-        if flow.request.scheme == "https" and public(
-            flow.request.host, flow.request.method, flow.request.path
-        ):
-            for name in SENSITIVE:
-                flow.request.headers.pop(name, None)
             return
         provider = provider_for(flow.request.host)
         if provider is None:
