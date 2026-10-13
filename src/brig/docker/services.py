@@ -130,8 +130,8 @@ def agent_instructions(services) -> str:
         + ", ".join(
             f"`{command}`" for commands in AGENT_TOOLS.values() for command in commands
         )
-        + ". Prefer them over ad hoc scripts, for example `lsof`, `ss`, `nc` "
-        "and `dig` to diagnose connections. You run as an unprivileged user and "
+        + ". Prefer them over ad hoc scripts, for example `ss`, `nc` and "
+        "`dig` to diagnose connections. You run as an unprivileged user and "
         "cannot install system packages.",
     ]
     if not services:
