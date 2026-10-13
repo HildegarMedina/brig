@@ -29,8 +29,16 @@ brig/
             ├── .dockerignore
             ├── compose.yaml
             ├── development.env
+            ├── gitconfig
             └── SERVICE.env
 ```
+
+`gitconfig` holds the `user.name` and `user.email` that host Git would use in
+the project folder, including `includeIf` rules. Brig reads them each time the
+project starts and mounts the file read-only as `/etc/gitconfig`, so the
+terminal and every agent commit with your identity. A `~/.gitconfig` inside the
+container or the repository's own `.git/config` still takes precedence. If host
+Git has no identity, the file is empty and Git asks as usual.
 
 ## Interface preferences
 

@@ -7,6 +7,7 @@ from pathlib import Path
 from brig.components.agents import AGENTS, validate_agents
 from brig.components.catalog import validate_selection
 from brig.docker.auth_proxy import add_credential_proxy
+from brig.docker.git_identity import GITCONFIG
 from brig.docker.isolation import agent_config, agent_home
 from brig.docker.services import SERVICES
 from brig.errors import BrigError
@@ -127,6 +128,13 @@ def compose_definition(
                     "bind": {"create_host_path": False},
                 },
                 {"type": "volume", "source": "home", "target": "/home/brig"},
+                # System level, so a container ~/.gitconfig or repo config wins.
+                {
+                    "type": "bind",
+                    "source": f"./{GITCONFIG}",
+                    "target": "/etc/gitconfig",
+                    "read_only": True,
+                },
             ],
         }
     }

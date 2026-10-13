@@ -2,6 +2,7 @@
 
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -10,6 +11,7 @@ from brig.docker.authentication import authenticate
 from brig.docker.client import DockerClient
 from brig.docker.compose import agent_history_volumes, project_prefix, render_compose
 from brig.docker.credentials import DatabaseCredentials
+from brig.docker.git_identity import host_git_identity, render_gitconfig
 from brig.docker.isolation import agent_environment, agent_uid
 from brig.docker.volumes import DockerVolumes
 from brig.docker.workspace import DockerWorkspace
@@ -22,8 +24,11 @@ from brig.models import Project
 class DockerEngine:
     simulated = False
 
-    def __init__(self, directory: Path, *, runner=None, uid=None, gid=None):
+    def __init__(
+        self, directory: Path, *, runner=None, uid=None, gid=None, git_runner=None
+    ):
         self.directory = directory
+        self.git_runner = git_runner or subprocess.run
         self.uid = os.getuid() if uid is None else uid
         self.gid = os.getgid() if gid is None else gid
         self.client = DockerClient(runner)
@@ -52,8 +57,9 @@ class DockerEngine:
         self.client.check()
         self.volumes.check_data_versions(project)
         credentials = self.credentials.load(project)
+        gitconfig = render_gitconfig(host_git_identity(project.path, self.git_runner))
         self.workspace.write_configuration(
-            directory, project, credentials, dockerfile, compose
+            directory, project, credentials, dockerfile, compose, gitconfig
         )
         return directory, image
 

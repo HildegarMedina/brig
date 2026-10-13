@@ -10,6 +10,7 @@ from pathlib import Path
 from brig.docker.auth_proxy import proxy_sources
 from brig.docker.compose import project_prefix
 from brig.docker.dockerfile import render_dockerfile
+from brig.docker.git_identity import GITCONFIG, render_gitconfig
 from brig.docker.services import service_environment
 from brig.errors import BrigError
 from brig.i18n import tr
@@ -86,7 +87,9 @@ class DockerWorkspace:
         directory = self.project_directory(project) / digest
         return directory, image, dockerfile
 
-    def write_configuration(self, directory, project, credentials, dockerfile, compose):
+    def write_configuration(
+        self, directory, project, credentials, dockerfile, compose, gitconfig=""
+    ):
         environment = {}
         for name in sorted(project.configuration.services):
             initialization, connection = service_environment(name, **credentials[name])
@@ -98,3 +101,11 @@ class DockerWorkspace:
             self.write(directory / name, content)
         self.write(directory / ".dockerignore", "*\n!Dockerfile\n!proxy/\n!proxy/**\n")
         self.write(directory / "compose.yaml", compose)
+        self.write(directory / GITCONFIG, gitconfig or render_gitconfig({}))
+        try:
+            # Agents run under their own UIDs and must read the mounted file.
+            (directory / GITCONFIG).chmod(0o644)
+        except OSError as error:
+            raise BrigError(
+                tr("Cannot write Docker configuration: {value0}").format(value0=error)
+            ) from error

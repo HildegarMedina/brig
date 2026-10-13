@@ -116,7 +116,7 @@ class AgentIsolationTests(unittest.TestCase):
         ):
             definition = compose_definition(self.project, "brig-test", 1234, 4321)
             contents = render_dockerfile(self.project)
-        self.assertEqual(len(definition["services"]["dev"]["volumes"]), 3)
+        self.assertEqual(len(definition["services"]["dev"]["volumes"]), 4)
         self.assertNotIn("None/projects", contents)
 
     @unittest.skipUnless(shutil.which("jq"), "jq is required")
