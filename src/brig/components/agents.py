@@ -30,6 +30,10 @@ class AgentIntegration:
         return bool(self.stage and self.image)
 
 
+# Written by the bootstrap into each agent home: sandbox and service guidance.
+INSTRUCTIONS_FILE = ".brig-instructions.md"
+
+
 def command_wrapper(name: str, command: tuple[str, ...], *, prepare=()) -> str:
     lines = (
         "#!/bin/sh",
@@ -72,6 +76,11 @@ AGENTS = {
                     "--dangerously-skip-permissions",
                     "--settings",
                     '{"skipDangerousModePermissionPrompt":true}',
+                ),
+                # The system prompt outranks project CLAUDE.md files.
+                prepare=(
+                    f"instructions=/opt/brig-agent-home/claude/{INSTRUCTIONS_FILE}",
+                    'if [ -s "$instructions" ]; then set -- --append-system-prompt "$(cat "$instructions")" "$@"; fi',
                 ),
             ),
             "ENV DISABLE_AUTOUPDATER=1",

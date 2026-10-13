@@ -16,7 +16,7 @@ from unittest.mock import patch
 
 import yaml
 
-from brig.components.agents import AGENTS
+from brig.components.agents import AGENTS, INSTRUCTIONS_FILE
 from brig.docker.compose import compose_definition, render_compose
 from brig.docker.dockerfile import render_dockerfile
 from brig.docker.isolation import (
@@ -25,6 +25,7 @@ from brig.docker.isolation import (
     agent_uid,
     bootstrap_script,
 )
+from brig.docker.services import SERVICE_HINTS, SERVICES, agent_instructions
 from brig.errors import BrigError
 from brig.ui.cli import main
 from tests import test_docker_engine
@@ -282,4 +283,92 @@ class AgentIsolationTests(unittest.TestCase):
             self.assertEqual(
                 main(["--data-dir", folder, "agent", "--project", "api", "--command"]),
                 1,
+            )
+
+
+class AgentInstructionsTests(unittest.TestCase):
+    def test_instructions_state_the_sandbox_and_real_service_settings(self):
+        text = agent_instructions({"postgresql": "17", "redis": "7"})
+        self.assertIn("Brig sandbox", text)
+        self.assertIn("NOT the databases, Redis", text)
+        self.assertIn("take precedence over", text)
+        self.assertIn("CLAUDE.md", text)
+        self.assertIn("PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD", text)
+        self.assertIn("REDIS_URL", text)
+        self.assertNotIn("MYSQL_HOST", text)
+        self.assertNotIn("No databases", text)
+
+    def test_instructions_without_services_say_none_are_reachable(self):
+        text = agent_instructions({})
+        self.assertIn("Brig sandbox", text)
+        self.assertIn("No databases or caches are provided here.", text)
+        self.assertNotIn("PGHOST", text)
+
+    def test_every_service_has_a_hint(self):
+        self.assertEqual(set(SERVICE_HINTS), set(SERVICES))
+
+    def test_bootstrap_writes_private_instructions_for_each_agent(self):
+        services = {"postgresql": "17"}
+        script = bootstrap_script(["claude", "codex"], services)
+        for agent in ("claude", "codex"):
+            path = f"{agent_home(agent)}/{INSTRUCTIONS_FILE}"
+            line = f"printf '%s' {shlex.quote(agent_instructions(services))} > {path}"
+            self.assertIn(line, script)
+            self.assertIn(f"chmod 600 {path}", script)
+            with tempfile.TemporaryDirectory() as folder:
+                target = Path(folder) / INSTRUCTIONS_FILE
+                subprocess.run(
+                    ["sh", "-c", line.replace(path, str(target))], check=True
+                )
+                self.assertEqual(target.read_text(), agent_instructions(services))
+
+    def test_dockerfile_bootstrap_uses_project_services(self):
+        case = test_docker_engine.DockerEngineTests()
+        case.setUp()
+        self.addCleanup(case.doCleanups)
+        self.assertIn("PGPASSWORD", render_dockerfile(case.project))
+
+    def test_claude_wrapper_appends_instructions_to_the_system_prompt(self):
+        line = next(
+            line
+            for line in AGENTS["claude"].image
+            if line.startswith("RUN printf") and "/usr/local/bin/claude" in line
+        )
+        lines = shlex.split(line.removeprefix("RUN printf ").split(" > ")[0])[1:]
+        prepare = [
+            entry
+            for entry in lines
+            if "instructions" in entry
+            and INSTRUCTIONS_FILE in entry
+            or "append-system-prompt" in entry
+        ]
+        self.assertEqual(len(prepare), 2)
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / INSTRUCTIONS_FILE
+            script = "\n".join(
+                [
+                    *(
+                        entry.replace(
+                            f"/opt/brig-agent-home/claude/{INSTRUCTIONS_FILE}",
+                            str(path),
+                        )
+                        for entry in prepare
+                    ),
+                    "printf '%s\\n' \"$@\"",
+                ]
+            )
+
+            def run():
+                return subprocess.run(
+                    ["sh", "-ec", script, "wrapper", "--resume"],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout
+
+            self.assertEqual(run(), "--resume\n")
+            path.write_text("line one\nline 'two'")
+            self.assertEqual(
+                run(),
+                "--append-system-prompt\nline one\nline 'two'\n--resume\n",
             )

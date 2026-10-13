@@ -125,7 +125,7 @@ def render_dockerfile(project: Project) -> str:
                 f'    mkdir -p {" ".join(paths)} && chown -R "$agent_uid:$BRIG_GID" {home} && chmod 700 {" ".join(paths)}',
             ]
         )
-    script = bootstrap_script(configuration.selected_agents)
+    script = bootstrap_script(configuration.selected_agents, configuration.services)
     lines.extend(
         [
             "RUN mkdir -p /usr/local/lib/brig && printf '%s\\n' "

@@ -99,6 +99,14 @@ MySQL, and MariaDB have an initial database named `brig`; MongoDB uses
 authentication in `admin` and a URI targeting `brig`. Redis does not require a
 password in this configuration and does not publish ports on the host.
 
+Brig also tells agents that they run in an isolated sandbox. These services are
+private to the project environment and are not the databases, Redis, or other
+services your application uses outside Brig. Agents should use these variables
+instead of hosts or credentials described in `CLAUDE.md`, the README, `.env`
+files, or test configuration. Claude Code receives this guidance in its system
+prompt. The guidance names the variables, not their values, so passwords do not
+end up in the agent conversation.
+
 Configure your application to use these variables. Brig does not modify its
 `.env` file. PHP receives PDO MySQL for MySQL/MariaDB and PDO PostgreSQL for
 PostgreSQL. PHP extensions for MongoDB and Redis are not installed automatically.

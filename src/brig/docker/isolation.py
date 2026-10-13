@@ -2,7 +2,8 @@
 
 import shlex
 
-from brig.components.agents import AGENTS
+from brig.components.agents import AGENTS, INSTRUCTIONS_FILE
+from brig.docker.services import agent_instructions
 
 
 def agent_uid(agent, host_uid):
@@ -42,7 +43,7 @@ def agent_environment(agent):
     return values
 
 
-def bootstrap_script(agents):
+def bootstrap_script(agents, services=()):
     lines = [
         "#!/bin/sh",
         "set -eu",
@@ -56,6 +57,7 @@ def bootstrap_script(agents):
         'setfacl -R -P -m "g:$(id -g brig):rwX" /workspace',
         'find /workspace -type d -exec setfacl -m "d:g:$(id -g brig):rwx" {} +',
     ]
+    instructions = agent_instructions(services)
     for agent in sorted(agents):
         home, config = agent_home(agent), agent_config(agent)
         lines += [
@@ -96,9 +98,12 @@ def bootstrap_script(agents):
                 f"cat /opt/brig-auth/{agent}/environment.sh >> {home}/.brig-environment.sh"
             )
         lines += [
+            f"rm -f {home}/{INSTRUCTIONS_FILE}",
+            f"printf '%s' {shlex.quote(instructions)} > {home}/{INSTRUCTIONS_FILE}",
             f'chown -Rh "$actor_uid:$(id -g brig)" {home}',
             f'chown "$actor_uid:$(id -g brig)" {home}/.brig-environment.sh',
             f"chmod 600 {home}/.brig-environment.sh",
+            f"chmod 600 {home}/{INSTRUCTIONS_FILE}",
         ]
         if config and agent == "claude":
             # The proxy holds the login, so skip Claude's interactive login step.
