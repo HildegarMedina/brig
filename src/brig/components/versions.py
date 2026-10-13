@@ -24,13 +24,15 @@ class LiveVersionCatalog:
         url_for, parse = PROVIDERS[component.provider]
         try:
             text = self.fetch(url_for(component.package))
+            tags = set(parse(text))
             found = {
                 value
-                for value in parse(text)
+                for value in tags
                 if re.fullmatch(
                     rf"[0-9]+(?:\.[0-9]+){{{component.version_parts - 1}}}", value
                 )
                 and value.startswith(component.version_prefix)
+                and (not component.tag_suffix or value + component.tag_suffix in tags)
             }
             result = tuple(
                 sorted(
@@ -67,7 +69,7 @@ class LiveVersionCatalog:
 
     def preferred_version(self, name: str, versions: list[str]) -> str:
         self.versions(name)
-        if name in ("node", "mysql"):
+        if name in ("node", "mysql", "java"):
             return next(
                 (
                     version

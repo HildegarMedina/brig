@@ -24,8 +24,8 @@ terminal inside its development container.
 
 ## Current scope
 
-The engine generates Dockerfiles and Compose configurations for PHP, Python, and
-Node.js, individually or together. It can start PostgreSQL, MySQL, MariaDB,
+The engine generates Dockerfiles and Compose configurations for PHP, Python,
+Node.js, Go, Rust, and Java, individually or together. It can start PostgreSQL, MySQL, MariaDB,
 MongoDB, and Redis according to the profile, build a missing image, and open an
 unprivileged terminal. The default Claude Code, Codex, or OpenCode agent is
 installed in the same project container and can run directly from its shell or

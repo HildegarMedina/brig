@@ -150,6 +150,7 @@
   "Invalid version number": "Número de versión inválido",
   "Isolated development workspaces": "Espacios de desarrollo aislados",
   "Isolated, profile-based development environments.": "Entornos de desarrollo aislados basados en perfiles.",
+  "Java build tools": "Herramientas de compilación Java",
   "Keep {value0} v{value1}": "Conservar {value0} v{value1}",
   "Language   {language}": "Idioma     {language}",
   "Language preference saved: {language}": "Preferencia de idioma guardada: {language}",

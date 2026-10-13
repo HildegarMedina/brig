@@ -277,7 +277,14 @@ class ProfileInheritanceTests(unittest.TestCase):
 
     def test_all_inherited_components_skip_empty_selection_steps(self):
         base = self.app.profile("base").latest
-        base.runtimes = {"node": "22.13.1", "python": "3.12.8", "php": "8.3.15"}
+        base.runtimes = {
+            "node": "22.13.1",
+            "python": "3.12.8",
+            "php": "8.3.15",
+            "go": "1.27.2",
+            "rust": "1.99.0",
+            "java": "21",
+        }
         base.agents = ["claude", "codex", "opencode"]
         terminal = ScriptedTerminal(inputs=["child"], multiples=[[], []], choices=[0])
         InteractiveApp(self.app, terminal, Path("/tmp")).profile_wizard(

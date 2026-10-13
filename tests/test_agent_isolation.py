@@ -340,6 +340,66 @@ class AgentInstructionsTests(unittest.TestCase):
                 )
                 self.assertEqual(target.read_text(), agent_instructions(services))
 
+    def test_java_agents_trust_the_proxy_ca_and_route_maven_through_it(self):
+        self.assertNotIn("JAVA_TOOL_OPTIONS", bootstrap_script(["claude"]))
+        script = bootstrap_script(["claude", "codex"], (), {"java": "21"}, {})
+        for agent in ("claude", "codex"):
+            store = f"/run/brig/java/{agent}.truststore"
+            self.assertIn(f"-keystore {store} -file /run/brig/java/{agent}.pem", script)
+            self.assertIn(f"-Djavax.net.ssl.trustStore={store}", script)
+            self.assertIn(f"-Dhttps.proxyHost=credential_{agent}", script)
+        self.assertNotIn("MAVEN_ARGS", script)
+        script = bootstrap_script(["claude"], (), {"java": "21"}, {"maven": "3.10.0"})
+        self.assertIn(
+            "--global-settings /run/brig/java/claude-maven-settings.xml", script
+        )
+        self.assertIn("<host>credential_claude</host>", script)
+
+    def test_proxy_ca_extraction_keeps_only_the_last_certificate(self):
+        line = next(
+            line
+            for line in bootstrap_script(["claude"], (), {"java": "21"}).splitlines()
+            if line.startswith("awk ")
+        )
+        with tempfile.TemporaryDirectory() as folder:
+            bundle, target = Path(folder) / "cert.pem", Path(folder) / "ca.pem"
+            bundle.write_text(
+                "-----BEGIN CERTIFICATE-----\npublic\n-----END CERTIFICATE-----\n"
+                "-----BEGIN CERTIFICATE-----\nbrig\n-----END CERTIFICATE-----\n"
+            )
+            command = line.replace("/opt/brig-auth/claude/cert.pem", str(bundle))
+            command = command.replace("/run/brig/java/claude.pem", str(target))
+            subprocess.run(["sh", "-c", command], check=True)
+            self.assertEqual(
+                target.read_text(),
+                "-----BEGIN CERTIFICATE-----\nbrig\n-----END CERTIFICATE-----\n",
+            )
+
+    def test_java_session_environment_is_valid_shell(self):
+        script = bootstrap_script(["claude"], (), {"java": "21"}, {"maven": "3.10.0"})
+        line = next(line for line in script.splitlines() if "JAVA_TOOL_OPTIONS" in line)
+        with tempfile.TemporaryDirectory() as folder:
+            target = Path(folder) / "environment.sh"
+            command = line.replace(
+                f"{agent_home('claude')}/.brig-environment.sh", str(target)
+            )
+            subprocess.run(["sh", "-c", command], check=True)
+            result = subprocess.run(
+                [
+                    "sh",
+                    "-c",
+                    f'. {target}; printf "%s\n%s" "$JAVA_TOOL_OPTIONS" "$MAVEN_ARGS"',
+                ],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+        options, maven = result.stdout.split("\n")
+        self.assertIn("-Dhttp.nonProxyHosts=localhost|127.0.0.1|postgresql", options)
+        self.assertEqual(
+            maven, "--global-settings /run/brig/java/claude-maven-settings.xml"
+        )
+
     def test_dockerfile_bootstrap_uses_project_services(self):
         case = test_docker_engine.DockerEngineTests()
         case.setUp()

@@ -77,6 +77,14 @@ PROVIDERS = {
 }
 
 
+# Tag that exists only when a Java tool release is published for a JDK major.
+JAVA_TOOL_TAGS = {
+    "maven": "{version}-eclipse-temurin-{java}",
+    "gradle": "{version}-jdk{java}",
+}
+JDK_MAJOR = re.compile(r"(?:eclipse-temurin-|jdk)([0-9]+)\b")
+
+
 def source_label(component: Component) -> str:
     return {
         "docker": "Docker Official Images",
@@ -133,6 +141,30 @@ def release_info(
                 (requirement,) if requirement else None,
                 "minimum",
             )
+    elif name in JAVA_TOOL_TAGS:
+        # Upstream publishes each release only for the JDKs it supports.
+        tags = set(docker_versions(text))
+        candidates = set(JDK_MAJOR.findall(" ".join(tags)))
+        for version in versions:
+            majors = sorted(
+                (
+                    major
+                    for major in candidates
+                    if JAVA_TOOL_TAGS[name].format(version=version, java=major) in tags
+                ),
+                key=int,
+            )
+            info[version] = ReleaseInfo(
+                requirements=tuple(majors) or None, dialect="exact"
+            )
+    elif name == "java":
+        lts = json.loads(fetch("https://api.adoptium.net/v3/info/available_releases"))[
+            "available_lts_releases"
+        ]
+        info = {
+            version: ReleaseInfo("LTS" if int(version) in lts else "Stable")
+            for version in versions
+        }
     elif name == "node":
         metadata = {
             entry["version"].removeprefix("v"): entry

@@ -80,6 +80,12 @@ selected; without PHP, Python is the base when present. A Node.js-only profile
 uses Debian Bookworm Slim as its base and incorporates the runtime from its
 official image.
 
+Go, Rust, and Java are always copied from their official images into the shared
+stage: Go to `/opt/go`, Rust's rustup toolchain to `/opt/rust`, and the Temurin
+JDK to `/opt/java/openjdk`. Temurin images are Ubuntu-based, so only the
+self-contained JDK is taken from them. Maven and Gradle are copied from the
+official image tag that pairs the selected release with the selected Java major.
+
 Mixed profiles can incorporate Python under `/opt/python` and Node.js under
 `/opt/node`, avoiding replacement of PHP binaries. The generator discovers the
 selected Python image's shared libraries and installs them in the final image.

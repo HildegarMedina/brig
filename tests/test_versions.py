@@ -24,6 +24,17 @@ Architectures: windows-amd64
             LiveVersionCatalog(fetch).versions("python"), ("3.10.2", "3.9.9")
         )
 
+    def test_debian_runtimes_require_a_bookworm_image_for_each_release(self):
+        fetch = Mock(
+            return_value="""Tags: 1.28.0-trixie, 1.28.0
+Architectures: amd64
+
+Tags: 1.27.2-bookworm, 1.27.2-trixie, 1.27.2
+Architectures: amd64
+"""
+        )
+        self.assertEqual(LiveVersionCatalog(fetch).versions("go"), ("1.27.2",))
+
     def test_postgres_two_part_versions_exclude_major_alias(self):
         fetch = Mock(
             return_value="Tags: 17.2, 17, latest, 16.6\nArchitectures: amd64\n"

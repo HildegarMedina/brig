@@ -4,10 +4,11 @@
 
 | Category | Components |
 | --- | --- |
-| Runtimes | PHP, Python, Node.js |
+| Runtimes | PHP, Python, Node.js, Go, Rust, Java (Eclipse Temurin JDK) |
 | PHP tools | Composer |
 | Python tools | pip, uv |
 | Node.js tools | npm, pnpm, Yarn Classic |
+| Java build tools | Maven, Gradle |
 | Browser automation | Playwright with Chromium (requires Node.js) |
 | Relational databases | PostgreSQL, MySQL, MariaDB |
 | Document databases | MongoDB |
@@ -48,6 +49,13 @@ and sorted newest first.
 | pip and uv | [PyPI JSON API](https://docs.pypi.org/api/json/) |
 | npm, pnpm, Yarn Classic, and Playwright | [npm registry](https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md) |
 | Composer | [Official release feed](https://getcomposer.org/versions) |
+| Maven and Gradle | Docker Official Images manifests |
+| Java LTS status | [Adoptium release information](https://api.adoptium.net/v3/info/available_releases) |
+
+Go and Rust list only releases that publish a Debian Bookworm image. Java is
+selected by major version (for example `21`); the image provides the latest
+Temurin JDK update of that major when it is built. Cargo and rustc come with
+Rust, and the Go toolchain includes its module tooling.
 
 Docker manifests describe currently maintained definitions, not an inventory of
 all historical releases. Moving aliases, image variants, and prereleases are
@@ -69,7 +77,10 @@ MySQL shows **LTS** or **Innovation** based on branch metadata from its
 Node.js shows **LTS** or **Current** using the
 [official release index](https://nodejs.org/dist/index.json).
 
-New profiles initially highlight the newest listed LTS for Node.js and MySQL.
+Java shows **LTS** for the majors Adoptium lists as long-term support.
+
+New profiles initially highlight the newest listed LTS for Node.js, MySQL, and
+Java.
 Editing preserves the existing selection when it is still valid. Composer shows
 the LTS status published in its own feed.
 
@@ -86,6 +97,7 @@ selected runtime:
 | npm, pnpm, Yarn Classic, Playwright | `engines.node`, including npm ranges with `||`, caret, and tilde |
 | pip, uv | `Requires-Python` from non-yanked distribution files |
 | Composer | Minimum PHP version declared in the release feed |
+| Maven, Gradle | Java majors the release's official image is published for |
 
 For uv, this check concerns the Python interpreter used to install its
 distribution, not every interpreter uv may later manage. Missing or unreadable
@@ -117,6 +129,17 @@ image.
 Runtimes use Bookworm variants at their chosen releases. Selected tools are
 installed with exact versions. Bundled pip or npm remains when no version of
 those tools is selected.
+
+Go and Rust add `gcc`, `g++`, `libc6-dev`, `make`, and `pkg-config` for cgo
+and native crates. Java adds `fontconfig`. Module, crate, and dependency caches
+(`~/go`, `~/.cargo`, `~/.m2`, `~/.gradle`) live in each user's persistent home.
+
+Agents reach the internet through their credential proxy. Go and Cargo use its
+`HTTPS_PROXY` and CA bundle. The JVM ignores both, so when Java is selected each
+agent session gets `JAVA_TOOL_OPTIONS` with the proxy and a truststore that adds
+the proxy CA to the JDK's own. Maven reads proxies only from settings, so with
+Maven the session also sets `MAVEN_ARGS` to a Brig-generated global settings
+file; the agent's `~/.m2/settings.xml` still applies on top of it.
 
 PHP adds `bcmath`, `intl`, `pcntl`, and `zip`. It adds `pdo_mysql` for MySQL or
 MariaDB, and `pdo_pgsql` with required dependencies for PostgreSQL. PHP extensions

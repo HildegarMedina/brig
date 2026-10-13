@@ -15,6 +15,8 @@ def matches(requirement: str, runtime: str, dialect: str) -> bool:
         return SpecifierSet(requirement).contains(runtime, prereleases=False)
     if dialect == "npm":
         return NpmSpec(requirement).match(Version(runtime))
+    if dialect == "exact":
+        return runtime == requirement
     if dialect == "minimum":
         return tuple(map(int, runtime.split("."))) >= tuple(
             map(int, requirement.split("."))

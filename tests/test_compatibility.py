@@ -177,3 +177,56 @@ class LiveCompatibilityTests(unittest.TestCase):
         self.assertEqual(
             catalog.label("mysql", "30.1.0"), "30.1.0 · Channel unverified"
         )
+
+
+class JavaReleaseTests(unittest.TestCase):
+    library = "https://raw.githubusercontent.com/docker-library/official-images/master/library/"
+
+    def catalog(self, manifests):
+        responses = {self.library + name: text for name, text in manifests.items()}
+        responses["https://api.adoptium.net/v3/info/available_releases"] = json.dumps(
+            {"available_lts_releases": [17, 21, 25]}
+        )
+        return LiveVersionCatalog(lambda url: responses[url])
+
+    def test_java_offers_majors_with_jdk_images_and_prefers_adoptium_lts(self):
+        catalog = self.catalog(
+            {
+                "eclipse-temurin": "Tags: 27.0.1_9-jdk, 27-jdk, 27\nArchitectures: amd64\n\n"
+                "Tags: 25.0.3_5-jdk, 25-jdk, 25, 21-jdk, 21, 20-jre, 20\n"
+                "Architectures: amd64\n"
+            }
+        )
+        versions = list(catalog.versions("java"))
+        self.assertEqual(versions, ["27", "25", "21"])
+        self.assertEqual(catalog.label("java", "27"), "27 · Stable")
+        self.assertEqual(catalog.label("java", "21"), "21 · LTS")
+        self.assertEqual(catalog.preferred_version("java", versions), "25")
+
+    def test_maven_and_gradle_support_only_published_jdk_pairings(self):
+        catalog = self.catalog(
+            {
+                "maven": "Tags: 3.10.0-eclipse-temurin-8, 3.10.0-eclipse-temurin-21, 3.10.0\n"
+                "Architectures: amd64\n\n"
+                "Tags: 4.0.0-rc-7-eclipse-temurin-21, 4.0.0-rc-7\nArchitectures: amd64\n",
+                "gradle": "Tags: 9.8.1-jdk21, 9.8.1-jdk25, 9.8.1, jdk21\n"
+                "Architectures: amd64\n\n"
+                "Tags: 8.14.6-jdk8, 8.14.6-jdk21, 8.14.6\nArchitectures: amd64\n",
+            }
+        )
+        self.assertEqual(catalog.versions("maven"), ("3.10.0",))
+        self.assertEqual(
+            catalog.compatible_versions("gradle", {"java": "8"}), ("8.14.6",)
+        )
+        self.assertEqual(
+            catalog.compatible_versions("gradle", {"java": "21"}), ("9.8.1", "8.14.6")
+        )
+        self.assertEqual(catalog.compatible_versions("maven", {"java": "25"}), ())
+        self.assertIn(
+            "Requires: 21 OR 25",
+            catalog.compatibility_issue("gradle", "9.8.1", {"java": "8"}),
+        )
+
+    def test_exact_requirements_never_match_partially(self):
+        self.assertTrue(matches("21", "21", "exact"))
+        self.assertFalse(matches("21", "2", "exact"))

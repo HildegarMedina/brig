@@ -18,12 +18,24 @@ class Component:
     runtime: str | None = None
     version_parts: int = 3
     version_prefix: str = ""
+    # Only offer releases that also publish this image variant, e.g. Debian.
+    tag_suffix: str = ""
 
 
 RUNTIMES = {
     "php": Component("PHP", "Runtimes", "docker", "php"),
     "python": Component("Python", "Runtimes", "docker", "python"),
     "node": Component("Node.js", "Runtimes", "docker", "node"),
+    "go": Component("Go", "Runtimes", "docker", "golang", tag_suffix="-bookworm"),
+    "rust": Component("Rust", "Runtimes", "docker", "rust", tag_suffix="-bookworm"),
+    "java": Component(
+        "Java (Eclipse Temurin)",
+        "Runtimes",
+        "docker",
+        "eclipse-temurin",
+        version_parts=1,
+        tag_suffix="-jdk",
+    ),
 }
 TOOLS = {
     "composer": Component(
@@ -41,6 +53,8 @@ TOOLS = {
         "node",
         version_prefix="1.",
     ),
+    "maven": Component("Maven", "Java build tools", "docker", "maven", "java"),
+    "gradle": Component("Gradle", "Java build tools", "docker", "gradle", "java"),
     "playwright": Component(
         "Playwright (Chromium)", "Browser automation", "npm", "playwright", "node"
     ),

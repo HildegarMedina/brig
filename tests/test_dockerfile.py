@@ -165,6 +165,53 @@ class DockerfileTests(unittest.TestCase):
                 if "node" in runtimes:
                     self.assertIn("ENV NPM_CONFIG_PREFIX=/opt/node", contents)
 
+    def test_go_rust_and_java_toolchains_are_copied_into_the_debian_stage(self):
+        project = php_project()
+        project.configuration.runtimes = {
+            "go": "1.27.2",
+            "rust": "1.99.0",
+            "java": "21",
+        }
+        project.configuration.tools = {"maven": "3.10.0", "gradle": "9.8.1"}
+        contents = render_dockerfile(project)
+        for line in (
+            "FROM golang:1.27.2-bookworm AS go_runtime",
+            "FROM rust:1.99.0-bookworm AS rust_runtime",
+            "FROM eclipse-temurin:21-jdk AS java_runtime",
+            "FROM maven:3.10.0-eclipse-temurin-21 AS maven_binary",
+            "FROM gradle:9.8.1-jdk21 AS gradle_binary",
+            "FROM debian:bookworm-slim AS development",
+            "COPY --from=go_runtime /usr/local/go/ /opt/go/",
+            "ENV GOTOOLCHAIN=local",
+            "COPY --from=rust_runtime /usr/local/rustup/ /opt/rust/rustup/",
+            "ENV RUSTUP_HOME=/opt/rust/rustup",
+            "COPY --from=java_runtime /opt/java/openjdk/ /opt/java/openjdk/",
+            "ENV JAVA_HOME=/opt/java/openjdk",
+            "COPY --from=maven_binary /usr/share/maven/ /opt/maven/",
+            "COPY --from=gradle_binary /opt/gradle/ /opt/gradle/",
+        ):
+            self.assertIn(line, contents.splitlines())
+        # Package caches belong to each user's persistent home, not the image.
+        self.assertNotIn("CARGO_HOME", contents)
+        self.assertNotIn("GOPATH", contents)
+        packages = next(
+            line
+            for line in contents.splitlines()
+            if "apt-get install" in line and "acl" in line
+        )
+        for package in ("gcc", "g++", "libc6-dev", "pkg-config", "fontconfig"):
+            self.assertIn(f" {package} ", packages)
+
+    def test_java_tools_require_java_and_native_packages_follow_runtimes(self):
+        project = php_project()
+        project.configuration.tools = {"maven": "3.10.0"}
+        with self.assertRaisesRegex(BrigError, "maven requires the java runtime"):
+            render_dockerfile(project)
+        project.configuration.tools = {}
+        contents = render_dockerfile(project)
+        self.assertNotIn("libc6-dev", contents)
+        self.assertNotIn("JAVA_TOOL_OPTIONS", contents)
+
     def test_tool_order_and_generation_are_deterministic(self):
         project = php_project()
         project.configuration.runtimes = {"node": "22.13.1"}

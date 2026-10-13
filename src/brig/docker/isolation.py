@@ -43,7 +43,61 @@ def agent_environment(agent):
     return values
 
 
-def bootstrap_script(agents, services=()):
+def java_proxy_lines(agent, maven=False):
+    """Point the JVM, which ignores HTTPS_PROXY and SSL_CERT_FILE, at the proxy.
+
+    Files live under root-owned /run/brig so an agent cannot plant links there.
+    """
+    from brig.docker.auth_proxy import proxy_environment
+
+    environment = proxy_environment(agent)
+    host = f"credential_{agent}"
+    bypass = environment["NO_PROXY"].replace(",", "|")
+    store = f"/run/brig/java/{agent}.truststore"
+    options = " ".join(
+        [
+            f"-Djavax.net.ssl.trustStore={store}",
+            "-Djavax.net.ssl.trustStorePassword=changeit",
+            *[
+                f"-D{scheme}.{key}={value}"
+                for scheme in ("http", "https")
+                for key, value in (("proxyHost", host), ("proxyPort", "8080"))
+            ],
+            f"-Dhttp.nonProxyHosts={bypass}",
+        ]
+    )
+    exports = f"export JAVA_TOOL_OPTIONS={shlex.quote(options)}\\n"
+    lines = [
+        "mkdir -p /run/brig/java",
+        # The proxy's bundle ends with its own CA, after the public roots.
+        'awk \'/BEGIN CERTIFICATE/ { block = "" } { block = block $0 "\\n" } END { printf "%s", block }\' '
+        f"{environment['SSL_CERT_FILE']} > /run/brig/java/{agent}.pem",
+        f"rm -f {store}",
+        f"cp \"$(find -L /opt/java/openjdk -path '*/lib/security/cacerts' | head -n 1)\" {store}",
+        f"keytool -importcert -noprompt -alias brig-proxy -storepass changeit -keystore {store} -file /run/brig/java/{agent}.pem >/dev/null",
+        f"chmod 644 {store}",
+    ]
+    if maven:
+        settings = f"/run/brig/java/{agent}-maven-settings.xml"
+        proxies = "".join(
+            f"<proxy><id>brig-{scheme}</id><active>true</active>"
+            f"<protocol>{scheme}</protocol><host>{host}</host><port>8080</port>"
+            f"<nonProxyHosts>{bypass}</nonProxyHosts></proxy>"
+            for scheme in ("http", "https")
+        )
+        # Maven reads proxies only from settings; this global file leaves the
+        # agent's own ~/.m2/settings.xml in charge of everything else.
+        lines += [
+            f"printf '%s\\n' {shlex.quote(f'<settings><proxies>{proxies}</proxies></settings>')} > {settings}",
+            f"chmod 644 {settings}",
+        ]
+        exports += (
+            f"export MAVEN_ARGS={shlex.quote(f'--global-settings {settings}')}\\n"
+        )
+    return lines, exports
+
+
+def bootstrap_script(agents, services=(), runtimes=(), tools=()):
     lines = [
         "#!/bin/sh",
         "set -eu",
@@ -97,6 +151,11 @@ def bootstrap_script(agents, services=()):
             lines.append(
                 f"cat /opt/brig-auth/{agent}/environment.sh >> {home}/.brig-environment.sh"
             )
+        if config and "java" in runtimes:
+            java_lines, java_exports = java_proxy_lines(agent, "maven" in tools)
+            lines += java_lines + [
+                f"printf '%b' {shlex.quote(java_exports)} >> {home}/.brig-environment.sh"
+            ]
         lines += [
             f"rm -f {home}/{INSTRUCTIONS_FILE}",
             f"printf '%s' {shlex.quote(instructions)} > {home}/{INSTRUCTIONS_FILE}",

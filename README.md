@@ -9,7 +9,7 @@ environment. Your code stays in its local folder.
 
 ## What you can do
 
-- Combine PHP, Python, and Node.js with the tools your project needs.
+- Combine PHP, Python, Node.js, Go, Rust, and Java with the tools your project needs.
 - Start PostgreSQL, MySQL, MariaDB, MongoDB, or Redis alongside your workspace.
 - Work with Claude Code, Codex, and OpenCode in the project environment.
 - Reuse profiles across projects and apply updates when you choose.

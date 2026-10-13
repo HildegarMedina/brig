@@ -30,7 +30,48 @@ RUNTIME_IMAGES = {
     "php": "php:{version}-cli-bookworm",
     "python": "python:{version}-bookworm",
     "node": "node:{version}-bookworm",
+    "go": "golang:{version}-bookworm",
+    "rust": "rust:{version}-bookworm",
+    # Temurin images are Ubuntu-based; only the self-contained JDK is copied.
+    "java": "eclipse-temurin:{version}-jdk",
 }
+
+# Toolchains copied from their official images into the shared Debian stage.
+# Package caches stay in each user's home (GOPATH, CARGO_HOME, ~/.m2, ~/.gradle).
+TOOLCHAINS = {
+    "go": (
+        ("/usr/local/go/", "/opt/go/"),
+        ("GOTOOLCHAIN=local", "PATH=/opt/go/bin:$PATH"),
+    ),
+    "rust": (
+        ("/usr/local/rustup/", "/opt/rust/rustup/"),
+        ("/usr/local/cargo/bin/", "/opt/rust/bin/"),
+        ("RUSTUP_HOME=/opt/rust/rustup", "PATH=/opt/rust/bin:$PATH"),
+    ),
+    "java": (
+        ("/opt/java/openjdk/", "/opt/java/openjdk/"),
+        ("JAVA_HOME=/opt/java/openjdk", "PATH=/opt/java/openjdk/bin:$PATH"),
+    ),
+}
+
+# Build tools are pure Java distributions; each image tag pairs one with a JDK.
+JAVA_TOOLS = {
+    "maven": (
+        "maven:{version}-eclipse-temurin-{java}",
+        "/usr/share/maven/",
+        "/opt/maven/",
+        ("MAVEN_HOME=/opt/maven", "PATH=/opt/maven/bin:$PATH"),
+    ),
+    "gradle": (
+        "gradle:{version}-jdk{java}",
+        "/opt/gradle/",
+        "/opt/gradle/",
+        ("GRADLE_HOME=/opt/gradle", "PATH=/opt/gradle/bin:$PATH"),
+    ),
+}
+
+# Native linkers and build helpers for cgo and Rust crates.
+NATIVE_BUILD_PACKAGES = ("g++", "gcc", "libc6-dev", "make", "pkg-config")
 
 
 def python_stage(version: str) -> list[str]:
@@ -125,7 +166,12 @@ def render_dockerfile(project: Project) -> str:
                 f'    mkdir -p {" ".join(paths)} && chown -R "$agent_uid:$BRIG_GID" {home} && chmod 700 {" ".join(paths)}',
             ]
         )
-    script = bootstrap_script(configuration.selected_agents, configuration.services)
+    script = bootstrap_script(
+        configuration.selected_agents,
+        configuration.services,
+        configuration.runtimes,
+        configuration.tools,
+    )
     lines.extend(
         [
             "RUN mkdir -p /usr/local/lib/brig && printf '%s\\n' "
@@ -169,6 +215,10 @@ def system_packages(configuration, integrations):
                 packages.update(required_packages)
     if node:
         packages.update({"libstdc++6", "libatomic1"})
+    if "go" in configuration.runtimes or "rust" in configuration.runtimes:
+        packages.update(NATIVE_BUILD_PACKAGES)
+    if "java" in configuration.runtimes:
+        packages.add("fontconfig")
     return packages, extensions
 
 
@@ -190,6 +240,14 @@ def runtime_lines(configuration, integrations) -> list[str]:
         lines.extend(
             [f"FROM {RUNTIME_IMAGES['node'].format(version=node)} AS node_runtime", ""]
         )
+    for name in sorted(TOOLCHAINS.keys() & runtimes.keys()):
+        image = RUNTIME_IMAGES[name].format(version=runtimes[name])
+        lines.extend([f"FROM {image} AS {name}_runtime", ""])
+    for name in sorted(JAVA_TOOLS.keys() & configuration.tools.keys()):
+        image = JAVA_TOOLS[name][0].format(
+            version=configuration.tools[name], java=runtimes["java"]
+        )
+        lines.extend([f"FROM {image} AS {name}_binary", ""])
     base = (
         RUNTIME_IMAGES["php"].format(version=php)
         if php
@@ -224,6 +282,11 @@ def runtime_lines(configuration, integrations) -> list[str]:
                 "",
             ]
         )
+    for name in sorted(TOOLCHAINS.keys() & runtimes.keys()):
+        *copies, environment = TOOLCHAINS[name]
+        for source, target in copies:
+            lines.append(f"COPY --from={name}_runtime {source} {target}")
+        lines.extend([f"ENV {value}" for value in environment] + [""])
     lines.extend(
         [
             "RUN set -eux; \\",
@@ -305,6 +368,10 @@ def tool_lines(configuration) -> list[str]:
                 "",
             ]
         )
+    for name in sorted(JAVA_TOOLS.keys() & configuration.tools.keys()):
+        _, source, target, environment = JAVA_TOOLS[name]
+        lines.append(f"COPY --from={name}_binary {source} {target}")
+        lines.extend([f"ENV {value}" for value in environment] + [""])
     if playwright := configuration.tools.get("playwright"):
         lines.extend(
             [

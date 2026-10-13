@@ -117,6 +117,7 @@ def proxy_environment(agent):
                 "NODE_EXTRA_CA_CERTS",
                 "REQUESTS_CA_BUNDLE",
                 "CURL_CA_BUNDLE",
+                "CARGO_HTTP_CAINFO",
             )
         },
         "NO_PROXY": "localhost,127.0.0.1,postgresql,mysql,mariadb,mongodb,redis",
