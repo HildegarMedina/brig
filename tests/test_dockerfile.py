@@ -177,6 +177,7 @@ class DockerfileTests(unittest.TestCase):
         for line in (
             "FROM golang:1.27.2-bookworm AS go_runtime",
             "FROM rust:1.99.0-bookworm AS rust_runtime",
+            "RUN rustup component add clippy rustfmt",
             "FROM eclipse-temurin:21-jdk AS java_runtime",
             "FROM maven:3.10.0-eclipse-temurin-21 AS maven_binary",
             "FROM gradle:9.8.1-jdk21 AS gradle_binary",

@@ -54,6 +54,12 @@ TOOLCHAINS = {
     ),
 }
 
+# Commands run in a toolchain's own stage before it is copied.
+TOOLCHAIN_SETUP = {
+    # The official image installs rustup's minimal profile.
+    "rust": "RUN rustup component add clippy rustfmt",
+}
+
 # Build tools are pure Java distributions; each image tag pairs one with a JDK.
 JAVA_TOOLS = {
     "maven": (
@@ -242,7 +248,10 @@ def runtime_lines(configuration, integrations) -> list[str]:
         )
     for name in sorted(TOOLCHAINS.keys() & runtimes.keys()):
         image = RUNTIME_IMAGES[name].format(version=runtimes[name])
-        lines.extend([f"FROM {image} AS {name}_runtime", ""])
+        lines.append(f"FROM {image} AS {name}_runtime")
+        if name in TOOLCHAIN_SETUP:
+            lines.append(TOOLCHAIN_SETUP[name])
+        lines.append("")
     for name in sorted(JAVA_TOOLS.keys() & configuration.tools.keys()):
         image = JAVA_TOOLS[name][0].format(
             version=configuration.tools[name], java=runtimes["java"]

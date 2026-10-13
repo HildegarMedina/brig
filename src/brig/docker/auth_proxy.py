@@ -28,6 +28,11 @@ def proxy_image_lines() -> list[str]:
     ]
 
 
+def proxy_host(agent):
+    """Network alias without "_", which Java's HttpClient rejects in hostnames."""
+    return f"credential-{agent}"
+
+
 def add_credential_proxy(
     agent, service, services, volumes, networks, prefix, image, uid, gid, shared
 ):
@@ -67,7 +72,10 @@ def add_credential_proxy(
             {"type": "volume", "source": private, "target": "/certificates"},
             {"type": "volume", "source": public, "target": "/public"},
         ],
-        "networks": [network, f"credential_{agent}_egress"],
+        "networks": {
+            network: {"aliases": [proxy_host(agent)]},
+            f"credential_{agent}_egress": {},
+        },
         "cap_drop": ["ALL"],
         "security_opt": ["no-new-privileges:true"],
         "healthcheck": {
@@ -95,7 +103,7 @@ def add_credential_proxy(
 
 
 def proxy_environment(agent):
-    name = f"credential_{agent}"
+    name = proxy_host(agent)
     cert = f"/opt/brig-auth/{agent}/cert.pem"
     return {
         **{

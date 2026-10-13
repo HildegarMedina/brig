@@ -48,10 +48,10 @@ def java_proxy_lines(agent, maven=False):
 
     Files live under root-owned /run/brig so an agent cannot plant links there.
     """
-    from brig.docker.auth_proxy import proxy_environment
+    from brig.docker.auth_proxy import proxy_environment, proxy_host
 
     environment = proxy_environment(agent)
-    host = f"credential_{agent}"
+    host = proxy_host(agent)
     bypass = environment["NO_PROXY"].replace(",", "|")
     store = f"/run/brig/java/{agent}.truststore"
     options = " ".join(
@@ -74,6 +74,7 @@ def java_proxy_lines(agent, maven=False):
         f"{environment['SSL_CERT_FILE']} > /run/brig/java/{agent}.pem",
         f"rm -f {store}",
         f"cp \"$(find -L /opt/java/openjdk -path '*/lib/security/cacerts' | head -n 1)\" {store}",
+        f"chmod 644 /run/brig/java/{agent}.pem",
         f"keytool -importcert -noprompt -alias brig-proxy -storepass changeit -keystore {store} -file /run/brig/java/{agent}.pem >/dev/null",
         f"chmod 644 {store}",
     ]

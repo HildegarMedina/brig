@@ -34,6 +34,10 @@ class AuthDockerTests(unittest.TestCase):
             self.assertNotIn("credential_egress", service["networks"])
             private_network = f"credential_{agent}"
             self.assertTrue(definition["networks"][private_network]["internal"])
+            # Java's HttpClient rejects "_" in proxy hostnames.
+            self.assertEqual(
+                proxy["networks"][private_network]["aliases"], [f"credential-{agent}"]
+            )
             self.assertEqual(
                 set(proxy["networks"]) & set(service["networks"]), {private_network}
             )

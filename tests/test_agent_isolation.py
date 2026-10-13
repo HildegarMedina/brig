@@ -193,7 +193,7 @@ class AgentIsolationTests(unittest.TestCase):
             user = command[command.index("--user") + 1]
             users.add(user)
             self.assertEqual(user, f"{agent_uid(agent, 1234)}:4321")
-            self.assertIn(f"HTTPS_PROXY=http://credential_{agent}:8080", command)
+            self.assertIn(f"HTTPS_PROXY=http://credential-{agent}:8080", command)
             self.assertIn(f"HOME={agent_home(agent)}", command)
         self.assertEqual(len(users), 3)
 
@@ -347,13 +347,14 @@ class AgentInstructionsTests(unittest.TestCase):
             store = f"/run/brig/java/{agent}.truststore"
             self.assertIn(f"-keystore {store} -file /run/brig/java/{agent}.pem", script)
             self.assertIn(f"-Djavax.net.ssl.trustStore={store}", script)
-            self.assertIn(f"-Dhttps.proxyHost=credential_{agent}", script)
+            self.assertIn(f"chmod 644 /run/brig/java/{agent}.pem", script)
+            self.assertIn(f"-Dhttps.proxyHost=credential-{agent}", script)
         self.assertNotIn("MAVEN_ARGS", script)
         script = bootstrap_script(["claude"], (), {"java": "21"}, {"maven": "3.10.0"})
         self.assertIn(
             "--global-settings /run/brig/java/claude-maven-settings.xml", script
         )
-        self.assertIn("<host>credential_claude</host>", script)
+        self.assertIn("<host>credential-claude</host>", script)
 
     def test_proxy_ca_extraction_keeps_only_the_last_certificate(self):
         line = next(
