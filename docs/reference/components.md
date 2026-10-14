@@ -13,6 +13,7 @@
 | Relational databases | PostgreSQL, MySQL, MariaDB |
 | Document databases | MongoDB |
 | Cache and key/value stores | Redis |
+| Message brokers | RabbitMQ, Apache Kafka |
 
 Tools for selected runtimes appear, plus Playwright with its Node.js dependency
 notice. At least one runtime is required; tools
@@ -46,16 +47,27 @@ and sorted newest first.
 | Components | Source |
 | --- | --- |
 | Runtimes and services | [Docker Official Images manifests](https://github.com/docker-library/official-images) for Linux images |
+| Apache Kafka | [Docker Hub tags](https://hub.docker.com/r/apache/kafka/tags) of `apache/kafka` (newest 100) |
 | pip and uv | [PyPI JSON API](https://docs.pypi.org/api/json/) |
 | npm, pnpm, Yarn Classic, and Playwright | [npm registry](https://github.com/npm/registry/blob/main/docs/responses/package-metadata.md) |
 | Composer | [Official release feed](https://getcomposer.org/versions) |
 | Maven and Gradle | Docker Official Images manifests |
 | Java LTS status | [Adoptium release information](https://api.adoptium.net/v3/info/available_releases) |
 
-Go and Rust list only releases that publish a Debian Bookworm image. Java is
+Go and Rust list only releases that publish a Debian Bookworm image. RabbitMQ
+lists only releases with a `-management` image. Java is
 selected by major version (for example `21`); the image provides the latest
 Temurin JDK update of that major when it is built. Cargo and rustc come with
 Rust, and the Go toolchain includes its module tooling.
+
+Docker Official Images manifests are updated before their images are built and
+pushed, sometimes hours earlier. Every component installed from an image
+(runtimes, Composer, Maven, Gradle, and services) is therefore offered only once
+[Docker Hub](https://docs.docker.com/docker-hub/api/latest/) reports the exact
+tag the build will pull, for Linux and this machine's architecture (`amd64` or
+`arm64`). A new release appears in the next wizard after its image is pushed.
+Maven and Gradle are checked for the selected Java major. If Docker Hub cannot be
+reached, the wizard offers Retry instead of guessing.
 
 Docker manifests describe currently maintained definitions, not an inventory of
 all historical releases. Moving aliases, image variants, and prereleases are
@@ -117,10 +129,12 @@ agents use to explore code and diagnose problems: `fd`, `tree`, `less`, `file`,
 `make`, `ps`, `ss`, `nc`, `dig`, `shellcheck`, and `sqlite3`.
 Database clients are added automatically for selected services, regardless of the
 application language: `psql` for PostgreSQL, `mysql` and `mariadb` for MySQL/MariaDB,
-`mongosh` for MongoDB, and `redis-cli` for Redis. These commands run from the
+`mongosh` for MongoDB, `redis-cli` for Redis, `amqp-publish` and `amqp-consume`
+(`amqp-tools`) for RabbitMQ, and `kcat` for Kafka. These commands run from the
 development terminal and connect over the project's private network.
 
-PostgreSQL, MySQL/MariaDB, and Redis clients use Debian Bookworm packages; the
+PostgreSQL, MySQL/MariaDB, Redis, RabbitMQ, and Kafka clients use Debian
+Bookworm packages; the
 MySQL command is provided by MariaDB's compatible client. MongoDB's shell uses
 MongoDB's signed Debian repository. Client package versions are resolved during
 the build and can differ from the pinned server version. For version-sensitive
@@ -148,8 +162,13 @@ MariaDB, and `pdo_pgsql` with required dependencies for PostgreSQL. PHP extensio
 for MongoDB and Redis are not currently installed.
 
 Compose creates one container per selected service using its concrete version.
-The development environment does not install database servers inside its own
-container or start applications based on folder contents.
+The development environment does not install database servers or brokers inside
+its own container or start applications based on folder contents.
+
+RabbitMQ uses the official `-management` image with a fixed `rabbitmq` hostname,
+because RabbitMQ stores its data under a node name derived from the hostname.
+Kafka uses Apache's `apache/kafka` image as a single KRaft node that advertises
+`kafka:9092` to clients; its data lives in `/var/lib/kafka/data`.
 
 ## Profile format
 
@@ -181,10 +200,15 @@ databases:
   postgresql: "17.2"
 caches:
   redis: "7.4.2"
+message_brokers:
+  rabbitmq: "4.3.6"
 agents:
   - "claude"
 agent: "claude"
 ```
+
+The `message_brokers` section is written only when RabbitMQ or Kafka is
+selected, so profiles saved before brokers existed keep their exact documents.
 
 Import this YAML with `brig profile import FILE`. For an inherited profile, also
 provide its base history unless those versions are already saved locally. See

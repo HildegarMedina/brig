@@ -20,7 +20,7 @@ from brig.persistence.codec import decode_profile_version, decode_state
 from brig.persistence.profile_yaml import profile_path
 from brig.persistence.store import JsonStateStore
 from tests import test_docker_engine
-from tests.fakes import demo_state
+from tests.fakes import demo_state, published_images
 
 
 class BoundaryTests(unittest.TestCase):
@@ -54,7 +54,7 @@ class BoundaryTests(unittest.TestCase):
 
     def test_runtime_has_no_tool_compatibility_requirement(self):
         catalog = LiveVersionCatalog(
-            Mock(side_effect=AssertionError("unexpected fetch"))
+            published_images(Mock(side_effect=AssertionError("unexpected fetch")))
         )
         self.assertIsNone(catalog.compatibility_issue("python", "3.12.8", {}))
 

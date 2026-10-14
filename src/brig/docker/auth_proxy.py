@@ -128,5 +128,5 @@ def proxy_environment(agent):
                 "CARGO_HTTP_CAINFO",
             )
         },
-        "NO_PROXY": "localhost,127.0.0.1,postgresql,mysql,mariadb,mongodb,redis",
+        "NO_PROXY": "localhost,127.0.0.1,postgresql,mysql,mariadb,mongodb,redis,rabbitmq,kafka",
     }

@@ -302,11 +302,18 @@ class AgentInstructionsTests(unittest.TestCase):
         self.assertIn("REDIS_URL", text)
         self.assertNotIn("MYSQL_HOST", text)
         self.assertNotIn("No databases", text)
+        brokers = agent_instructions({"rabbitmq": "4", "kafka": "4"})
+        self.assertIn("use AMQP_URL", brokers)
+        self.assertIn("RABBITMQ_MANAGEMENT_URL", brokers)
+        self.assertIn("use KAFKA_BOOTSTRAP_SERVERS", brokers)
+        self.assertIn("NOT the databases, Redis, message brokers", brokers)
 
     def test_instructions_without_services_say_none_are_reachable(self):
         text = agent_instructions({})
         self.assertIn("Brig sandbox", text)
-        self.assertIn("No databases or caches are provided here.", text)
+        self.assertIn(
+            "No databases, caches or message brokers are provided here.", text
+        )
         self.assertNotIn("PGHOST", text)
 
     def test_instructions_list_every_installed_tool(self):

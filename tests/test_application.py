@@ -10,7 +10,7 @@ from brig.application import Application
 from brig.errors import BrigError
 from brig.models import State
 from tests.demo_engine import DemoEngine
-from tests.fakes import FakeVersionCatalog, MemoryStore, demo_state
+from tests.fakes import FakeVersionCatalog, MemoryStore, demo_state, published_images
 
 
 class ApplicationTests(unittest.TestCase):
@@ -274,10 +274,12 @@ class ApplicationTests(unittest.TestCase):
         before = deepcopy(self.app.state)
         payload = {"stable": [{"version": "2.10.3", "min-php": 80400}]}
         catalog = LiveVersionCatalog(
-            lambda url: (
-                json.dumps(payload)
-                if url == "https://getcomposer.org/versions"
-                else "Tags: 8.3.15\nArchitectures: amd64"
+            published_images(
+                lambda url: (
+                    json.dumps(payload)
+                    if url == "https://getcomposer.org/versions"
+                    else "Tags: 8.3.15\nArchitectures: amd64"
+                )
             )
         )
         with self.assertRaisesRegex(BrigError, "PHP 8.3.15.*Requires: >=8.4.0"):

@@ -170,7 +170,7 @@
   "No projects. Use 'brig project init'.": "No hay proyectos. Usa 'brig project init'.",
   "No records yet.": "Todavía no hay registros.",
   "No records yet. Press c to create.": "Todavía no hay registros. Pulsa c para crear.",
-  "No stable, exact versions were returned": "No se recibieron versiones estables y exactas",
+  "No stable, exact versions with published images were returned": "No se devolvieron versiones estables y exactas con imágenes publicadas",
   "No verified {value0} version supports {value1} {value2}. Choose a different runtime version or deselect this tool.": "Ninguna versión verificada de {value0} admite {value1} {value2}. Elige otra versión del entorno de ejecución o desmarca esta herramienta.",
   "No {value0}. Use 'brig {value1} {value2}'.": "No hay {value0}. Usa 'brig {value1} {value2}'.",
   "Node.js package managers": "Gestores de paquetes Node.js",
@@ -368,7 +368,7 @@
   "{value0} · 1/6 · name (kebab-case)": "{value0} · 1/6 · nombre (kebab-case)",
   "{value0} · 2/6 · runtimes": "{value0} · 2/6 · lenguajes",
   "{value0} · 3/6 · tools · compatible versions only": "{value0} · 3/6 · herramientas · solo versiones compatibles",
-  "{value0} · 4/6 · databases and caches": "{value0} · 4/6 · bases de datos y cachés",
+  "{value0} · 4/6 · databases, caches and message brokers": "{value0} · 4/6 · bases de datos, cachés y brokers de mensajería",
   "{value0} · 5/6 · agents": "{value0} · 5/6 · agentes",
   "{value0} · 6/6 · review": "{value0} · 6/6 · revisar",
   "{value0} · default agent": "{value0} · agente predeterminado",
@@ -404,5 +404,9 @@
   "delete a project with its containers, images, and volumes, keeping its local folder and profile": "eliminar un proyecto con sus contenedores, imágenes y volúmenes, conservando su carpeta local y su perfil",
   "The environment will be stopped and its containers, images, and volumes deleted, including databases and agent history.": "El entorno se detendrá y se eliminarán sus contenedores, imágenes y volúmenes, incluidas las bases de datos y el historial de los agentes.",
   "rename a profile; projects and child profiles follow it": "renombrar un perfil; sus proyectos y perfiles hijos lo siguen",
-  "rename a project": "renombrar un proyecto"
+  "rename a project": "renombrar un proyecto",
+  "Cannot verify the {value0} image on Docker Hub: {value1}. Check your connection and retry.": "No se puede verificar la imagen {value0} en Docker Hub: {value1}. Revisa tu conexión y vuelve a intentarlo.",
+  "Message brokers": "Brokers de mensajería",
+  "message_brokers": "brokers de mensajería",
+  "{value0} {value1} is not yet published for {value2} {value3} on Docker Hub ({value4}). Choose another version or retry later.": "{value0} {value1} aún no está publicado para {value2} {value3} en Docker Hub ({value4}). Elige otra versión o vuelve a intentarlo más tarde."
 }

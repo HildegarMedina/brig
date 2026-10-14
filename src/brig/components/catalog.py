@@ -20,14 +20,51 @@ class Component:
     version_prefix: str = ""
     # Only offer releases that also publish this image variant, e.g. Debian.
     tag_suffix: str = ""
+    # Image the build pulls; releases are offered only once it is published.
+    # Java build tools also format it with the selected Java major.
+    image: str = ""
 
 
 RUNTIMES = {
-    "php": Component("PHP", "Runtimes", "docker", "php"),
-    "python": Component("Python", "Runtimes", "docker", "python"),
-    "node": Component("Node.js", "Runtimes", "docker", "node"),
-    "go": Component("Go", "Runtimes", "docker", "golang", tag_suffix="-bookworm"),
-    "rust": Component("Rust", "Runtimes", "docker", "rust", tag_suffix="-bookworm"),
+    # Every runtime uses the same Debian release, including in mixed profiles.
+    "php": Component(
+        "PHP",
+        "Runtimes",
+        "docker",
+        "php",
+        image="php:{version}-cli-bookworm",
+    ),
+    "python": Component(
+        "Python",
+        "Runtimes",
+        "docker",
+        "python",
+        image="python:{version}-bookworm",
+    ),
+    "node": Component(
+        "Node.js",
+        "Runtimes",
+        "docker",
+        "node",
+        image="node:{version}-bookworm",
+    ),
+    "go": Component(
+        "Go",
+        "Runtimes",
+        "docker",
+        "golang",
+        tag_suffix="-bookworm",
+        image="golang:{version}-bookworm",
+    ),
+    "rust": Component(
+        "Rust",
+        "Runtimes",
+        "docker",
+        "rust",
+        tag_suffix="-bookworm",
+        image="rust:{version}-bookworm",
+    ),
+    # Temurin images are Ubuntu-based; only the self-contained JDK is copied.
     "java": Component(
         "Java (Eclipse Temurin)",
         "Runtimes",
@@ -35,11 +72,17 @@ RUNTIMES = {
         "eclipse-temurin",
         version_parts=1,
         tag_suffix="-jdk",
+        image="eclipse-temurin:{version}-jdk",
     ),
 }
 TOOLS = {
     "composer": Component(
-        "Composer", "PHP package managers", "composer", "composer", "php"
+        "Composer",
+        "PHP package managers",
+        "composer",
+        "composer",
+        "php",
+        image="composer:{version}",
     ),
     "pip": Component("pip", "Python package managers", "pypi", "pip", "python"),
     "uv": Component("uv", "Python package managers", "pypi", "uv", "python"),
@@ -53,22 +96,85 @@ TOOLS = {
         "node",
         version_prefix="1.",
     ),
-    "maven": Component("Maven", "Java build tools", "docker", "maven", "java"),
-    "gradle": Component("Gradle", "Java build tools", "docker", "gradle", "java"),
+    # Build tools are pure Java distributions; each image tag pairs one with a JDK.
+    "maven": Component(
+        "Maven",
+        "Java build tools",
+        "docker",
+        "maven",
+        "java",
+        image="maven:{version}-eclipse-temurin-{java}",
+    ),
+    "gradle": Component(
+        "Gradle",
+        "Java build tools",
+        "docker",
+        "gradle",
+        "java",
+        image="gradle:{version}-jdk{java}",
+    ),
     "playwright": Component(
         "Playwright (Chromium)", "Browser automation", "npm", "playwright", "node"
     ),
 }
 SERVICES = {
     "postgresql": Component(
-        "PostgreSQL", "Relational databases", "docker", "postgres", version_parts=2
+        "PostgreSQL",
+        "Relational databases",
+        "docker",
+        "postgres",
+        version_parts=2,
+        image="postgres:{version}",
     ),
-    "mysql": Component("MySQL", "Relational databases", "docker", "mysql"),
-    "mariadb": Component("MariaDB", "Relational databases", "docker", "mariadb"),
-    "mongodb": Component("MongoDB", "Document databases", "docker", "mongo"),
-    "redis": Component("Redis", "Caches / key-value stores", "docker", "redis"),
+    "mysql": Component(
+        "MySQL", "Relational databases", "docker", "mysql", image="mysql:{version}"
+    ),
+    "mariadb": Component(
+        "MariaDB",
+        "Relational databases",
+        "docker",
+        "mariadb",
+        image="mariadb:{version}",
+    ),
+    "mongodb": Component(
+        "MongoDB", "Document databases", "docker", "mongo", image="mongo:{version}"
+    ),
+    "redis": Component(
+        "Redis",
+        "Caches / key-value stores",
+        "docker",
+        "redis",
+        image="redis:{version}",
+    ),
+    # The management variant adds the HTTP API and rabbitmqadmin for inspection.
+    "rabbitmq": Component(
+        "RabbitMQ",
+        "Message brokers",
+        "docker",
+        "rabbitmq",
+        tag_suffix="-management",
+        image="rabbitmq:{version}-management",
+    ),
+    # Apache publishes Kafka on Docker Hub, not as a Docker Official Image.
+    "kafka": Component(
+        "Apache Kafka",
+        "Message brokers",
+        "dockerhub",
+        "apache/kafka",
+        image="apache/kafka:{version}",
+    ),
 }
 COMPONENTS = {**RUNTIMES, **TOOLS, **SERVICES}
+
+# Profile YAML groups services by category; other categories are databases.
+SERVICE_SECTIONS = {
+    "Caches / key-value stores": "caches",
+    "Message brokers": "message_brokers",
+}
+
+
+def service_section(name: str) -> str:
+    return SERVICE_SECTIONS.get(SERVICES[name].category, "databases")
 
 
 class VersionCatalog(Protocol):

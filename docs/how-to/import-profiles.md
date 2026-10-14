@@ -51,7 +51,8 @@ when the environment is stopped.
 
 A file contains one UTF-8 YAML mapping, up to 1 MiB. Current documents require
 `schema_version: 2`, `name`, a positive integer `version`, `runtimes`, `tools`,
-`databases`, `caches`, and `agent`. Optional fields are `agents` and `extends`.
+`databases`, `caches`, and `agent`. Optional fields are `message_brokers`
+(RabbitMQ and Kafka), `agents`, and `extends`.
 Use `{}` for empty component sections and quote component release strings.
 At least one runtime is required. The default agent must be in the selected
 agents; omitting `agents` selects only `agent` for legacy compatibility.

@@ -5,7 +5,7 @@ import re
 from pathlib import Path
 
 from brig.components.agents import AGENTS, validate_agents
-from brig.components.catalog import validate_selection
+from brig.components.catalog import COMPONENTS, validate_selection
 from brig.docker.auth_proxy import add_credential_proxy
 from brig.docker.git_identity import GITCONFIG
 from brig.docker.isolation import agent_config, agent_home
@@ -181,7 +181,7 @@ def add_database_service(services, volumes, name, version, prefix, labels) -> No
     if name == "mongodb" and int(version.split(".")[0]) < 5:
         health = tuple("mongo" if entry == "mongosh" else entry for entry in health)
     services[name] = {
-        "image": f"{definition.image}:{version}",
+        "image": COMPONENTS[name].image.format(version=version),
         "container_name": f"{prefix}-{name}",
         "labels": labels,
         "env_file": [f"{name}.env"],
@@ -202,6 +202,12 @@ def add_database_service(services, volumes, name, version, prefix, labels) -> No
         }
     if name == "redis":
         services[name]["command"] = ["redis-server", "--appendonly", "yes"]
+    if name == "rabbitmq":
+        # RabbitMQ keys its data directory by node name, derived from the hostname.
+        services[name]["hostname"] = "rabbitmq"
+    if name == "kafka":
+        # Its health check starts a JVM client.
+        services[name]["healthcheck"].update({"interval": "10s", "timeout": "30s"})
     volumes[f"{name}_data"] = {
         "name": f"{prefix}-{name}-data",
         "labels": {**labels, "org.brig.service-major": version.split(".")[0]},

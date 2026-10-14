@@ -259,7 +259,9 @@ class ProfileViews:
         services = {
             **pinned_services,
             **self._select_versions(
-                tr("{value0} · 4/6 · databases and caches").format(value0=title),
+                tr("{value0} · 4/6 · databases, caches and message brokers").format(
+                    value0=title
+                ),
                 {n: item for n, item in SERVICES.items() if n not in pinned_services},
                 defaults.services if defaults else {},
                 live,

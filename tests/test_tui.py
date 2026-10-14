@@ -15,7 +15,7 @@ from brig.docker.dockerfile import render_dockerfile
 from brig.errors import BrigError, Cancelled
 from brig.ui.tui import InteractiveApp, Terminal
 from tests.demo_engine import DemoEngine
-from tests.fakes import FakeVersionCatalog, MemoryStore, demo_state
+from tests.fakes import FakeVersionCatalog, MemoryStore, demo_state, published_images
 
 
 def node_release_source(url):
@@ -164,7 +164,7 @@ class WizardTests(unittest.TestCase):
                 )
             return node_release_source(url)
 
-        self.app.catalog_factory = lambda: LiveVersionCatalog(source)
+        self.app.catalog_factory = lambda: LiveVersionCatalog(published_images(source))
         terminal = ScriptedTerminal(
             inputs=["python-browser"],
             multiples=[["python"], ["playwright"], []],
@@ -317,7 +317,9 @@ class WizardTests(unittest.TestCase):
         terminal.confirm.assert_not_called()
 
     def test_default_is_lts_and_labels_do_not_enter_saved_versions(self):
-        self.app.catalog_factory = lambda: LiveVersionCatalog(node_release_source)
+        self.app.catalog_factory = lambda: LiveVersionCatalog(
+            published_images(node_release_source)
+        )
         terminal = ScriptedTerminal(
             inputs=["lts"], multiples=[["node"], [], []], choices=[1, 0]
         )
@@ -331,7 +333,7 @@ class WizardTests(unittest.TestCase):
         from unittest.mock import Mock
 
         fetch = Mock(side_effect=node_release_source)
-        self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
+        self.app.catalog_factory = lambda: LiveVersionCatalog(published_images(fetch))
         terminal = ScriptedTerminal(
             inputs=["compatible"],
             multiples=[["node"], ["npm"], ["node"], ["npm"], []],
@@ -368,7 +370,7 @@ class WizardTests(unittest.TestCase):
                 )
             return node_release_source(url)
 
-        self.app.catalog_factory = lambda: LiveVersionCatalog(source)
+        self.app.catalog_factory = lambda: LiveVersionCatalog(published_images(source))
         terminal = ScriptedTerminal(
             inputs=["node22"], multiples=[["node"], ["npm"], []], choices=[2, 0, 0]
         )
@@ -553,7 +555,7 @@ class WizardTests(unittest.TestCase):
         from brig.components.versions import LiveVersionCatalog
 
         fetch = Mock(return_value="Tags: 8.3.1\nArchitectures: amd64")
-        self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
+        self.app.catalog_factory = lambda: LiveVersionCatalog(published_images(fetch))
         terminal = ScriptedTerminal(
             inputs=["php-only"], multiples=[["php"], [], []], choices=[0, 0]
         )
@@ -570,7 +572,7 @@ class WizardTests(unittest.TestCase):
         fetch = Mock(
             side_effect=[URLError("offline"), "Tags: 8.3.1\nArchitectures: amd64"]
         )
-        self.app.catalog_factory = lambda: LiveVersionCatalog(fetch)
+        self.app.catalog_factory = lambda: LiveVersionCatalog(published_images(fetch))
         terminal = ScriptedTerminal(
             inputs=["retry"], multiples=[["php"], [], []], choices=[0, 0, 0]
         )

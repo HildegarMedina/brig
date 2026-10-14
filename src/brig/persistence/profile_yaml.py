@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
-from brig.components.catalog import SERVICES
+from brig.components.catalog import service_section
 from brig.models import ProfileVersion
 
 
@@ -45,17 +45,13 @@ def render_profile(name: str, version: ProfileVersion) -> str:
         lines.extend(
             f"  {key}: {scalar(value)}" for key, value in sorted(selections.items())
         )
-    databases = {
-        key: value
-        for key, value in version.services.items()
-        if SERVICES[key].category != "Caches / key-value stores"
-    }
-    caches = {
-        key: value
-        for key, value in version.services.items()
-        if SERVICES[key].category == "Caches / key-value stores"
-    }
-    for section, selections in (("databases", databases), ("caches", caches)):
+    sections = {"databases": {}, "caches": {}, "message_brokers": {}}
+    for key, value in version.services.items():
+        sections[service_section(key)][key] = value
+    for section, selections in sections.items():
+        # Added later than the others; omitting it keeps saved documents unchanged.
+        if section == "message_brokers" and not selections:
+            continue
         lines.append(f"{section}:" if selections else f"{section}: {{}}")
         lines.extend(
             f"  {key}: {scalar(value)}" for key, value in sorted(selections.items())

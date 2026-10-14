@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from brig.components.catalog import SERVICES
+from brig.components.catalog import SERVICES, service_section
 from brig.errors import BrigError
 from brig.i18n import tr
 from brig.models import Profile
@@ -54,20 +54,24 @@ def read_profile(path: Path) -> Profile:
             "caches",
             "agent",
         }
-        if not required.issubset(raw) or set(raw) - required - {"agents", "extends"}:
+        if not required.issubset(raw) or set(raw) - required - {
+            "agents",
+            "extends",
+            "message_brokers",
+        }:
             raise ValueError(tr("Missing or unknown profile fields."))
         validate_name(raw["name"])
         services = {}
-        for section in ("databases", "caches"):
+        for section in ("databases", "caches", "message_brokers"):
+            if section not in raw:
+                continue
             if not isinstance(raw[section], dict):
                 raise ValueError(
                     tr("{value0} must be a version mapping.").format(value0=tr(section))
                 )
             for name, version in raw[section].items():
                 component = SERVICES.get(name)
-                if component is None or (
-                    component.category == "Caches / key-value stores"
-                ) != (section == "caches"):
+                if component is None or service_section(name) != section:
                     raise ValueError(
                         tr("Unsupported {value0} component: {value1}.").format(
                             value0=tr(section), value1=name

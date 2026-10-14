@@ -4,7 +4,7 @@ import json
 import shlex
 
 from brig.components.agents import AGENTS, validate_agents
-from brig.components.catalog import validate_selection
+from brig.components.catalog import RUNTIMES, TOOLS, validate_selection
 from brig.docker.auth_proxy import proxy_image_lines
 from brig.docker.isolation import agent_config, agent_home, bootstrap_script
 from brig.docker.tools import AGENT_TOOLS
@@ -24,18 +24,12 @@ DATABASE_CLIENTS = {
     "mysql": ("default-mysql-client",),
     "mariadb": ("default-mysql-client",),
     "redis": ("redis-tools",),
+    "rabbitmq": ("amqp-tools",),
+    "kafka": ("kcat",),
 }
 
-# Every runtime uses the same Debian release, including in mixed profiles.
-RUNTIME_IMAGES = {
-    "php": "php:{version}-cli-bookworm",
-    "python": "python:{version}-bookworm",
-    "node": "node:{version}-bookworm",
-    "go": "golang:{version}-bookworm",
-    "rust": "rust:{version}-bookworm",
-    # Temurin images are Ubuntu-based; only the self-contained JDK is copied.
-    "java": "eclipse-temurin:{version}-jdk",
-}
+# The catalog names the image each release is verified against.
+RUNTIME_IMAGES = {name: component.image for name, component in RUNTIMES.items()}
 
 # Toolchains copied from their official images into the shared Debian stage.
 # Package caches stay in each user's home (GOPATH, CARGO_HOME, ~/.m2, ~/.gradle).
@@ -61,16 +55,15 @@ TOOLCHAIN_SETUP = {
     "rust": "RUN rustup component add clippy rustfmt",
 }
 
-# Build tools are pure Java distributions; each image tag pairs one with a JDK.
 JAVA_TOOLS = {
     "maven": (
-        "maven:{version}-eclipse-temurin-{java}",
+        TOOLS["maven"].image,
         "/usr/share/maven/",
         "/opt/maven/",
         ("MAVEN_HOME=/opt/maven", "PATH=/opt/maven/bin:$PATH"),
     ),
     "gradle": (
-        "gradle:{version}-jdk{java}",
+        TOOLS["gradle"].image,
         "/opt/gradle/",
         "/opt/gradle/",
         ("GRADLE_HOME=/opt/gradle", "PATH=/opt/gradle/bin:$PATH"),
@@ -241,7 +234,8 @@ def runtime_lines(configuration, integrations) -> list[str]:
     for integration in integrations:
         lines.extend(integration.stage)
     if composer:
-        lines.extend([f"FROM composer:{composer} AS composer_binary", ""])
+        image = TOOLS["composer"].image.format(version=composer)
+        lines.extend([f"FROM {image} AS composer_binary", ""])
     if python and php:
         lines.extend(python_stage(python))
     if node:

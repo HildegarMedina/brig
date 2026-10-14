@@ -53,6 +53,31 @@ class ProfileImportTests(unittest.TestCase):
         path.write_text(text.replace("\nversion: 1\n", "\nrevision: 1\n"))
         self.assertEqual(read_profile(path), Profile("base", [legacy]))
 
+    def test_message_brokers_have_their_own_optional_section(self):
+        self.assertNotIn("message_brokers", self.document().read_text())
+        brokers = replace(
+            self.version,
+            services={"postgresql": "17.2", "rabbitmq": "4.3.6", "kafka": "4.3.1"},
+        )
+        path = self.document(version=brokers)
+        text = path.read_text()
+        self.assertIn(
+            'caches: {}\nmessage_brokers:\n  kafka: "4.3.1"\n  rabbitmq: "4.3.6"\n',
+            text,
+        )
+        self.assertEqual(read_profile(path), Profile("base", [brokers]))
+        for contents in (
+            text.replace('postgresql: "17.2"', 'kafka: "4.3.1"'),
+            text.replace('kafka: "4.3.1"', 'redis: "7.4.2"'),
+            text.replace(
+                'message_brokers:\n  kafka: "4.3.1"\n  rabbitmq: "4.3.6"',
+                "message_brokers: []",
+            ),
+        ):
+            with self.subTest(contents=contents), self.assertRaises(BrigError):
+                path.write_text(contents)
+                read_profile(path)
+
     def test_read_multiple_files_and_nested_folder_ignores_other_files(self):
         first = self.document(filename="nested/base.YML")
         second = self.document("other", filename="other.yaml")

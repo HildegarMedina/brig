@@ -68,18 +68,24 @@ class DockerfileTests(unittest.TestCase):
             self.assertNotIn("default-mysql-client", plain)
             self.assertNotIn("redis-tools", plain)
             self.assertNotIn("mongodb-mongosh", plain)
+            self.assertNotIn("amqp-tools", plain)
+            self.assertNotIn("kcat", plain)
             project.configuration.services = {
                 "postgresql": "17.2",
                 "mysql": "8.4.3",
                 "mariadb": "11.4.4",
                 "mongodb": "8.0.4",
                 "redis": "7.4.2",
+                "rabbitmq": "4.3.6",
+                "kafka": "4.3.1",
             }
             contents = render_dockerfile(project)
             self.assertIn("postgresql-client", contents)
             self.assertEqual(contents.count("default-mysql-client"), 1)
             self.assertIn("redis-tools", contents)
             self.assertIn("mongodb-mongosh", contents)
+            self.assertIn("amqp-tools", contents)
+            self.assertIn("kcat", contents)
 
     def test_exact_images_nonroot_user_and_runtime_workspace(self):
         contents = render_dockerfile(php_project({"mysql": "8.4.3"}))

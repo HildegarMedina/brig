@@ -6,6 +6,7 @@ from unittest.mock import Mock
 
 from brig.components.compatibility import ReleaseInfo, matches
 from brig.components.versions import LiveVersionCatalog
+from tests.fakes import published_images
 
 
 class RequirementTests(unittest.TestCase):
@@ -72,7 +73,7 @@ class LiveCompatibilityTests(unittest.TestCase):
             }
         }
         fetch = Mock(return_value=json.dumps(payload))
-        catalog = LiveVersionCatalog(fetch)
+        catalog = LiveVersionCatalog(published_images(fetch))
         self.assertEqual(
             catalog.compatible_versions("npm", {"node": "22.13.1"}), ("10.0.0",)
         )
@@ -97,7 +98,7 @@ class LiveCompatibilityTests(unittest.TestCase):
                 "23.0.0": [{}],
             }
         }
-        catalog = LiveVersionCatalog(lambda url: json.dumps(payload))
+        catalog = LiveVersionCatalog(published_images(lambda url: json.dumps(payload)))
         self.assertEqual(
             catalog.compatible_versions("pip", {"python": "3.12.8"}),
             ("25.0.0", "24.0.0"),
@@ -115,7 +116,7 @@ class LiveCompatibilityTests(unittest.TestCase):
                 {"version": "1.10.28", "min-php": 50300, "eol": True},
             ]
         }
-        catalog = LiveVersionCatalog(lambda url: json.dumps(payload))
+        catalog = LiveVersionCatalog(published_images(lambda url: json.dumps(payload)))
         self.assertEqual(catalog.versions("composer"), ("2.10.3", "2.2.30"))
         self.assertEqual(
             catalog.compatible_versions("composer", {"php": "8.3.15"}), ("2.2.30",)
@@ -128,7 +129,7 @@ class LiveCompatibilityTests(unittest.TestCase):
 
     def test_composer_missing_minimum_php_is_not_selectable(self):
         payload = {"stable": [{"version": "2.10.3", "lts": False}]}
-        catalog = LiveVersionCatalog(lambda url: json.dumps(payload))
+        catalog = LiveVersionCatalog(published_images(lambda url: json.dumps(payload)))
         self.assertEqual(catalog.compatible_versions("composer", {"php": "8.4.0"}), ())
 
     def test_node_labels_are_dynamic_and_default_prefers_lts(self):
@@ -142,7 +143,7 @@ class LiveCompatibilityTests(unittest.TestCase):
             ),
         }
         fetch = Mock(side_effect=lambda url: responses[url])
-        catalog = LiveVersionCatalog(fetch)
+        catalog = LiveVersionCatalog(published_images(fetch))
         versions = list(catalog.versions("node"))
         self.assertEqual(catalog.label("node", "26.1.0"), "26.1.0 · Current")
         self.assertEqual(catalog.label("node", "24.2.0"), "24.2.0 · LTS")
@@ -160,7 +161,7 @@ class LiveCompatibilityTests(unittest.TestCase):
                 }
             ),
         }
-        catalog = LiveVersionCatalog(lambda url: responses[url])
+        catalog = LiveVersionCatalog(published_images(lambda url: responses[url]))
         versions = list(catalog.versions("mysql"))
         self.assertEqual(catalog.label("mysql", "28.7.1"), "28.7.1 · Innovation")
         self.assertEqual(catalog.label("mysql", "8.4.12"), "8.4.12 · LTS")
@@ -168,10 +169,12 @@ class LiveCompatibilityTests(unittest.TestCase):
 
     def test_missing_channel_metadata_does_not_invent_lts_label(self):
         catalog = LiveVersionCatalog(
-            lambda url: (
-                "{}"
-                if url.endswith("versions.json")
-                else "Tags: 30.1.0\nArchitectures: amd64"
+            published_images(
+                lambda url: (
+                    "{}"
+                    if url.endswith("versions.json")
+                    else "Tags: 30.1.0\nArchitectures: amd64"
+                )
             )
         )
         self.assertEqual(
@@ -182,12 +185,14 @@ class LiveCompatibilityTests(unittest.TestCase):
 class JavaReleaseTests(unittest.TestCase):
     library = "https://raw.githubusercontent.com/docker-library/official-images/master/library/"
 
-    def catalog(self, manifests):
+    def catalog(self, manifests, unpublished=()):
         responses = {self.library + name: text for name, text in manifests.items()}
         responses["https://api.adoptium.net/v3/info/available_releases"] = json.dumps(
             {"available_lts_releases": [17, 21, 25]}
         )
-        return LiveVersionCatalog(lambda url: responses[url])
+        return LiveVersionCatalog(
+            published_images(lambda url: responses[url], unpublished)
+        )
 
     def test_java_offers_majors_with_jdk_images_and_prefers_adoptium_lts(self):
         catalog = self.catalog(
@@ -225,6 +230,24 @@ class JavaReleaseTests(unittest.TestCase):
         self.assertIn(
             "Requires: 21 OR 25",
             catalog.compatibility_issue("gradle", "9.8.1", {"java": "8"}),
+        )
+
+    def test_java_tool_images_must_be_pushed_for_the_selected_jdk(self):
+        catalog = self.catalog(
+            {
+                "maven": "Tags: 3.10.0-eclipse-temurin-21, 3.10.0-eclipse-temurin-25, 3.10.0\n"
+                "Architectures: amd64\n"
+            },
+            unpublished=("/maven/tags/3.10.0-eclipse-temurin-25",),
+        )
+        self.assertEqual(
+            catalog.compatible_versions("maven", {"java": "21"}), ("3.10.0",)
+        )
+        self.assertEqual(catalog.compatible_versions("maven", {"java": "25"}), ())
+        self.assertIn(
+            "not yet published for Java (Eclipse Temurin) 25 on Docker Hub "
+            "(maven:3.10.0-eclipse-temurin-25)",
+            catalog.compatibility_issue("maven", "3.10.0", {"java": "25"}),
         )
 
     def test_exact_requirements_never_match_partially(self):

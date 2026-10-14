@@ -85,7 +85,7 @@ and permanent context remain untouched. Cleanup does not erase content already
 stored in an agent conversation. After an interrupted session, use `detach` or
 `down` explicitly to clean up.
 
-## Use the profile's databases
+## Use the profile's databases and message brokers
 
 Services are reachable by name within the project's network:
 
@@ -96,11 +96,21 @@ Services are reachable by name within the project's network:
 | MariaDB | `mariadb` | 3306 | `MARIADB_HOST`, `MARIADB_PORT`, `MARIADB_DATABASE`, `MARIADB_USER`, `MARIADB_PASSWORD` |
 | MongoDB | `mongodb` | 27017 | `MONGODB_URI` |
 | Redis | `redis` | 6379 | `REDIS_HOST`, `REDIS_PORT`, `REDIS_URL` |
+| RabbitMQ | `rabbitmq` | 5672 (AMQP), 15672 (HTTP API) | `AMQP_URL`, `RABBITMQ_HOST`, `RABBITMQ_PORT`, `RABBITMQ_USER`, `RABBITMQ_PASSWORD`, `RABBITMQ_MANAGEMENT_URL` |
+| Kafka | `kafka` | 9092 | `KAFKA_BOOTSTRAP_SERVERS`, `KAFKA_HOST`, `KAFKA_PORT` |
 
 Brig creates initial credentials per project and preserves them. PostgreSQL,
 MySQL, and MariaDB have an initial database named `brig`; MongoDB uses
 authentication in `admin` and a URI targeting `brig`. Redis does not require a
 password in this configuration and does not publish ports on the host.
+
+RabbitMQ uses the default virtual host `/` with the project's `brig` user, and
+includes the management plugin: its HTTP API is reachable from the development
+container at `RABBITMQ_MANAGEMENT_URL` with the same credentials. Kafka runs as
+a single KRaft node (broker and controller) with plaintext listeners and no
+authentication, so topics must use a replication factor of 1. The container
+advertises itself as `kafka:9092`, which is only reachable inside the project
+network.
 
 Brig also tells agents that they run in an isolated sandbox. These services are
 private to the project environment and are not the databases, Redis, or other
@@ -116,7 +126,8 @@ do not end up in the agent conversation.
 
 Configure your application to use these variables. Brig does not modify its
 `.env` file. PHP receives PDO MySQL for MySQL/MariaDB and PDO PostgreSQL for
-PostgreSQL. PHP extensions for MongoDB and Redis are not installed automatically.
+PostgreSQL. PHP extensions for MongoDB, Redis, RabbitMQ, and Kafka are not
+installed automatically.
 
 ## Create an inherited profile
 

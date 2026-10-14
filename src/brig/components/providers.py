@@ -1,6 +1,7 @@
 """HTTP transport and release parsers for supported upstream providers."""
 
 import json
+import platform
 import re
 from collections.abc import Callable, Iterable
 from urllib.request import Request, urlopen
@@ -43,6 +44,12 @@ def docker_versions(text: str) -> Iterable[str]:
                 yield from (tag.strip() for tag in line.split(":", 1)[1].split(","))
 
 
+def dockerhub_versions(text: str) -> Iterable[str]:
+    # Release candidates and moving aliases are filtered later.
+    for entry in json.loads(text)["results"]:
+        yield entry["name"]
+
+
 def pypi_versions(text: str) -> Iterable[str]:
     data = json.loads(text)
     for version, files in data["releases"].items():
@@ -71,10 +78,46 @@ PROVIDERS = {
         ),
         docker_versions,
     ),
+    # Newest 100 tags; older releases are not maintained upstream.
+    "dockerhub": (
+        lambda package: (
+            f"https://hub.docker.com/v2/repositories/{package}/tags"
+            "?page_size=100&ordering=last_updated"
+        ),
+        dockerhub_versions,
+    ),
     "pypi": (lambda package: f"https://pypi.org/pypi/{package}/json", pypi_versions),
     "npm": (lambda package: f"https://registry.npmjs.org/{package}", npm_versions),
     "composer": (lambda package: "https://getcomposer.org/versions", composer_versions),
 }
+
+
+# Docker Hub architecture names for this machine; others accept any Linux image.
+HOST_ARCHITECTURE = {
+    "x86_64": "amd64",
+    "amd64": "amd64",
+    "aarch64": "arm64",
+    "arm64": "arm64",
+}.get(platform.machine().lower())
+
+
+def image_tag_url(image: str) -> str:
+    repository, tag = image.rsplit(":", 1)
+    namespace, _, name = repository.rpartition("/")
+    return (
+        f"https://hub.docker.com/v2/namespaces/{namespace or 'library'}"
+        f"/repositories/{name}/tags/{tag}"
+    )
+
+
+def image_published(text: str, architecture: str | None = HOST_ARCHITECTURE) -> bool:
+    # Official manifests list releases hours before their images are pushed.
+    return any(
+        image.get("os") == "linux"
+        and image.get("status", "active") == "active"
+        and architecture in (None, image.get("architecture"))
+        for image in json.loads(text).get("images") or ()
+    )
 
 
 # Tag that exists only when a Java tool release is published for a JDK major.
@@ -88,6 +131,7 @@ JDK_MAJOR = re.compile(r"(?:eclipse-temurin-|jdk)([0-9]+)\b")
 def source_label(component: Component) -> str:
     return {
         "docker": "Docker Official Images",
+        "dockerhub": "Docker Hub",
         "pypi": "PyPI",
         "npm": tr("npm registry"),
         "composer": tr("Composer releases"),

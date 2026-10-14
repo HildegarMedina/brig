@@ -21,6 +21,8 @@ class ComposeTests(unittest.TestCase):
                 "mariadb": "11.4.4",
                 "mongodb": "8.0.4",
                 "redis": "7.4.2",
+                "rabbitmq": "4.3.6",
+                "kafka": "4.3.1",
             }
         )
         self.project.path = self.folder.name
@@ -34,7 +36,7 @@ class ComposeTests(unittest.TestCase):
         self.assertTrue(dev["init"])
         for name, version in self.project.configuration.services.items():
             service = definition["services"][name]
-            self.assertTrue(service["image"].endswith(":" + version))
+            self.assertIn(f":{version}", service["image"])
             self.assertNotIn("ports", service)
             self.assertEqual(dev["depends_on"][name], {"condition": "service_healthy"})
             self.assertIn("healthcheck", service)
@@ -48,6 +50,15 @@ class ComposeTests(unittest.TestCase):
             ["redis-server", "--appendonly", "yes"],
         )
         self.assertEqual(len(definition["services"]["mongodb"]["volumes"]), 2)
+        rabbitmq = definition["services"]["rabbitmq"]
+        self.assertEqual(rabbitmq["image"], "rabbitmq:4.3.6-management")
+        # A stable node name keeps RabbitMQ's data when the container is recreated.
+        self.assertEqual(rabbitmq["hostname"], "rabbitmq")
+        self.assertEqual(rabbitmq["volumes"], ["rabbitmq_data:/var/lib/rabbitmq"])
+        kafka = definition["services"]["kafka"]
+        self.assertEqual(kafka["image"], "apache/kafka:4.3.1")
+        self.assertEqual(kafka["volumes"], ["kafka_data:/var/lib/kafka/data"])
+        self.assertEqual(kafka["healthcheck"]["timeout"], "30s")
 
     def test_versions_with_different_image_layouts(self):
         self.project.configuration.services = {
@@ -66,7 +77,15 @@ class ComposeTests(unittest.TestCase):
     def test_environment_connections_match_initialization_without_exposing_root_mysql(
         self,
     ):
-        for name in ("postgresql", "mysql", "mariadb", "mongodb", "redis"):
+        for name in (
+            "postgresql",
+            "mysql",
+            "mariadb",
+            "mongodb",
+            "redis",
+            "rabbitmq",
+            "kafka",
+        ):
             with self.subTest(service=name):
                 initialization, developer = service_environment(
                     name, "application-secret", "root-secret"
@@ -87,6 +106,25 @@ class ComposeTests(unittest.TestCase):
                     self.assertIn(
                         "application-secret@mongodb:27017", developer["MONGODB_URI"]
                     )
+                if name == "rabbitmq":
+                    self.assertEqual(
+                        initialization["RABBITMQ_DEFAULT_PASS"],
+                        developer["RABBITMQ_PASSWORD"],
+                    )
+                    self.assertEqual(
+                        developer["AMQP_URL"],
+                        "amqp://brig:application-secret@rabbitmq:5672/",
+                    )
+                if name == "kafka":
+                    # Clients must be told the broker's name on the private network.
+                    self.assertEqual(
+                        initialization["KAFKA_ADVERTISED_LISTENERS"],
+                        "PLAINTEXT://kafka:9092",
+                    )
+                    self.assertEqual(
+                        initialization["KAFKA_LOG_DIRS"], "/var/lib/kafka/data"
+                    )
+                    self.assertEqual(developer["KAFKA_BOOTSTRAP_SERVERS"], "kafka:9092")
 
     def test_generated_paths_and_healthchecks_do_not_interpolate_host_variables(self):
         folder = Path(self.folder.name) / "a:b ${HOME}"

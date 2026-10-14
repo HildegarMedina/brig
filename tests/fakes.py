@@ -1,10 +1,29 @@
 """Small test doubles shared across application and interface tests."""
 
+import json
 from copy import deepcopy
+from urllib.error import HTTPError
 from uuid import uuid4
 
 from brig.errors import BrigError
 from brig.models import Profile, ProfileVersion, Project, State
+
+PUBLISHED_IMAGE = json.dumps(
+    {"images": [{"architecture": a, "os": "linux"} for a in ("amd64", "arm64")]}
+)
+
+
+def published_images(fetch, unpublished=()):
+    """Answer Docker Hub tag checks; other URLs go to the wrapped source."""
+
+    def source(url):
+        if url.startswith("https://hub.docker.com/v2/namespaces/"):
+            if any(url.endswith(tag) for tag in unpublished):
+                raise HTTPError(url, 404, "Not Found", None, None)
+            return PUBLISHED_IMAGE
+        return fetch(url)
+
+    return source
 
 
 class FakeVersionCatalog:
@@ -35,6 +54,8 @@ class FakeVersionCatalog:
                 "mysql": ("8.4.3",),
                 "mariadb": ("11.4.4",),
                 "mongodb": ("8.0.4",),
+                "rabbitmq": ("4.3.6",),
+                "kafka": ("4.3.1",),
             }
         )
         self.calls = []
