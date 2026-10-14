@@ -225,6 +225,42 @@ class DockerEngineTests(unittest.TestCase):
         self.assertIn("-it", command)
         self.assertEqual(command[-1], "/bin/bash")
 
+    def test_interactive_terminal_forwards_valid_host_terminal_identity(self):
+        with (
+            patch("brig.docker.engine.sys.stdin.isatty", return_value=True),
+            patch("brig.docker.engine.sys.stdout.isatty", return_value=True),
+            patch.dict(
+                "brig.docker.engine.os.environ",
+                {"TERM": "xterm-kitty", "COLORTERM": "truecolor", "LANG": "C"},
+                clear=True,
+            ),
+            redirect_stderr(io.StringIO()),
+        ):
+            self.app.shell("api")
+        command = self.runner.calls[-1][0]
+        self.assertIn("TERM=xterm-kitty", command)
+        self.assertIn("COLORTERM=truecolor", command)
+        # A non-interactive command never allocates a TTY, so it needs no TERM.
+        with redirect_stderr(io.StringIO()):
+            self.app.shell("api", ["true"])
+        self.assertNotIn("TERM=xterm-kitty", self.runner.calls[-1][0])
+
+    def test_interactive_terminal_drops_malformed_terminal_values(self):
+        with (
+            patch("brig.docker.engine.sys.stdin.isatty", return_value=True),
+            patch("brig.docker.engine.sys.stdout.isatty", return_value=True),
+            patch.dict(
+                "brig.docker.engine.os.environ",
+                {"TERM": "x; rm -rf /", "COLORTERM": ""},
+                clear=True,
+            ),
+            redirect_stderr(io.StringIO()),
+        ):
+            self.app.shell("api")
+        command = self.runner.calls[-1][0]
+        self.assertFalse(any(arg.startswith("TERM=") for arg in command))
+        self.assertFalse(any(arg.startswith("COLORTERM=") for arg in command))
+
     def test_agent_prepares_project_and_launches_with_interactive_terminal(self):
         with (
             patch("brig.docker.engine.sys.stdin.isatty", return_value=True),

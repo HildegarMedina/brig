@@ -40,6 +40,25 @@ brig run my-api --command python --version
 Passing `--command` without a program is an error. A program that exits with a
 nonzero status produces a Brig error; the environment remains running.
 
+## New line in an agent prompt sends the message instead
+
+Inside the project terminal the agent runs through `docker exec`, and some key
+combinations that insert a newline in a normal terminal (such as Ctrl+Enter or
+Shift+Enter) cannot be distinguished from a plain Enter unless the terminal
+negotiates an enhanced keyboard protocol, which does not always survive the
+`docker exec` layer. To add a line break without sending, press **Ctrl+J**, or
+type `\` and then Enter. Both work in every terminal with no setup.
+
+If your terminal emulator supports Shift+Enter natively (for example Ghostty,
+Kitty, iTerm2, WezTerm, Apple Terminal, or Windows Terminal), it should work
+inside Brig as well, because Brig forwards the host `TERM` and `COLORTERM` to the
+agent. In editors such as VS Code, Cursor, or Zed, run the agent's own terminal
+setup (in Claude Code, `/terminal-setup`) once inside the project terminal.
+
+If colors or the agent interface look reduced, confirm the host terminal sets
+`TERM` (for example `xterm-256color`) and `COLORTERM=truecolor`; Brig passes both
+through, but only when they are present on the host.
+
 ## Brig cannot find the project
 
 Check registered projects:

@@ -335,6 +335,14 @@ class DockerEngine:
             args.extend(["--env", f"{key}={value}"])
         if interactive:
             args.append("-it")
+            # Forward the host terminal identity so agents render in full color
+            # and negotiate the richer keyboard protocol (needed to tell
+            # Ctrl/Shift+Enter from a plain Enter) instead of a degraded mode.
+            # docker exec does not relay COLORTERM on its own.
+            for name in ("TERM", "COLORTERM"):
+                value = os.environ.get(name, "")
+                if re.fullmatch(r"[A-Za-z0-9._-]+", value):
+                    args.extend(["--env", f"{name}={value}"])
         args.extend(
             [
                 "--workdir",
