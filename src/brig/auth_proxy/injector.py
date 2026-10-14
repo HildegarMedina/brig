@@ -29,11 +29,13 @@ class CredentialInjector:
             self.ready.write_text("ready")
 
     @staticmethod
-    def deny(flow, status=403):
+    def deny(
+        flow,
+        status=403,
+        message=b"Brig credential proxy rejected this request. Sign in with brig auth from the host.",
+    ):
         flow.response = http.Response.make(
-            status,
-            b"Brig credential proxy rejected this request. Sign in with brig auth from the host.",
-            {"Content-Type": "text/plain"},
+            status, message, {"Content-Type": "text/plain"}
         )
 
     def request(self, flow: http.HTTPFlow):
@@ -82,6 +84,16 @@ class CredentialInjector:
             return
         provider = provider_for(flow.request.host)
         if provider is None:
+            return
+        if flow.request.headers.get("upgrade", "").lower() == "websocket":
+            # Credentials are injected only into HTTPS requests. Codex prefers
+            # WebSockets but switches to HTTPS at once on 426; other refusals
+            # make it retry the handshake several times first.
+            self.deny(
+                flow,
+                426,
+                b"Brig credential proxy does not support WebSockets; use HTTPS.",
+            )
             return
         try:
             if (

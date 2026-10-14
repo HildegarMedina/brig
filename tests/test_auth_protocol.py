@@ -88,6 +88,24 @@ class AuthProtocolTests(unittest.TestCase):
             self.assertEqual(flow.response.status_code, 403)
             self.assertNotIn(self.secret, str(flow.response.content))
 
+    def test_websocket_handshakes_ask_clients_to_use_https(self):
+        for url in (
+            "https://chatgpt.com/backend-api/codex/responses",
+            "https://api.openai.com/v1/responses",
+        ):
+            with self.subTest(url=url):
+                flow = self.flow(url, "GET", b"")
+                flow.request.headers["upgrade"] = "WebSocket"
+                self.injector.request(flow)
+                # Codex falls back to HTTPS immediately only on 426.
+                self.assertEqual(flow.response.status_code, 426)
+                self.assertEqual(flow.request.headers["x-api-key"], PLACEHOLDER)
+                self.assertEqual(self.injector.redactors, {})
+        flow = self.flow("https://example.com/socket", "GET", b"")
+        flow.request.headers["upgrade"] = "websocket"
+        self.injector.request(flow)
+        self.assertIsNone(flow.response)
+
     def test_injection_replaces_untrusted_headers_and_removes_query_credentials(self):
         flow = self.flow(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini:generateContent?key=untrusted"
