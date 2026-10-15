@@ -1,5 +1,6 @@
 <p align="center">
-  <img src="docs/assets/logo-brig.png" alt="Brig logo" width="480">
+  <img src="docs/assets/logo-brig.png#gh-light-mode-only" alt="Brig logo" width="480">
+  <img src="docs/assets/logo-brig-inverse.png#gh-dark-mode-only" alt="Brig logo" width="480">
 </p>
 
 # Brig
