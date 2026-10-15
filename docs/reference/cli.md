@@ -124,6 +124,19 @@ internet, or a container restart. Each file receives a unique directory, so
 repeated filenames do not overwrite earlier attachments. Output is one container
 path per file. Give that path to the agent; Brig does not inject a chat message.
 
+Remove attachment copies from the host:
+
+```text
+brig detach [--project NAME]
+brig dettach [--project NAME]
+brig project detach NAME
+```
+
+`detach` and its `dettach` alias use the same current-folder detection and
+`--project` override as `attach`. Without a resolved project they report an error
+and leave existing attachments intact. They work offline without restarting the
+environment and keep originals, permanent context, and project references.
+
 `detach` removes the reserved `.brig/context/attachments/` directory. A successful
 `brig down` also removes those copies. Leaving a shell or agent keeps them until
 `detach` or `down`; exiting the CLI or an unexpected shutdown does not expire

@@ -188,7 +188,7 @@ class AttachmentTests(unittest.TestCase):
             start.assert_not_called()
         self.assertIn("regular file", errors.getvalue())
 
-    def attach_command(self, directory, *arguments):
+    def attachment_command(self, directory, *arguments, command="attach"):
         output, errors = io.StringIO(), io.StringIO()
         with (
             chdir(directory),
@@ -197,7 +197,7 @@ class AttachmentTests(unittest.TestCase):
             redirect_stderr(errors),
             patch.object(self.app.engine, "start") as start,
         ):
-            code = main(["attach", *arguments])
+            code = main([command, *arguments])
         start.assert_not_called()
         return code, output.getvalue(), errors.getvalue()
 
@@ -206,7 +206,7 @@ class AttachmentTests(unittest.TestCase):
         folder.mkdir()
         second = self.root / "requirements.txt"
         second.write_text("project context")
-        code, output, errors = self.attach_command(
+        code, output, errors = self.attachment_command(
             folder, "../../design reference.png", "../../requirements.txt"
         )
         self.assertEqual(code, 0, errors)
@@ -221,7 +221,7 @@ class AttachmentTests(unittest.TestCase):
     def test_attach_treats_all_positionals_as_files_even_when_named_after_project(self):
         source = self.folder / "api"
         source.write_text("a file, not a project selector")
-        code, output, errors = self.attach_command(self.folder, "api")
+        code, output, errors = self.attachment_command(self.folder, "api")
         self.assertEqual(code, 0, errors)
         self.assertEqual(self.host_path(output.strip()).read_text(), source.read_text())
 
@@ -233,7 +233,7 @@ class AttachmentTests(unittest.TestCase):
         self.app.create_project("other", other, "python-dev")
         for directory in (self.folder, self.root):
             with self.subTest(directory=directory):
-                code, output, errors = self.attach_command(
+                code, output, errors = self.attachment_command(
                     directory, str(self.source), "--project", "other"
                 )
                 self.assertEqual(code, 0, errors)
@@ -245,7 +245,7 @@ class AttachmentTests(unittest.TestCase):
         nested = self.folder / "nested"
         nested.mkdir()
         self.app.create_project("inner", nested, "python-dev")
-        code, output, errors = self.attach_command(nested, str(self.source))
+        code, output, errors = self.attachment_command(nested, str(self.source))
         self.assertEqual(code, 0, errors)
         target = nested / Path(output.strip()).relative_to("/workspace")
         self.assertEqual(target.read_bytes(), self.source.read_bytes())
@@ -257,8 +257,86 @@ class AttachmentTests(unittest.TestCase):
             (("--project", "missing", str(self.source)), "Unknown project"),
         ):
             with self.subTest(arguments=arguments):
-                code, output, errors = self.attach_command(self.root, *arguments)
+                code, output, errors = self.attachment_command(self.root, *arguments)
                 self.assertEqual(code, 1)
                 self.assertEqual(output, "")
                 self.assertIn(message, errors)
         self.assertFalse((self.folder / ".brig").exists())
+
+    def test_detach_and_alias_detect_project_without_removing_originals_or_context(
+        self,
+    ):
+        subfolder = self.folder / "src"
+        subfolder.mkdir()
+        legacy = self.root / "legacy"
+        legacy.mkdir()
+        self.app.add_reference("api", legacy)
+        for command in ("detach", "dettach"):
+            for directory in (self.folder, subfolder):
+                with self.subTest(command=command, directory=directory):
+                    path = self.host_path(self.app.attach("api", [self.source]))
+                    permanent = self.folder / ".brig/context/requirements.txt"
+                    permanent.write_text("permanent context")
+                    code, output, errors = self.attachment_command(
+                        directory, command=command
+                    )
+                    self.assertEqual(code, 0, errors)
+                    self.assertIn("Original files were kept", output)
+                    self.assertFalse(path.exists())
+                    self.assertEqual(permanent.read_text(), "permanent context")
+                    self.assertEqual(self.source.read_bytes(), b"image reference")
+                    self.assertEqual(
+                        self.app.project("api").references, {"legacy": str(legacy)}
+                    )
+                    self.assertTrue(legacy.is_dir())
+                    code, _, errors = self.attachment_command(
+                        directory, command=command
+                    )
+                    self.assertEqual(code, 0, errors)
+
+    def test_detach_project_flag_overrides_detection_and_works_outside_projects(self):
+        other = self.root / "other"
+        other.mkdir()
+        self.app.create_project("other", other, "python-dev")
+        api_copy = self.host_path(self.app.attach("api", [self.source]))
+        for directory in (self.folder, self.root):
+            with self.subTest(directory=directory):
+                container_path = self.app.attach("other", [self.source])
+                other_copy = other / Path(container_path).relative_to("/workspace")
+                code, _, errors = self.attachment_command(
+                    directory, "--project", "other", command="detach"
+                )
+                self.assertEqual(code, 0, errors)
+                self.assertFalse(other_copy.exists())
+                self.assertTrue(api_copy.exists())
+                self.assertTrue(self.source.exists())
+
+    def test_detach_uses_nearest_registered_project(self):
+        nested = self.folder / "nested"
+        nested.mkdir()
+        self.app.create_project("inner", nested, "python-dev")
+        child = nested / "src"
+        child.mkdir()
+        api_copy = self.host_path(self.app.attach("api", [self.source]))
+        inner_path = self.app.attach("inner", [self.source])
+        inner_copy = nested / Path(inner_path).relative_to("/workspace")
+        code, _, errors = self.attachment_command(child, command="detach")
+        self.assertEqual(code, 0, errors)
+        self.assertFalse(inner_copy.exists())
+        self.assertTrue(api_copy.exists())
+
+    def test_detach_without_a_resolved_project_keeps_existing_attachments(self):
+        path = self.host_path(self.app.attach("api", [self.source]))
+        for command in ("detach", "dettach"):
+            for arguments, message in (
+                ((), "No project found"),
+                (("--project", "missing"), "Unknown project"),
+            ):
+                with self.subTest(command=command, arguments=arguments):
+                    code, output, errors = self.attachment_command(
+                        self.root, *arguments, command=command
+                    )
+                    self.assertEqual(code, 1)
+                    self.assertEqual(output, "")
+                    self.assertIn(message, errors)
+                    self.assertTrue(path.exists())

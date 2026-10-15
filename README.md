@@ -136,8 +136,9 @@ Run `brig` to open the dashboard, or use commands directly:
 Inside a registered project folder or its subfolders, `brig attach ./design.png`
 detects the project automatically; elsewhere, use `--project NAME`.
 Attachments are copied into the project. Brig prints the path you can give to
-your agent; `brig project detach` or `brig down` removes the copies and keeps
-the originals. Image cleanup keeps current images and images used by any
+your agent; `brig detach` (or `brig detach --project NAME`) and `brig down`
+remove the copies and keep the originals. Image cleanup keeps current images
+and images used by any
 container, along with all volumes and data. Projects with identical build
 configurations share development and credential proxy images while keeping
 separate containers, networks, and project volumes. Project deletion keeps shared

@@ -87,8 +87,13 @@ existing context ignore rules are preserved. Already tracked files remain tracke
 Remove all attachment copies when finished:
 
 ```bash
-brig project detach my-api
+brig detach
 ```
+
+Like `attach`, this detects the project from its folder or subfolders. Use
+`brig detach --project my-api` from another folder. `brig dettach` is accepted as
+an alias; `brig project detach my-api` remains supported. Only attachment copies
+are removed; originals, permanent context, and project references stay intact.
 
 A successful `brig down --project my-api` also cleans attachments. Leaving an
 agent or shell keeps the environment and attachments available. Original files

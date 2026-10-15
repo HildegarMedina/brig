@@ -122,6 +122,16 @@ def parser() -> argparse.ArgumentParser:
         metavar="NAME",
         help=tr("select a project instead of detecting its folder"),
     )
+    detach = commands.add_parser(
+        "detach",
+        aliases=["dettach"],
+        help=tr("remove the project's attachment copies, keeping originals"),
+    )
+    detach.add_argument(
+        "--project",
+        metavar="NAME",
+        help=tr("select a project instead of detecting its folder"),
+    )
     profiles = commands.add_parser(
         "profile", help=tr("manage reusable environment profiles")
     ).add_subparsers(dest="action", required=True)
@@ -298,9 +308,13 @@ def _interactive_action(args: argparse.Namespace) -> str | None:
 
 
 def dispatch(app: Application, args: argparse.Namespace) -> str:
-    if args.command == "attach":
+    if args.command in ("attach", "detach", "dettach"):
         project = app.resolve_project(args.project, Path.cwd())
-        return app.attach(project.name, args.files)
+        return (
+            app.attach(project.name, args.files)
+            if args.command == "attach"
+            else app.detach(project.name)
+        )
     if args.command == "profile":
         if args.action == "import":
             return app.import_profiles(args.paths)
