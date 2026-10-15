@@ -254,7 +254,8 @@ brig auth set-key AGENT [--project NAME] [--provider PROVIDER] [--stdin]
 ```
 
 `login` requires an interactive terminal and runs native authentication in a
-trusted helper without the project workspace. OpenCode login selects OpenAI.
+trusted helper without the project workspace. OpenCode login uses its native
+provider selector, including OpenCode Go, rather than selecting OpenAI.
 `set-key` prompts with hidden input, or reads a key from standard input with
 `--stdin`. Provider defaults to Anthropic for Claude and OpenAI otherwise.
 Codex supports OpenAI, Claude supports Anthropic, and OpenCode supports the

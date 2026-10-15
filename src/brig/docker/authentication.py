@@ -53,7 +53,14 @@ def authenticate(engine, project, agent, *, provider=None, key=None):
             native = [
                 "/bin/sh",
                 "-ec",
-                "umask 077; if [ -s /home/brig/.local/share/opencode/brig-export.json ]; then opencode auth import < /home/brig/.local/share/opencode/brig-export.json >/dev/null 2>&1; fi; opencode auth login openai; if opencode auth export > /home/brig/.local/share/opencode/.brig-export.tmp; then mv /home/brig/.local/share/opencode/.brig-export.tmp /home/brig/.local/share/opencode/brig-export.json; else rm -f /home/brig/.local/share/opencode/.brig-export.tmp; fi",
+                "umask 077; "
+                "if [ -s /home/brig/.local/share/opencode/brig-export.json ] && opencode auth --help | grep -Eq '(^|[[:space:]])import([[:space:]]|$)'; then "
+                "opencode auth import < /home/brig/.local/share/opencode/brig-export.json >/dev/null 2>&1; fi; "
+                "opencode auth login; "
+                "if opencode auth --help | grep -Eq '(^|[[:space:]])export([[:space:]]|$)'; then "
+                "if opencode auth export > /home/brig/.local/share/opencode/.brig-export.tmp; then "
+                "mv /home/brig/.local/share/opencode/.brig-export.tmp /home/brig/.local/share/opencode/brig-export.json; "
+                "else rm -f /home/brig/.local/share/opencode/.brig-export.tmp; exit 1; fi; fi",
             ]
         binary = {
             "codex": "/opt/brig-codex/packages/standalone/current/bin/codex",
@@ -87,31 +94,11 @@ def authenticate(engine, project, agent, *, provider=None, key=None):
             "text": True,
             "capture_output": True,
         }
+    if key is None and agent == "opencode":
+        login_maintenance(engine, image, mount, agent, "snapshot_login")
     run_helper(engine, command, options)
     if key is None:
-        run_helper(
-            engine,
-            [
-                "docker",
-                "run",
-                "--rm",
-                "--network",
-                "none",
-                "--user",
-                f"{engine.uid}:{engine.gid}",
-                "--cap-drop",
-                "ALL",
-                "--security-opt",
-                "no-new-privileges:true",
-                "--mount",
-                mount + "/secrets",
-                f"{image}-credential-proxy",
-                "python",
-                "-c",
-                f"from pathlib import Path; from brig.auth_proxy.maintenance import clear_override; clear_override(Path('/secrets'), {agent!r})",
-            ],
-            {"capture_output": True, "text": True},
-        )
+        login_maintenance(engine, image, mount, agent, "clear_override")
     engine.client.run(
         [
             *engine._compose(project, directory),
@@ -130,6 +117,33 @@ def authenticate(engine, project, agent, *, provider=None, key=None):
     return tr(
         "Authentication saved for {agent}. Other running projects may need restarting."
     ).format(agent=agent)
+
+
+def login_maintenance(engine, image, mount, agent, operation):
+    run_helper(
+        engine,
+        [
+            "docker",
+            "run",
+            "--rm",
+            "--network",
+            "none",
+            "--user",
+            f"{engine.uid}:{engine.gid}",
+            "--cap-drop",
+            "ALL",
+            "--security-opt",
+            "no-new-privileges:true",
+            "--mount",
+            mount + "/secrets",
+            f"{image}-credential-proxy",
+            "python",
+            "-c",
+            f"from pathlib import Path; from brig.auth_proxy.maintenance import {operation}; "
+            f"{operation}(Path('/secrets'), {agent!r})",
+        ],
+        {"capture_output": True, "text": True},
+    )
 
 
 def run_helper(engine, command, options):

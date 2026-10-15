@@ -415,6 +415,98 @@ class AuthCredentialTests(unittest.TestCase):
         with self.assertRaises(CredentialError):
             set_api_key(self.root, "openai", self.token)
 
+    def test_opencode_native_login_switches_only_the_changed_provider(self):
+        from brig.auth_proxy.maintenance import (
+            clear_override,
+            configured,
+            snapshot_login,
+        )
+
+        before = {
+            "openai": {"type": "api", "key": "unchanged-native-fixture"},
+            "opencode-go": {"type": "api", "key": "previous-go-fixture"},
+        }
+        managed = {
+            "openai": {"type": "api", "key": "managed-openai-fixture"},
+            "opencode-go": {"type": "api", "key": "managed-go-fixture"},
+            "google": {"type": "api", "key": "managed-google-fixture"},
+        }
+        self.write("auth.json", before)
+        self.write("brig-auth.json", managed)
+        snapshot_login(self.root, "opencode")
+        snapshot = self.root / ".brig-login-before.json"
+        self.assertNotIn("previous-go-fixture", snapshot.read_text())
+        self.assertNotIn("unchanged-native-fixture", snapshot.read_text())
+        self.assertEqual(snapshot.stat().st_mode & 0o777, 0o600)
+        self.write(
+            "auth.json",
+            before | {"opencode-go": {"type": "api", "key": "new-go-fixture"}},
+        )
+        clear_override(self.root, "opencode")
+        remaining = read_json(self.root / "brig-auth.json")
+        self.assertEqual(
+            remaining, {k: v for k, v in managed.items() if k != "opencode-go"}
+        )
+        self.assertFalse(snapshot.exists())
+        store = CredentialStore(self.root, "opencode")
+        self.assertIn(
+            "new-go-fixture", store.headers("opencode-go")[0]["Authorization"]
+        )
+        view = login_view(store)
+        self.assertEqual(view["opencode-go"]["key"], PLACEHOLDER)
+        self.assertNotIn("new-go-fixture", json.dumps(view))
+        self.assertTrue(configured(self.root, "opencode"))
+        snapshot_login(self.root, "opencode")
+        clear_override(self.root, "opencode")
+        self.assertEqual(read_json(self.root / "brig-auth.json"), remaining)
+
+    def test_opencode_login_without_supported_native_credentials_does_not_clear_keys(
+        self,
+    ):
+        from brig.auth_proxy.maintenance import clear_override, snapshot_login
+
+        managed = {"opencode-go": {"type": "api", "key": "managed-go-fixture"}}
+        self.write("brig-auth.json", managed)
+        for record in (None, [], {"type": "api", "key": ""}):
+            with self.subTest(record=record):
+                self.write("auth.json", {"opencode-go": record})
+                snapshot_login(self.root, "opencode")
+                with self.assertRaises(CredentialError):
+                    clear_override(self.root, "opencode")
+                self.assertEqual(read_json(self.root / "brig-auth.json"), managed)
+        self.write(
+            "auth.json", {"opencode-go": {"type": "api", "key": "native-go-fixture"}}
+        )
+        self.write(".brig-login-before.json", [])
+        with self.assertRaises(CredentialError):
+            clear_override(self.root, "opencode")
+        self.assertEqual(read_json(self.root / "brig-auth.json"), managed)
+
+    def test_opencode_go_native_login_and_managed_key_are_available_without_openai(
+        self,
+    ):
+        from brig.auth_proxy.maintenance import (
+            clear_override,
+            configured,
+            set_api_key,
+            snapshot_login,
+        )
+
+        snapshot_login(self.root, "opencode")
+        self.write("auth.json", {"opencode-go": {"type": "api", "key": self.token}})
+        clear_override(self.root, "opencode")
+        self.assertTrue(configured(self.root, "opencode"))
+        store = CredentialStore(self.root, "opencode")
+        self.assertEqual(set(login_view(store)), {"opencode-go"})
+        self.assertEqual(
+            store.headers("opencode-go")[0], {"Authorization": f"Bearer {self.token}"}
+        )
+        set_api_key(self.root, "opencode-go", "new-managed-go-fixture")
+        self.assertEqual(
+            store.headers("opencode-go")[0],
+            {"Authorization": "Bearer new-managed-go-fixture"},
+        )
+
     def test_refresh_is_bounded_does_not_follow_redirects_or_echo_errors(self):
         opener = MagicMock()
         for response in (b"[]", b"{}", b"x" * (1024 * 1024 + 1), b"{bad"):

@@ -52,6 +52,91 @@ class AuthProtocolTests(unittest.TestCase):
         )
         return flow
 
+    def test_opencode_go_and_console_use_separate_keys_for_all_inference_formats(self):
+        keys = {
+            "opencode": "console-provider-fixture",
+            "opencode-go": "go-provider-fixture",
+        }
+        write_json(
+            self.root / "brig-auth.json",
+            {provider: {"type": "api", "key": key} for provider, key in keys.items()},
+        )
+        for prefix, provider in (
+            ("/zen/v1", "opencode"),
+            ("/zen/go/v1", "opencode-go"),
+            ("/inference/v1", "opencode"),
+            ("/inference/go/v1", "opencode-go"),
+        ):
+            for path, method, header in (
+                ("/chat/completions", "POST", "authorization"),
+                ("/responses", "POST", "authorization"),
+                ("/responses/compact", "POST", "authorization"),
+                ("/messages", "POST", "x-api-key"),
+                ("/messages/count_tokens", "POST", "x-api-key"),
+                ("/models", "GET", "authorization"),
+                (
+                    "/models/gemini-test:generateContent?key=" + PLACEHOLDER,
+                    "POST",
+                    "x-goog-api-key",
+                ),
+                ("/models/gemini-test:streamGenerateContent", "POST", "x-goog-api-key"),
+                ("/models/gemini-test:countTokens", "POST", "x-goog-api-key"),
+            ):
+                with self.subTest(prefix=prefix, path=path):
+                    flow = self.flow("https://opencode.ai" + prefix + path, method)
+                    self.assertEqual(
+                        provider_for(flow.request.host, flow.request.path), provider
+                    )
+                    self.injector.request(flow)
+                    self.assertIsNone(flow.response)
+                    self.assertIn(keys[provider], flow.request.headers[header])
+                    self.assertNotIn("key", flow.request.query)
+                    for name in ("authorization", "x-api-key", "x-goog-api-key"):
+                        if name != header:
+                            self.assertNotIn(name, flow.request.headers)
+                    redactor = self.injector.redactors[flow.id]
+                    result = redactor(keys[provider].encode()) + redactor(b"")
+                    self.assertNotIn(keys[provider].encode(), result)
+                    self.assertNotIn(
+                        keys["opencode-go" if provider == "opencode" else "opencode"],
+                        str(flow.request.headers),
+                    )
+
+    def test_opencode_credentials_are_never_added_outside_exact_model_routes(self):
+        for url, method in (
+            ("https://opencode.ai/v1/messages", "POST"),
+            ("https://opencode.ai/zen/go/v1/files", "POST"),
+            ("https://opencode.ai/inference/go/v1/billing", "GET"),
+            ("https://opencode.ai/inference/go/v1/models", "DELETE"),
+            (
+                "https://opencode.ai/inference/go/v1/models/../bad:generateContent",
+                "POST",
+            ),
+            (
+                "https://opencode.ai/inference/go/v1/models/%2e%2e:generateContent",
+                "POST",
+            ),
+            (
+                "https://opencode.ai/inference/go/v1/models/bad\\name:generateContent",
+                "POST",
+            ),
+            ("https://opencode.ai:444/inference/go/v1/messages", "POST"),
+            ("http://opencode.ai/inference/go/v1/messages", "POST"),
+        ):
+            with (
+                self.subTest(url=url, method=method),
+                patch.object(self.injector.store, "headers") as headers,
+            ):
+                flow = self.flow(url, method)
+                self.injector.request(flow)
+                self.assertEqual(flow.response.status_code, 403)
+                headers.assert_not_called()
+        for host in ("opencode.ai.evil.example", "OPENCODE.AI", "opencode.ai."):
+            self.assertIsNone(provider_for(host, "/inference/go/v1/messages"))
+        self.assertFalse(
+            permitted("POST", "/inference/go/v1/messages", host="api.openai.com")
+        )
+
     def test_exact_origin_method_and_path_binding(self):
         self.assertEqual(provider_for("api.openai.com"), "openai")
         for host in (

@@ -8,6 +8,8 @@ PROVIDERS = {
     "groq": ("api.groq.com",),
     "mistral": ("api.mistral.ai",),
     "xai": ("api.x.ai",),
+    "opencode": ("opencode.ai",),
+    "opencode-go": ("opencode.ai",),
 }
 
 
@@ -22,12 +24,48 @@ def public(host: str, method: str, path: str) -> bool:
     return (host, method, path.split("?", 1)[0]) in PUBLIC
 
 
-def provider_for(host: str) -> str | None:
+def provider_for(host: str, path: str = "") -> str | None:
+    if host == "opencode.ai":
+        return (
+            "opencode-go"
+            if path.startswith(("/zen/go/v1/", "/inference/go/v1/"))
+            else "opencode"
+        )
     return next((name for name, hosts in PROVIDERS.items() if host in hosts), None)
 
 
-def permitted(method: str, path: str) -> bool:
+def permitted(method: str, path: str, *, host: str | None = None) -> bool:
     path = path.split("?", 1)[0]
+    if host == "opencode.ai":
+        # Native v1 uses /zen; current OpenCode endpoints use /inference.
+        for prefix in ("/zen/v1", "/zen/go/v1", "/inference/v1", "/inference/go/v1"):
+            if path.startswith(prefix + "/"):
+                relative = path[len(prefix) :]
+                return (method == "GET" and relative == "/models") or (
+                    method == "POST"
+                    and (
+                        relative
+                        in (
+                            "/responses",
+                            "/responses/compact",
+                            "/chat/completions",
+                            "/messages",
+                            "/messages/count_tokens",
+                        )
+                        or (
+                            relative.startswith("/models/")
+                            and relative.endswith(
+                                (
+                                    ":generateContent",
+                                    ":streamGenerateContent",
+                                    ":countTokens",
+                                )
+                            )
+                            and not any(char in relative for char in ("%", "..", "\\"))
+                        )
+                    )
+                )
+        return False
     if method == "GET":
         return path in (
             "/v1/models",

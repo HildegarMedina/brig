@@ -10,9 +10,23 @@ brig auth login opencode --project my-api
 ```
 
 Brig starts a trusted, temporary native login helper without the project workspace.
-Codex uses device authentication, Claude uses its native login, and OpenCode
-selects OpenAI login. Follow the provider's instructions in your browser. This
+Codex uses device authentication and Claude uses its native login. OpenCode opens
+its native provider selector instead of forcing OpenAI. Choose a supported
+provider, such as OpenCode Go, and follow its login or API-key prompt. This
 requires a terminal and an account that supports the selected authentication flow.
+OpenCode Go uses your Go API key; it does not require an OpenAI account.
+
+For Go, you can also save the key directly through Brig's hidden prompt:
+
+```bash
+brig auth set-key opencode --project my-api --provider opencode-go
+```
+
+See the [OpenCode CLI authentication guide](https://opencode.ai/docs/cli/#login)
+and [OpenCode Go guide](https://opencode.ai/docs/go/). After updating Brig, rerun
+`./scripts/install.sh` from the checkout, then retry `brig auth login opencode`.
+Brig prepares the updated credential proxy as needed; leave other active chats
+before changing authentication.
 
 To use an API key instead, run:
 
@@ -25,7 +39,10 @@ brig auth set-key opencode --project my-api --provider openrouter
 The prompt hides your input. Automation can provide a key on standard input using
 `--stdin`; never put the key directly in a command argument or commit it to files.
 Codex supports OpenAI and Claude supports Anthropic. OpenCode supports API keys
-for `openai`, `anthropic`, `google`, `openrouter`, `groq`, `mistral`, and `xai`.
+for `openai`, `anthropic`, `google`, `openrouter`, `groq`, `mistral`, `xai`,
+`opencode` (OpenCode Console / Zen), and `opencode-go` (OpenCode Go).
+Go and Console credentials are selected independently by the inference URL.
+Supported native login records are accepted for those same provider IDs.
 Azure, AWS, Copilot, custom endpoints, and other provider authentication schemes
 are not supported by the protected proxy.
 
@@ -39,6 +56,11 @@ brig run my-api --agent codex
 Logins are reused across projects for the same agent, host user, and Brig data
 directory. Settings and conversation state remain private to each project.
 Restart other running projects when switching between API-key and OAuth modes.
+For OpenCode, successful native login clears managed overrides only for providers
+whose native credentials changed; unrelated provider keys remain intact. Legacy
+OpenCode versions keep `auth.json`; versions that advertise auth import/export
+use the protected export file. Failed login/export does not restart the agent
+container or discard the previous export.
 Supported OpenAI and Anthropic OAuth tokens refresh in the proxy near expiry;
 a revoked or invalid login may require signing in again from the host.
 

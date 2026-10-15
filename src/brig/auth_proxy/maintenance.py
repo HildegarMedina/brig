@@ -1,5 +1,7 @@
 """A successful host login switches away from an explicitly stored API key."""
 
+import hashlib
+import json
 from pathlib import Path
 
 from brig.auth_proxy.credentials import CredentialStore, secret
@@ -12,20 +14,69 @@ from brig.auth_proxy.storage import (
 )
 
 
-def clear_override(directory: Path, agent: str):
-    provider = "anthropic" if agent == "claude" else "openai"
+def native_login_digests(directory: Path, agent: str):
+    records = {}
+    store = CredentialStore(directory, agent)
+    for provider in PROVIDERS:
+        try:
+            _, _, record, _ = store.record(provider, include_managed=False)
+            secret(
+                record.get("access")
+                if record.get("type") == "oauth"
+                else record.get("key")
+            )
+            records[provider] = hashlib.sha256(
+                json.dumps(record, sort_keys=True).encode()
+            ).hexdigest()
+        except (CredentialError, AttributeError):
+            continue
+    return records
+
+
+def snapshot_login(directory: Path, agent: str):
     with credential_lock(directory):
-        _, _, record, _ = CredentialStore(directory, agent).record(
-            provider, include_managed=False
+        # Persist digests, never additional plaintext copies of native secrets.
+        write_json(
+            directory / ".brig-login-before.json",
+            native_login_digests(directory, agent),
         )
-        secret(
-            record.get("access") if record.get("type") == "oauth" else record.get("key")
-        )
+
+
+def clear_override(directory: Path, agent: str):
+    with credential_lock(directory):
+        if agent == "opencode":
+            before = read_json(directory / ".brig-login-before.json")
+            after = native_login_digests(directory, agent)
+            if not isinstance(before, dict) or not after:
+                raise CredentialError(
+                    "Native login did not save supported provider credentials"
+                )
+            providers = [
+                provider
+                for provider, digest in after.items()
+                if before.get(provider) != digest
+            ]
+        else:
+            provider = "anthropic" if agent == "claude" else "openai"
+            _, _, record, _ = CredentialStore(directory, agent).record(
+                provider, include_managed=False
+            )
+            secret(
+                record.get("access")
+                if record.get("type") == "oauth"
+                else record.get("key")
+            )
+            providers = [provider]
         path = directory / "brig-auth.json"
         managed = read_json(path)
-        if isinstance(managed, dict) and provider in managed:
-            managed.pop(provider)
+        if isinstance(managed, dict) and any(
+            provider in managed for provider in providers
+        ):
+            for provider in providers:
+                managed.pop(provider, None)
             write_json(path, managed)
+        if agent == "opencode":
+            (directory / ".brig-login-before.json").unlink(missing_ok=True)
 
 
 def set_api_key(directory: Path, provider: str, key: str):

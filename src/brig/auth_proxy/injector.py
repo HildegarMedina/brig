@@ -82,7 +82,7 @@ class CredentialInjector:
                 except ValueError:
                     pass
             return
-        provider = provider_for(flow.request.host)
+        provider = provider_for(flow.request.host, flow.request.path)
         if provider is None:
             return
         if flow.request.headers.get("upgrade", "").lower() == "websocket":
@@ -99,7 +99,9 @@ class CredentialInjector:
             if (
                 flow.request.scheme != "https"
                 or flow.request.port != 443
-                or not permitted(flow.request.method, flow.request.path)
+                or not permitted(
+                    flow.request.method, flow.request.path, host=flow.request.host
+                )
             ):
                 self.deny(flow)
                 return
@@ -108,6 +110,17 @@ class CredentialInjector:
             flow.request.query.pop("key", None)
             flow.request.headers["accept-encoding"] = "identity"
             headers, secrets = self.store.headers(provider)
+            if provider in ("opencode", "opencode-go"):
+                token = headers.pop("Authorization").removeprefix("Bearer ")
+                path = flow.request.path.split("?", 1)[0]
+                name = (
+                    "x-goog-api-key"
+                    if "/models/" in path
+                    else "x-api-key"
+                    if "/messages" in path
+                    else "Authorization"
+                )
+                headers[name] = f"Bearer {token}" if name == "Authorization" else token
             flow.request.headers.update(headers)
             self.redactors[flow.id] = Redactor(secrets)
         except Exception:
