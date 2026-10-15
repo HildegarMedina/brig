@@ -304,7 +304,7 @@ class ProfileImportTests(unittest.TestCase):
             )
             self.assertIn("Cannot read profile", errors.getvalue())
         self.assertEqual(
-            json.loads((data / "state.json").read_text())["schema_version"], 2
+            json.loads((data / "state.json").read_text())["schema_version"], 3
         )
 
     def test_merge_revalidates_existing_state(self):

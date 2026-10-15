@@ -21,6 +21,7 @@ from brig.engine import Environment
 from brig.errors import BrigError
 from brig.i18n import tr
 from brig.models import Project
+from brig.references import references_match
 
 
 class DockerEngine:
@@ -228,8 +229,25 @@ class DockerEngine:
         with self.workspace.lock(project):
             return self._start(project)
 
-    def _start(self, project: Project) -> str:
-        self.client.inspect(project)  # Verify ownership before making changes.
+    def apply_references(self, project: Project) -> None:
+        with self.workspace.lock(project):
+            self._start(project, references_only=True)
+
+    def _start(self, project: Project, *, references_only=False) -> str:
+        container = self.client.inspect(project)  # Verify ownership first.
+        running = bool(container and container["State"]["Running"])
+        if references_only and not running:
+            raise BrigError(
+                tr(
+                    "Project is stopped. Use 'brig up --project {project}' to apply references and start it."
+                ).format(project=project.name)
+            )
+        if running and not references_only and not references_match(project, container):
+            raise BrigError(
+                tr(
+                    "Reference changes are pending for {project}. The running environment was kept. Close its sessions, then use 'brig reference apply --project {project}' to recreate only the work container, or stop and start the environment."
+                ).format(project=project.name)
+            )
         for agent in project.configuration.selected_agents:
             self.client.inspect(project, agent=agent)
             self.client.inspect(project, agent=agent, proxy=True)
@@ -262,17 +280,21 @@ class DockerEngine:
                     value0=project.name
                 ),
             )
+        up = [
+            *command,
+            "up",
+            "--detach",
+            "--no-build",
+            "--wait",
+            "--wait-timeout",
+            "360",
+        ]
+        if references_only:
+            up.extend(["--no-deps", "--force-recreate", "dev"])
+        else:
+            up.append("--remove-orphans")
         self.client.run(
-            [
-                *command,
-                "up",
-                "--detach",
-                "--no-build",
-                "--wait",
-                "--wait-timeout",
-                "360",
-                "--remove-orphans",
-            ],
+            up,
             capture=False,
             status=tr("Starting {value0}…").format(value0=project.name),
         )

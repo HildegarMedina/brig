@@ -80,6 +80,34 @@ def parser() -> argparse.ArgumentParser:
                 action="store_true",
                 help=tr("read the API key from stdin without echoing it"),
             )
+    references = commands.add_parser(
+        "reference", help=tr("manage read-only reference projects")
+    ).add_subparsers(dest="action", required=True)
+    for action, description in (
+        ("add", tr("link a local folder without copying it")),
+        ("list", tr("list configured reference projects")),
+        ("remove", tr("unlink a reference without deleting its files")),
+        (
+            "apply",
+            tr(
+                "apply references by recreating only the work container; closes its sessions"
+            ),
+        ),
+    ):
+        reference = references.add_parser(action, help=description)
+        reference.add_argument(
+            "--project", metavar="NAME", help=tr("registered project name")
+        )
+        if action == "add":
+            reference.add_argument("path", type=Path, metavar="PATH")
+            reference.add_argument(
+                "--as",
+                dest="alias",
+                metavar="ALIAS",
+                help=tr("name inside /references; defaults to the folder name"),
+            )
+        if action == "remove":
+            reference.add_argument("alias", metavar="ALIAS")
     profiles = commands.add_parser(
         "profile", help=tr("manage reusable environment profiles")
     ).add_subparsers(dest="action", required=True)
@@ -282,6 +310,15 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
         if args.action == "show":
             return "\n".join(project_lines(app, app.project(args.name)))
         return app.update_project(args.name)
+    if args.command == "reference":
+        project = app.resolve_project(args.project, Path.cwd())
+        if args.action == "add":
+            return app.add_reference(project.name, args.path, args.alias)
+        if args.action == "remove":
+            return app.remove_reference(project.name, args.alias)
+        if args.action == "apply":
+            return app.apply_references(project.name)
+        return app.list_references(project.name)
     name = getattr(args, "name", None)
     if args.command == "run" and name in AGENTS:
         if args.agent is not None and args.agent != name:

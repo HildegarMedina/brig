@@ -43,6 +43,7 @@ class Project:
     profile: str
     configuration: ProfileVersion
     running: bool = False
+    references: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass

@@ -13,6 +13,7 @@ from brig.docker.services import SERVICES
 from brig.errors import BrigError
 from brig.i18n import tr
 from brig.models import Project
+from brig.references import reference_mounts
 
 
 def project_prefix(project: Project) -> str:
@@ -127,6 +128,7 @@ def compose_definition(
                     "target": "/workspace",
                     "bind": {"create_host_path": False},
                 },
+                *reference_mounts(project),
                 {"type": "volume", "source": "home", "target": "/home/brig"},
                 # System level, so a container ~/.gitconfig or repo config wins.
                 {

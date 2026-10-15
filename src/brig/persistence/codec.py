@@ -7,8 +7,9 @@ from brig.components.catalog import validate_selection
 from brig.i18n import tr
 from brig.models import Profile, ProfileParent, ProfileVersion, Project, State
 from brig.profile_inheritance import validate_relationships
+from brig.references import validate_references
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 
 def decode_profile_version(raw: dict) -> ProfileVersion:
@@ -46,6 +47,7 @@ def decode_state(raw: dict) -> State:
         raise ValueError(tr("Invalid state fields"))
     if type(raw["schema_version"]) is not int or raw["schema_version"] not in (
         1,
+        2,
         SCHEMA_VERSION,
     ):
         raise ValueError(tr("Unsupported schema version"))
@@ -68,11 +70,13 @@ def decode_state(raw: dict) -> State:
         profiles.append(Profile(item["name"], versions))
     projects = []
     for item in raw["projects"]:
-        if set(item) != {"id", "name", "path", "profile", "configuration", "running"}:
+        fields = {"id", "name", "path", "profile", "configuration", "running"}
+        if set(item) not in (fields, fields | {"references"}):
             raise ValueError(tr("Invalid project fields"))
         record = dict(item)
         record["configuration"] = decode_profile_version(record["configuration"])
         project = Project(**record)
+        validate_references(project.references)
         if not isinstance(project.id, str) or not project.id:
             raise ValueError(tr("Invalid project ID"))
         if type(project.running) is not bool:

@@ -62,12 +62,17 @@ written as strings. Share copies of these documents and import them with
 complete histories and inherited profiles. Manual edits to `state.json` are not
 an import workflow; see [import profiles](../how-to/import-profiles.md).
 
-New state and YAML documents use schema version 2. Profiles store their history
-as `versions`; YAML uses `version: N`. The reader accepts schema 1 state. At the
-next successful save, Brig writes schema 2 and creates documents in the new
-layout, checking any original YAML before copying it. Original legacy YAML files
-are retained unchanged. Keep a backup before switching to an older Brig release,
-which cannot read the newer schema.
+New state documents use schema version 3; profile YAML remains schema version 2.
+Each project stores a `references` mapping from validated aliases to absolute,
+resolved host directory paths. Older state versions 1 and 2 remain readable;
+projects without the field default to no references. The next successful save
+writes schema 3. Reference directories are checked when mounting, so a missing
+source does not prevent listing or removing its saved reference offline.
+
+Profiles store history as `versions`; YAML uses `version: N`. Saving creates
+version documents in the current layout, checking any original YAML before
+copying it. Original legacy YAML files are retained unchanged. Older Brig
+releases cannot read the newer state schema.
 
 Inherited profile versions include an `extends` reference with a base profile
 name and a fixed version number. They also retain the full resolved configuration

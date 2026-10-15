@@ -160,6 +160,10 @@ def bootstrap_script(agents, services=(), runtimes=(), tools=()):
         lines += [
             f"rm -f {home}/{INSTRUCTIONS_FILE}",
             f"printf '%s' {shlex.quote(instructions)} > {home}/{INSTRUCTIONS_FILE}",
+            "for reference in /references/*; do",
+            '    test -d "$reference" || continue',
+            f"    printf '\\nLegacy reference (read-only): %s\\n' \"$reference\" >> {home}/{INSTRUCTIONS_FILE}",
+            "done",
             f'chown -Rh "$actor_uid:$(id -g brig)" {home}',
             f'chown "$actor_uid:$(id -g brig)" {home}/.brig-environment.sh',
             f"chmod 600 {home}/.brig-environment.sh",

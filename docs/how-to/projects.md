@@ -85,6 +85,61 @@ and permanent context remain untouched. Cleanup does not erase content already
 stored in an agent conversation. After an interrupted session, use `detach` or
 `down` explicitly to clean up.
 
+## Consult another project without copying it
+
+Register an existing local folder as a read-only reference:
+
+```bash
+brig reference add ~/projects/old-api --project my-api --as legacy
+brig reference list --project my-api
+```
+
+Inside `my-api`, `--project my-api` is optional. `--as` defaults to the resolved
+folder name; aliases use kebab-case, such as `legacy-api`. References appear at
+`/references/ALIAS`, separate from the editable project at `/workspace`.
+The source must be outside the active project and its parent folders.
+
+Brig mounts the original directory read-only, without copying its files or
+changing its permissions. Host edits become visible immediately. The agent's
+user must already have permission to read the source files and traverse its
+directories; Brig does not grant access by modifying the reference's ACLs.
+
+Claude Code, Codex, and OpenCode receive sandbox instructions listing each
+mounted reference. They are told to search `/references` when consulting legacy
+code, use it to understand previous behavior and patterns, and make changes in
+`/workspace`. Instructions in reference projects do not override the sandbox or
+active project requirements. For example: "Compare our login with legacy."
+
+Adding or removing a reference only saves configuration. If the environment is
+stopped, the next `brig up` or `brig run` applies it. If it is running, the current
+mounts and sessions stay intact; `up` and `run` report pending reference changes
+rather than replacing the running container automatically. After closing your
+work sessions, explicitly apply the configuration:
+
+```bash
+brig reference apply --project my-api
+```
+
+This recreates only the work container, ending any sessions still inside it.
+Database services and persistent volumes remain in place. Reference changes do
+not change the image cache key; existing matching images are reused. Updating
+Brig itself may require its usual image rebuild once for new sandbox guidance.
+Stopping and starting the environment also applies pending changes.
+
+To unlink a reference:
+
+```bash
+brig reference remove legacy --project my-api
+```
+
+Original files remain untouched. A running container keeps its old mount until
+`reference apply` or a stop/start; removing configuration does not instantly revoke
+an existing mount. References persist across `down` and are not removed by
+`project detach`. If a source disappears or is replaced by a symlink to another
+folder, the next apply/start fails with a diagnostic; remove the reference or
+register its new location explicitly. Reference paths belong to the machine
+running the Docker daemon, like the main workspace bind mount.
+
 ## Use the profile's databases and message brokers
 
 Services are reachable by name within the project's network:

@@ -3,7 +3,7 @@
 ## Global options
 
 ```text
-brig [--data-dir DIRECTORY] [--lang {en,es,pt}] [command]
+brig [--data-dir DIRECTORY] [--lang {en,es,pt}] [--verbose] [command]
 brig --help
 brig --version
 ```
@@ -117,6 +117,29 @@ path per file. Give that path to the agent; Brig does not inject a chat message.
 `detach` or `down`; exiting the CLI or an unexpected shutdown does not expire
 them. Permanent context stored elsewhere in `.brig/context/` stays intact.
 Removing a copy does not erase content already read or saved by an agent.
+
+## Read-only reference projects
+
+```text
+brig reference add PATH [--as ALIAS] [--project NAME]
+brig reference list [--project NAME]
+brig reference remove ALIAS [--project NAME]
+brig reference apply [--project NAME]
+```
+
+Without `--project`, Brig detects the project containing the current folder.
+`add` links a directory to `/references/ALIAS` without copying it; the alias
+otherwise uses the resolved folder name. `list` shows saved configuration,
+including host paths. `remove` unlinks configuration and keeps the original files.
+These commands do not require Docker or interrupt existing sessions.
+
+Changes apply on the next start of a stopped environment. When it is already
+running, close its sessions and use `apply` to recreate only the work container
+without restarting database services. `apply` ends sessions inside that container
+and requires a running environment. `up` and `run` refuse pending mount changes
+on a running container so they cannot silently interrupt other sessions.
+References persist across `down`. Every agent receives instructions describing
+mounted legacy resources. See [project references](../how-to/projects.md#consult-another-project-without-copying-it).
 
 ## Run a project
 

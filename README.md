@@ -119,6 +119,7 @@ Run `brig` to open the dashboard, or use commands directly:
 | Task | Command |
 | --- | --- |
 | List projects | `brig project list` |
+| Link legacy code for read-only consultation | `brig reference add ../old-api --project my-api --as legacy` |
 | Inspect a project's configuration | `brig project show my-api` |
 | Start without opening a terminal | `brig up my-api` |
 | Open Bash | `brig bash my-api` |
@@ -151,6 +152,11 @@ See [project management](docs/how-to/projects.md) and the
 [command reference](docs/reference/cli.md) for more options.
 
 ## What to expect
+
+Reference projects are available under `/references/ALIAS` without copying them.
+Brig tells the agent which legacy resources are mounted and keeps them read-only.
+Changes made while running remain pending until you explicitly apply them.
+[Reference guide](docs/how-to/projects.md#consult-another-project-without-copying-it).
 
 Brig prepares the development environment. You install your application's
 dependencies and start its processes yourself; publishing application ports

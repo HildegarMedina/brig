@@ -25,6 +25,7 @@ from brig.persistence.profile_reader import read_profiles
 from brig.persistence.store import StateStore
 from brig.profile_inheritance import resolve_base, would_cycle
 from brig.profiles.importing import merge_profiles
+from brig.references import REFERENCES_PATH, reference_source, valid_alias
 
 
 class Application:
@@ -359,6 +360,70 @@ class Application:
 
     def detach(self, name: str) -> str:
         return detach_files(self.project(name))
+
+    def add_reference(self, name: str, path: Path, alias: str | None = None) -> str:
+        project = self.project(name)
+        source = reference_source(project, path)
+        alias = Path(source).name if alias is None else alias
+        if not valid_alias(alias):
+            raise BrigError(
+                tr(
+                    "Use --as with a kebab-case reference name, e.g. legacy-api (max 64 characters)."
+                )
+            )
+        if alias in project.references:
+            raise BrigError(
+                tr("Reference '{alias}' already exists.").format(alias=alias)
+            )
+        if source in project.references.values():
+            raise BrigError(
+                tr("This directory is already a reference for {project}.").format(
+                    project=project.name
+                )
+            )
+        candidate = deepcopy(self.state)
+        next(p for p in candidate.projects if p.id == project.id).references[alias] = (
+            source
+        )
+        self._commit(candidate)
+        return tr(
+            "Reference '{alias}' saved for {project}: {path} (read-only). Applied on the next start; if running, use 'brig reference apply --project {project}'."
+        ).format(alias=alias, project=project.name, path=f"{REFERENCES_PATH}/{alias}")
+
+    def remove_reference(self, name: str, alias: str) -> str:
+        project = self.project(name)
+        if alias not in project.references:
+            raise BrigError(tr("Unknown reference: {alias}.").format(alias=alias))
+        candidate = deepcopy(self.state)
+        del next(p for p in candidate.projects if p.id == project.id).references[alias]
+        self._commit(candidate)
+        return tr(
+            "Reference '{alias}' removed from {project}. Original files were kept. If running, use 'brig reference apply --project {project}' to unmount it."
+        ).format(alias=alias, project=project.name)
+
+    def list_references(self, name: str) -> str:
+        project = self.project(name)
+        if not project.references:
+            return tr("No references configured for {project}.").format(
+                project=project.name
+            )
+        return "\n".join(
+            [
+                tr("Read-only references for {project} (configured):").format(
+                    project=project.name
+                ),
+                *(
+                    f"{alias}  {REFERENCES_PATH}/{alias}  {path}"
+                    for alias, path in sorted(project.references.items())
+                ),
+            ]
+        )
+
+    def apply_references(self, name: str) -> str:
+        self.engine.apply_references(self.project(name))
+        return tr(
+            "References applied to {project}. Database services and persistent data were kept."
+        ).format(project=self.project(name).name)
 
     def run_agent(
         self, name: str, agent: str, command=None, *, before_launch=None

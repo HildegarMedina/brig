@@ -66,5 +66,11 @@ def project_lines(
             tr("Volume     {value0}").format(value0=volume)
             for volume in environment.volumes
         ],
-        tr("Mount      project folder → /workspace; no other host folders"),
+        tr("Mount      project folder → /workspace"),
+        *[
+            tr("Reference  {alias} → /references/{alias} (read-only)").format(
+                alias=alias
+            )
+            for alias in sorted(project.references)
+        ],
     ]

@@ -138,6 +138,78 @@ class DockerLifecycleTests(unittest.TestCase):
         )
         return json.loads(result.stdout)[0]
 
+    def test_legacy_references_are_live_read_only_and_apply_preserves_databases(self):
+        legacy = self.directory / "legacy"
+        legacy.mkdir(mode=0o755)
+        original = legacy / "auth.py"
+        original.write_text("legacy login")
+        original.chmod(0o666)  # The read-only bind, not Unix mode, blocks writes.
+        prefix = f"brig-{self.project_id}"
+        self.brig(
+            "reference",
+            "add",
+            str(legacy),
+            "--as",
+            "legacy",
+            "--project",
+            "integration-project",
+        )
+        program = """
+import errno
+import os
+from pathlib import Path
+source = Path('/references/legacy/auth.py')
+assert source.read_text() == 'legacy login'
+try:
+    source.write_text('changed')
+except OSError as error:
+    assert error.errno == errno.EROFS, error
+else:
+    raise AssertionError('Reference was writable')
+notes = (Path(os.environ['HOME']) / '.brig-instructions.md').read_text()
+assert 'Legacy reference (read-only): /references/legacy' in notes
+assert '/workspace' in notes
+print('legacy-reference-ok')
+"""
+        result = self.brig(
+            "run", "integration-project", "--command", "python", "-c", program
+        )
+        self.assertIn("legacy-reference-ok", result.stdout)
+        self.assertEqual(original.read_text(), "legacy login")
+        self.assertEqual(original.stat().st_mode & 0o777, 0o666)
+        dev_before = self.inspect("container", f"{prefix}-dev")
+        database_before = self.inspect("container", f"{prefix}-redis")
+        original.write_text("updated login")
+        self.brig(
+            "run",
+            "integration-project",
+            "--command",
+            "python",
+            "-c",
+            "from pathlib import Path; assert Path('/references/legacy/auth.py').read_text() == 'updated login'",
+        )
+        self.brig("reference", "remove", "legacy", "--project", "integration-project")
+        pending = self.brig("up", "--project", "integration-project", success=False)
+        self.assertEqual(pending.returncode, 1)
+        self.assertIn("changes are pending", pending.stderr)
+        self.assertEqual(
+            self.inspect("container", f"{prefix}-dev")["Id"], dev_before["Id"]
+        )
+        self.brig("reference", "apply", "--project", "integration-project")
+        dev_after = self.inspect("container", f"{prefix}-dev")
+        self.assertNotEqual(dev_after["Id"], dev_before["Id"])
+        self.assertEqual(dev_after["Image"], dev_before["Image"])
+        self.assertEqual(
+            self.inspect("container", f"{prefix}-redis")["Id"], database_before["Id"]
+        )
+        self.assertFalse(
+            any(
+                mount["Destination"].startswith("/references/")
+                for mount in dev_after["Mounts"]
+            )
+        )
+        self.assertEqual(original.read_text(), "updated login")
+
     def test_run_builds_missing_image_mounts_only_project_and_preserves_data(self):
         prefix = f"brig-{self.project_id}"
         program = (

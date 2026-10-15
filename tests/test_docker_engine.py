@@ -10,6 +10,8 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
+import yaml
+
 from brig.application import Application
 from brig.docker.engine import DockerEngine
 from brig.errors import BrigError
@@ -30,6 +32,7 @@ class DockerRunner:
         self.volumes = ""
         self.volume_labels = None
         self.agent_volumes = {}
+        self.mounts = []
 
     def __call__(self, args, **options):
         self.calls.append((args, options))
@@ -41,6 +44,7 @@ class DockerRunner:
             data = [
                 {
                     "State": {"Running": self.running},
+                    "Mounts": self.mounts,
                     "Config": {
                         "Labels": {
                             "org.brig.project-id": self.owner or self.project_id,
@@ -93,6 +97,16 @@ class DockerRunner:
         if "up" in args:
             self.exists = self.running = True
             self.config = args[args.index("--file") + 1]
+            compose = yaml.safe_load(Path(self.config).read_text())
+            self.mounts = [
+                {
+                    "Source": volume["source"].replace("$$", "$"),
+                    "Destination": volume["target"],
+                    "RW": not volume.get("read_only", False),
+                }
+                for volume in compose["services"]["dev"]["volumes"]
+                if isinstance(volume, dict) and volume.get("type") == "bind"
+            ]
         if "down" in args:
             self.exists = self.running = False
         return CompletedProcess(args, 0, "", "")

@@ -201,7 +201,7 @@ class ProfileInheritanceTests(unittest.TestCase):
             store.save(loaded)
             self.assertEqual(old_path.read_text(), contents)
             self.assertTrue(profile_path(directory, "base", 1).exists())
-            self.assertEqual(json.loads(store.path.read_text())["schema_version"], 2)
+            self.assertEqual(json.loads(store.path.read_text())["schema_version"], 3)
             # A changed legacy document must not be silently bypassed on migration.
             profile_path(directory, "base", 1).unlink()
             old_path.write_text("edited")
