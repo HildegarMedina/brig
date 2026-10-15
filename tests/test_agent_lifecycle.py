@@ -129,7 +129,12 @@ class AgentDockerLifecycleTests(unittest.TestCase):
             self.assertEqual(
                 self.engine.agent_versions(self.project), {"claude": "2.3.4"}
             )
-        self.assertNotIn("--mount", run.call_args.args[0])
+        args = run.call_args.args[0]
+        self.assertNotIn("--mount", args)
+        self.assertIn("--read-only", args)
+        # OpenCode creates ~/.local/share/opencode even for --version.
+        self.assertEqual(args[args.index("--tmpfs") + 1], "/home/brig")
+        self.assertIn("HOME=/home/brig", args)
         with (
             patch.object(
                 self.engine.client,

@@ -124,6 +124,17 @@ class DockerEngine:
                     f"{self.uid}:{self.gid}",
                     "--cap-drop",
                     "ALL",
+                    # Agents create their home directories even for --version
+                    # (OpenCode needs ~/.local/share/opencode), so give them a
+                    # throwaway writable home on top of the read-only image.
+                    "--tmpfs",
+                    "/home/brig",
+                    "--tmpfs",
+                    "/tmp",
+                    "--env",
+                    "HOME=/home/brig",
+                    "--env",
+                    "OPENCODE_DB=/home/brig/.local/state/opencode/brig.db",
                     "--entrypoint",
                     binaries[agent],
                     image,

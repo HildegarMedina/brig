@@ -21,6 +21,24 @@ PASTE_KEYS = (
     b"\x1b[118;5:2u",
     b"\x1b[27;5;118~",
 )
+# Kitty keyboard and modifyOtherKeys encodings of a Ctrl+V press or repeat.
+# Codex and OpenCode request richer kitty flags than Claude Code, so the key
+# may carry alternate keys, associated text, or Caps/Num Lock modifier bits.
+PASTE_KEY = re.compile(
+    rb"\x1b\[(?:118(?::\d*)*;(\d+)(?::[12])?(?:;[\d:]*)?u|27;(\d+);118~)"
+)
+PASTE_KEY_PREFIX = re.compile(rb"\x1b(?:\[[\d;:]{0,32})?")
+LOCK_MODIFIERS = 64 | 128
+CTRL = 4
+
+
+def paste_key(data):
+    """Return the length of a leading Ctrl+V key sequence, if any."""
+    match = PASTE_KEY.match(data)
+    if match is None:
+        return 0
+    modifiers = int(match[1] or match[2]) - 1
+    return match.end() if modifiers & ~LOCK_MODIFIERS == CTRL else 0
 
 
 @dataclass
@@ -119,6 +137,8 @@ class ClipboardInput:
         while data:
             tokens = (PASTE_END,) if self.pasting else (PASTE_START, *PASTE_KEYS)
             token = next((token for token in tokens if data.startswith(token)), None)
+            if token is None and not self.pasting and (length := paste_key(data)):
+                token = data[:length]
             if token:
                 if token == PASTE_START:
                     self.pasting = True
@@ -142,7 +162,11 @@ class ClipboardInput:
                             .rstrip(b" ")
                         )
                 data = data[len(token) :]
-            elif not final and any(token.startswith(data) for token in tokens):
+            elif not final and (
+                any(token.startswith(data) for token in tokens)
+                or not self.pasting
+                and PASTE_KEY_PREFIX.fullmatch(data)
+            ):
                 self.pending = data
                 break
             else:

@@ -136,6 +136,42 @@ class ClipboardTests(unittest.TestCase):
             ClipboardInput(clipboard).feed(b"\x16"), PASTE_START + PASTE_END
         )
 
+    def test_rich_kitty_encodings_of_ctrl_v_paste_and_other_keys_do_not(self):
+        # Codex and OpenCode enable more kitty keyboard flags than Claude Code.
+        clipboard = Mock()
+        clipboard.read.return_value = b"text"
+        expected = PASTE_START + b"text" + PASTE_END
+        for key in (
+            b"\x1b[118;69u",
+            b"\x1b[118;133u",
+            b"\x1b[118;197:1u",
+            b"\x1b[118::86;5u",
+            b"\x1b[118:86:118;5:2u",
+            b"\x1b[118;5;0u",
+            b"\x1b[27;133;118~",
+        ):
+            with self.subTest(key=key):
+                stream = ClipboardInput(clipboard)
+                received = b"".join(stream.feed(bytes([byte])) for byte in key)
+                self.assertEqual(received + stream.feed(b"", final=True), expected)
+        clipboard.read.reset_mock()
+        for key in (
+            b"\x1b[118;5:3u",
+            b"\x1b[118;6u",
+            b"\x1b[118;7u",
+            b"\x1b[118;13u",
+            b"\x1b[119;5u",
+            b"\x1b[1;5A",
+        ):
+            with self.subTest(key=key):
+                stream = ClipboardInput(clipboard)
+                received = b"".join(stream.feed(bytes([byte])) for byte in key)
+                self.assertEqual(received + stream.feed(b"", final=True), key)
+        stream = ClipboardInput(clipboard)
+        pasted = PASTE_START + b"\x1b[118;133u" + PASTE_END
+        self.assertEqual(stream.feed(pasted), pasted)
+        clipboard.read.assert_not_called()
+
     def test_terminal_pastes_other_keys_and_large_payloads_pass_unchanged(self):
         clipboard = Mock()
         stream = ClipboardInput(clipboard)
