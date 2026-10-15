@@ -218,6 +218,13 @@ When changing commands or behavior, update the corresponding page linked from
 Commits follow Conventional Commits. An incompatible CLI change must use `!` or a
 `BREAKING CHANGE` footer and explain how to use the new commands.
 
+## Package releases
+
+Stable package releases are prepared with `scripts/build_release.py` and the
+GitHub tag workflow. See [building and publishing releases](how-to/releases.md#prepare-a-release-as-a-maintainer)
+for the version source, runtime dependency export, asset checksums, and publication
+steps. The builder never publishes by itself.
+
 ## Credential proxy validation
 
 `brig.auth_proxy` implements protected credential storage, OAuth refresh, inert

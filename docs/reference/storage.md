@@ -213,6 +213,17 @@ See [upgrade guidance](../how-to/agent-isolation.md#upgrade-existing-projects).
 Deleting a project removes its databases and agent history permanently. Back up
 what you need first.
 
+## Brig release policy and cache
+
+`self-update.json` in the Brig data directory stores `pinned` (an exact Brig
+version when set), `checked_at` (the last check attempt's Unix timestamp), and
+`available` (the last discovered stable release). Updates use atomic replacement
+and `self-update.lock` serializes reservations and self-upgrades. These files are
+shared by the projects in that data directory and contain no provider secrets.
+An alternate `--data-dir` has independent release policy and daily cache.
+`brig self pin` and `brig self unpin` manage the policy without changing project
+definitions, profile versions, containers, or volumes.
+
 ## Backups
 
 Keep `state.json`, `profiles/`, `runtime/`, and project source files. For database

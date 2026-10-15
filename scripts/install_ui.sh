@@ -93,6 +93,9 @@ installer_cleanup() {
     installer_stop_animation
     rm -f -- "${installer_log:-}"
     rm -f -- "${installer_uv_script:-}"
+    if [[ -n "${installer_release_dir:-}" ]]; then
+        rm -rf -- "$installer_release_dir"
+    fi
 }
 
 installer_fail() {

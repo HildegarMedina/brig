@@ -14,6 +14,29 @@ engine artifacts. `--lang` selects the language for this invocation and must als
 appear before the command. Interface text, help, summaries, and Brig errors are
 translated; command names, options, and identifiers keep their original spelling.
 
+## Brig versions and updates
+
+```text
+brig self check
+brig self update [--version X.Y.Z]
+brig self pin
+brig self unpin
+```
+
+These commands work without a project or Docker. `check` queries the latest
+stable release immediately. `update` installs a checksum-verified release with
+its fixed dependency constraints, using uv; `--version` selects an exact stable
+release, including a previous one. `pin` records the running version, suppresses
+daily checks and notices, and prevents changing versions through `self update`;
+`unpin` restores checking and permits updates. Reinstalling the pinned version
+explicitly is allowed.
+
+Other CLI invocations reserve one automatic background check per 24 hours for
+this Brig data directory. Cached notices appear only in interactive terminals;
+network failures do not delay or fail commands. `BRIG_NO_SELF_UPDATE_CHECK=1`
+disables automatic checks. See [release management](../how-to/releases.md).
+`brig update` separately updates the agents in a project.
+
 ## Language
 
 ```text

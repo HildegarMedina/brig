@@ -1,0 +1,54 @@
+name: Checks
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: '0.13.0'
+          python-version: ${{ matrix.python }}
+      - name: Verify lock and run required checks
+        env:
+          BRIG_NO_SELF_UPDATE_CHECK: '1'
+        run: |
+          uv lock --check
+          uv run --locked pre-commit run --all-files
+          shellcheck -x scripts/install.sh scripts/install_ui.sh scripts/uv_dependencies.sh scripts/docker_dependencies.sh
+      - name: Build and verify release assets
+        if: matrix.python == '3.12'
+        run: |
+          uv run --locked python scripts/build_release.py
+          bash -n dist/release/install.sh
+          shellcheck -x dist/release/install.sh
+          cd dist/release
+          sha256sum --check SHA256SUMS
+      - name: Install the built wheel in an isolated tool environment
+        if: matrix.python == '3.12'
+        env:
+          BRIG_NO_SELF_UPDATE_CHECK: '1'
+          UV_TOOL_DIR: ${{ runner.temp }}/brig-release-tools
+          UV_TOOL_BIN_DIR: ${{ runner.temp }}/brig-release-bin
+        run: |
+          release_version="$(cat dist/release/VERSION)"
+          uv tool install --python '>=3.12' --constraints dist/release/brig-requirements.txt \
+            "dist/release/brig-$release_version-py3-none-any.whl"
+          test "$("$UV_TOOL_BIN_DIR/brig" --version)" = "brig $release_version"
+          "$UV_TOOL_BIN_DIR/brig" --data-dir "$RUNNER_TEMP/brig-release-data" self pin
+          "$UV_TOOL_BIN_DIR/brig" --data-dir "$RUNNER_TEMP/brig-release-data" self unpin

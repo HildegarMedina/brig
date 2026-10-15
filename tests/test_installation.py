@@ -215,7 +215,9 @@ class InstallationTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("must be available after installation", result.stderr)
 
-    def installer(self, *arguments, commands=None, environment=None, terminal=False):
+    def installer(
+        self, *arguments, commands=None, environment=None, terminal=False, script=None
+    ):
         binary = self.root / "bin"
         binary.mkdir(exist_ok=True)
         programs = {
@@ -244,6 +246,7 @@ class InstallationTests(unittest.TestCase):
             "sleep",
             "mkdir",
             "chmod",
+            "sha256sum",
         ):
             path = binary / name
             if not path.exists():
@@ -255,7 +258,7 @@ class InstallationTests(unittest.TestCase):
                 continue
             path.write_text("#!/usr/bin/env bash\n" + contents + "\n")
             path.chmod(0o755)
-        command = ["bash", str(self.repo / "scripts/install.sh"), *arguments]
+        command = ["bash", str(script or self.repo / "scripts/install.sh"), *arguments]
         env = {
             **os.environ,
             "PATH": str(binary),
@@ -299,7 +302,7 @@ class InstallationTests(unittest.TestCase):
         self.assertEqual(
             self.log.read_text().splitlines(),
             [
-                f"tool install --python >=3.12 --reinstall {self.repo}",
+                f"tool install --python >=3.12 --reinstall --constraints {self.repo}/src/brig/release/requirements.txt {self.repo}",
                 "tool update-shell",
             ],
         )
@@ -370,7 +373,10 @@ exit 99
         self.assertIn("curl --fail", log)
         self.assertIn("https://astral.sh/uv/install.sh", log)
         self.assertIn(f"bootstrap {self.root / 'uv bin'} modify-path=1", log)
-        self.assertIn(f"tool install --python >=3.12 --reinstall {self.repo}", log)
+        self.assertIn(
+            f"tool install --python >=3.12 --reinstall --constraints {self.repo}/src/brig/release/requirements.txt {self.repo}",
+            log,
+        )
         self.assertIn("tool update-shell", log)
         self.assertNotIn("wget", log)
         self.assertNotIn("bootstrap detail", result.stdout + result.stderr)

@@ -26,6 +26,8 @@ from brig.i18n import (
 from brig.i18n.preferences import load_language, save_language
 from brig.persistence.store import JsonStateStore, default_data_directory
 from brig.progress import output_options
+from brig.self_update import automatic_check
+from brig.self_update import command as self_command
 from brig.ui.agent_selection import choose_agent
 from brig.ui.listings import profile_list, project_list
 from brig.ui.presentation import project_lines
@@ -62,6 +64,18 @@ def parser() -> argparse.ArgumentParser:
         "--verbose", action="store_true", help=tr("show detailed environment output")
     )
     commands = root.add_subparsers(dest="command")
+    self_management = commands.add_parser(
+        "self", help=tr("manage Brig versions and updates")
+    ).add_subparsers(dest="action", required=True)
+    self_upgrade = self_management.add_parser(
+        "update", help=tr("install a stable Brig release")
+    )
+    self_upgrade.add_argument(
+        "--version", metavar="X.Y.Z", help=tr("install a specific Brig version")
+    )
+    self_management.add_parser("check", help=tr("check for Brig updates now"))
+    self_management.add_parser("pin", help=tr("pin the current Brig version"))
+    self_management.add_parser("unpin", help=tr("enable daily Brig update checks"))
     language = commands.add_parser(
         "language", help=tr("show or save the interface language")
     )
@@ -488,6 +502,15 @@ def _execute(args: argparse.Namespace) -> int:
         )
         return 2
     try:
+        if args.command == "self":
+            print(
+                self_command(
+                    args.data_dir.expanduser(),
+                    args.action,
+                    getattr(args, "version", None),
+                )
+            )
+            return 0
         if args.command == "language":
             if args.language is not None:
                 save_language(args.data_dir.expanduser(), args.language)
@@ -571,6 +594,12 @@ def main(argv: list[str] | None = None) -> int:
         # argparse uses gettext for its own headings and diagnostics. Keep this
         # binding scoped to a CLI invocation, restoring it even on SystemExit.
         argparse._ = tr
+        # Only the real CLI starts detached maintenance; embedding main(argv)
+        # keeps control of background processes with its caller.
+        if argv is None and initial.rest[:1] != ["self"]:
+            notice = automatic_check(initial.data_dir.expanduser())
+            if notice and sys.stdout.isatty() and sys.stderr.isatty():
+                print(notice, file=sys.stderr)
         return _main(argv)
     except BrigError as error:
         print(tr("brig: {value0}").format(value0=error), file=sys.stderr)

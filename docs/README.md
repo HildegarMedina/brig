@@ -9,6 +9,7 @@ selected coding agent; `brig bash my-project` opens a Bash terminal.
 | You need to… | Read… |
 | --- | --- |
 | Create and run your first project | [Your first project](tutorials/first-project.md) |
+| Install, update, pin, or publish a Brig release | [Release versions](how-to/releases.md) |
 | Start, stop, update, or delete a definition | [Manage projects](how-to/projects.md) |
 | Understand project history, credential protection, and upgrades | [Agent isolation](how-to/agent-isolation.md) |
 | Sign in without exposing provider tokens to agents | [Protected credentials](how-to/credentials.md) |

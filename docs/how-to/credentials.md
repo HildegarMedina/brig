@@ -23,8 +23,9 @@ brig auth set-key opencode --project my-api --provider opencode-go
 ```
 
 See the [OpenCode CLI authentication guide](https://opencode.ai/docs/cli/#login)
-and [OpenCode Go guide](https://opencode.ai/docs/go/). After updating Brig, rerun
-`./scripts/install.sh` from the checkout, then retry `brig auth login opencode`.
+and [OpenCode Go guide](https://opencode.ai/docs/go/). Update Brig with
+`brig self update` (or `./scripts/install.sh` from a development checkout), then
+retry `brig auth login opencode`.
 Brig prepares the updated credential proxy as needed; leave other active chats
 before changing authentication.
 

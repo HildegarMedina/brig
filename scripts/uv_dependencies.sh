@@ -35,6 +35,6 @@ ensure_uv() {
 }
 
 install_brig() {
-    uv tool install --python '>=3.12' --reinstall "$1"
+    uv tool install --python '>=3.12' --reinstall --constraints "$1/src/brig/release/requirements.txt" "$1"
     uv tool update-shell
 }

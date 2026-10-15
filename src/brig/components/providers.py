@@ -6,6 +6,7 @@ import re
 from collections.abc import Callable, Iterable
 from urllib.request import Request, urlopen
 
+from brig import __version__
 from brig.components.catalog import COMPONENTS, Component
 from brig.components.compatibility import ReleaseInfo
 from brig.i18n import tr
@@ -20,7 +21,9 @@ def fetch_text(url: str) -> str:
         and not url.endswith(("/latest", "/stable"))
         else "application/json, text/plain"
     )
-    request = Request(url, headers={"User-Agent": "brig/0.1", "Accept": accept})
+    request = Request(
+        url, headers={"User-Agent": f"brig/{__version__}", "Accept": accept}
+    )
     with urlopen(request, timeout=10) as response:
         data = response.read(MAX_RESPONSE_BYTES + 1)
     if len(data) > MAX_RESPONSE_BYTES:

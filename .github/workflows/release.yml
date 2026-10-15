@@ -1,0 +1,47 @@
+name: Publish release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  checks:
+    uses: ./.github/workflows/checks.yml
+  publish:
+    needs: checks
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@d0cc045d04ccac9d8b7881df0226f9e82c39688e # v6
+        with:
+          version: '0.13.0'
+          python-version: '3.12'
+      - name: Build the tagged version
+        run: |
+          export SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)"
+          uv run --locked python scripts/build_release.py --tag "$GITHUB_REF_NAME"
+          cd dist/release
+          sha256sum --check SHA256SUMS
+      - name: Publish immutable assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_version="${GITHUB_REF_NAME#v}"
+          gh release create "$GITHUB_REF_NAME" \
+            "dist/release/brig-$release_version-py3-none-any.whl" \
+            dist/release/brig-requirements.txt \
+            dist/release/install.sh \
+            dist/release/VERSION \
+            dist/release/SHA256SUMS \
+            --verify-tag --title "Brig $release_version" --notes-file CHANGELOG.md

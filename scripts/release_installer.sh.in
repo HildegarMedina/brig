@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# Generated release installer. Build with scripts/build_release.py.
+set -Eeuo pipefail
+
+# @BRIG_HELPERS@
+
+release_version='@BRIG_VERSION@'
+installer_verbose=0
+usage() { printf 'Usage: install.sh [--version X.Y.Z] [--verbose]\n'; }
+while (( $# )); do
+    case "$1" in
+        --version)
+            if (( $# < 2 )); then usage >&2; exit 2; fi
+            release_version=${2#v}; shift 2 ;;
+        --verbose) installer_verbose=1; shift ;;
+        --help|-h) usage; exit 0 ;;
+        *) usage >&2; exit 2 ;;
+    esac
+done
+if [[ ! "$release_version" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+    echo 'Use a stable Brig version such as 1.0.0.' >&2; exit 2
+fi
+
+exec 3>&2
+installer_ui
+installer_log=$(mktemp)
+installer_uv_script=''
+installer_release_dir=''
+installer_path_updated=0
+installer_spinner_pid=''
+installer_stage=$installer_title
+trap installer_cleanup EXIT
+trap 'installer_fail "$?"' ERR
+trap 'exit 130' INT
+trap 'exit 143' TERM
+if [[ "$(id -u)" == 0 ]]; then
+    echo 'Run this installer as your regular user, without sudo. System installation steps use sudo when needed.' >&2
+    exit 1
+fi
+
+download_release_asset() {
+    local source_url=$1 destination=$2
+    if command -v curl >/dev/null 2>&1; then
+        curl --fail --show-error --location --proto '=https' --proto-redir '=https' \
+            --connect-timeout 15 --max-time 120 "$source_url" --output "$destination"
+    elif command -v wget >/dev/null 2>&1; then
+        wget --quiet --timeout=30 --tries=3 "$source_url" --output-document="$destination"
+    else
+        echo 'Downloading Brig requires curl or wget.' >&2; return 1
+    fi
+}
+
+install_release() {
+    if ! command -v sha256sum >/dev/null 2>&1; then
+        echo 'Verifying Brig requires sha256sum (GNU coreutils).' >&2; return 1
+    fi
+    installer_release_dir=$(mktemp -d "${TMPDIR:-/tmp}/brig-release.XXXXXX")
+    local base_url="https://github.com/HildegarMedina/brig/releases/download/v$release_version"
+    local wheel="brig-$release_version-py3-none-any.whl"
+    local requirements=brig-requirements.txt
+    download_release_asset "$base_url/SHA256SUMS" "$installer_release_dir/SHA256SUMS"
+    local filename digest actual expected_wheel='' expected_requirements=''
+    while read -r digest filename; do
+        case "$filename" in
+            "$wheel")
+                if [[ -n "$expected_wheel" ]]; then echo 'Duplicate Brig checksum.' >&2; return 1; fi
+                expected_wheel=$digest ;;
+            "$requirements")
+                if [[ -n "$expected_requirements" ]]; then echo 'Duplicate dependency checksum.' >&2; return 1; fi
+                expected_requirements=$digest ;;
+        esac
+    done < "$installer_release_dir/SHA256SUMS"
+    if [[ ! "$expected_wheel" =~ ^[0-9a-f]{64}$ || ! "$expected_requirements" =~ ^[0-9a-f]{64}$ ]]; then
+        echo 'The Brig release checksum manifest is incomplete or invalid.' >&2; return 1
+    fi
+    for filename in "$wheel" "$requirements"; do
+        download_release_asset "$base_url/$filename" "$installer_release_dir/$filename"
+        actual=$(sha256sum "$installer_release_dir/$filename")
+        digest=$expected_wheel
+        if [[ "$filename" == "$requirements" ]]; then digest=$expected_requirements; fi
+        if [[ "${actual%% *}" != "$digest" ]]; then
+            echo "Checksum mismatch for $filename. Brig was not installed." >&2; return 1
+        fi
+    done
+    uv tool install --python '>=3.12' --reinstall \
+        --constraints "$installer_release_dir/$requirements" "$installer_release_dir/$wheel"
+    uv tool update-shell
+}
+
+docker_login_required=0
+installer_step "$installer_docker" 0 ensure_docker
+if ! command -v uv >/dev/null 2>&1; then
+    installer_step "$installer_runtime" 1 ensure_uv
+fi
+installer_step "$installer_brig" 1 install_release
+printf '\n  %s\n' "$installer_ready" >&3
+if [[ "$docker_login_required" == 1 ]]; then printf '  %s\n' "$installer_login" >&3; fi
+if [[ "$installer_path_updated" == 0 ]] && command -v brig >/dev/null 2>&1; then
+    printf '  %s\n' "$installer_next" >&3
+else
+    printf '  %s\n' "$installer_path" >&3
+fi

@@ -226,7 +226,7 @@ class ProgressTests(unittest.TestCase):
 
     def test_failure_includes_bounded_combined_diagnostics(self):
         client = self.client(
-            "import sys; print('x' * 80000); print('actual failure', file=sys.stderr); sys.exit(7)"
+            "import sys; print('x' * 80000, flush=True); print('actual failure', file=sys.stderr); sys.exit(7)"
         )
         with redirect_stderr(io.StringIO()):
             with self.assertRaises(BrigError) as error:

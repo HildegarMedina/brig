@@ -2,8 +2,9 @@
 
 ## Docker is unavailable
 
-If Docker or Compose is missing, run `./scripts/install.sh` from the repository
-as your regular user. It installs missing dependencies on supported Debian and
+If Docker or Compose is missing, rerun the [release installer](releases.md#install-a-published-release)
+as your regular user, or `./scripts/install.sh` from a development checkout.
+It installs missing dependencies on supported Debian and
 Ubuntu hosts and checks daemon access. Other distributions require manual Docker
 installation; see [installation](../tutorials/first-project.md#1-prepare-your-machine).
 
@@ -42,7 +43,8 @@ nonzero status produces a Brig error; the environment remains running.
 
 ## The installer cannot prepare uv or Python
 
-Run `./scripts/install.sh --verbose` to see the download or installation error.
+Run a downloaded release installer with `bash install.sh --verbose` (or
+`./scripts/install.sh --verbose` from a checkout) to see the installation error.
 The installer reuses uv from `PATH`, `UV_INSTALL_DIR`, or the user-local binary
 directory (`XDG_BIN_HOME` or `~/.local/bin`). If missing, it downloads Astral's
 official installer using `curl` or `wget` and installs uv for your regular user.
@@ -66,10 +68,10 @@ ChatGPT routes for loading current usage, listing reset credits, and redeeming
 one. Codex must be signed in with a ChatGPT account; an OpenAI API key does not
 provide that account's usage or reset credits.
 
-Update the Brig checkout, reinstall it, leave open chats, and reopen the project:
+Leave open chats, update Brig, and reopen the project:
 
 ```bash
-./scripts/install.sh
+brig self update
 brig run my-api --agent codex
 ```
 
@@ -107,7 +109,7 @@ Over SSH, helpers access the remote host's clipboard, so use your local terminal
 paste shortcut and enable its OSC 52 copy support instead. Image pasting is not
 provided by this text bridge.
 
-After updating Brig with `./scripts/install.sh`, leave and reopen agent sessions
+After updating Brig with `brig self update`, leave and reopen agent sessions
 to activate the bridge. This change does not require rebuilding or recreating
 project containers. Noninteractive `--command` executions keep their original
 streams and do not access the clipboard.

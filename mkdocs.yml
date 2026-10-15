@@ -71,6 +71,7 @@ nav:
   - Get started:
       - Overview: README.md
       - Your first project: tutorials/first-project.md
+      - Installation and updates: how-to/releases.md
   - Guides:
       - Manage projects: how-to/projects.md
       - Agent credentials: how-to/credentials.md

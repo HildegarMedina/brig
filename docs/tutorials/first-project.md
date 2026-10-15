@@ -13,25 +13,25 @@ needed, so neither uv nor Python needs to be installed manually. Brig also
 requires Docker Engine and the Compose v2 plugin or newer. The repository
 installer checks their availability, the daemon, and access for your regular user.
 
-From the Brig repository folder:
+Install the latest published release without downloading the repository:
 
 ```bash
-./scripts/install.sh
+curl -fsSL https://github.com/HildegarMedina/brig/releases/latest/download/install.sh | bash
 brig --help
 ```
 
 The installer welcomes you with a brig and shows brief stages for preparing
 Docker and installing Brig, plus installer preparation when uv is missing.
 Detailed output appears on failure, or live with
-`./scripts/install.sh --verbose`. It respects `BRIG_LANG` (en, es, pt), `NO_COLOR`,
+`bash install.sh --verbose` after downloading the installer. It respects `BRIG_LANG` (en, es, pt), `NO_COLOR`,
 and `BRIG_NO_ANIMATION`; redirected output and CI stay plain.
 
 The installer configures the command path automatically. Open another terminal
 if prompted before running `brig`.
-After updating the code, reinstall the tool:
+To update Brig later:
 
 ```bash
-./scripts/install.sh
+brig self update
 ```
 
 The installer reuses working Docker installations, including accessible remote
@@ -53,9 +53,20 @@ before running the installer. Follow [Docker's distribution instructions](https:
 The APT setup follows [Docker's Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 and [Debian](https://docs.docker.com/engine/install/debian/) documentation.
 
-For an existing managed machine, `uv tool install --python '>=3.12' --reinstall .` remains available
-to install only the Python package; it does not run host dependency setup. The
-development hook installer also remains separate and does not install Docker.
+Use `brig self pin` to keep the current version. The installer verifies release
+checksums and uses fixed runtime dependency constraints. See
+[release installation and updates](../how-to/releases.md) for exact versions and
+the daily background update check.
+
+From a development checkout, `./scripts/install.sh` installs the local code.
+To install only the Python package without host setup:
+
+```bash
+uv tool install --python '>=3.12' --reinstall \
+  --constraints src/brig/release/requirements.txt .
+```
+
+The development hook installer also remains separate and does not install Docker.
 
 After setup, check Docker as your regular user:
 
@@ -73,8 +84,8 @@ brig profile create
 ```
 
 Name it `python-dev`. Select Python and a version shown in the list. For this
-walkthrough, you can leave tools and services unselected. Review the configuration
-and choose **Save**.
+walkthrough, you can leave tools and services unselected. Choose Codex as the
+agent, review the configuration, and choose **Save**.
 
 The version list is fetched when you open its selector. Brig saves the specific
 version you choose; it does not change automatically when another version is
@@ -100,7 +111,7 @@ brig project show my-api
 ## 4. Enter the project
 
 ```bash
-brig run my-api
+brig bash my-api
 ```
 
 Brig generates the Docker configuration, builds the image if missing, starts the
@@ -122,8 +133,17 @@ exit
 group. Shared permissions keep the code editable from the host; new files are
 owned by the agent user, not root.
 
-Leaving Bash keeps the environment running. You can enter again with `brig run`
-from that folder or `brig run my-api` from any other folder.
+Leaving Bash keeps the environment running. You can enter Bash again with
+`brig bash` from that folder or `brig bash my-api` from any other folder.
+To open the selected coding agent instead:
+
+```bash
+brig run my-api
+```
+
+Brig offers authentication if credentials are missing, then opens the chat in
+your project. See [protected credentials](../how-to/credentials.md). Leave the
+agent before continuing.
 
 ## 5. Stop and restart
 

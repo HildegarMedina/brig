@@ -1,11 +1,12 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools==84.0.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "brig"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Profile-based, isolated development environments"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "packaging>=24,<27",
@@ -13,14 +14,19 @@ dependencies = [
     "semantic-version>=2.10,<3",
 ]
 
-[project.urls]
-Documentation = "https://hildegarmedina.github.io/brig/"
-
 [project.scripts]
 brig = "brig.ui.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.dynamic]
+version = {attr = "brig.__version__"}
+
+[project.urls]
+Homepage = "https://github.com/HildegarMedina/brig"
+Documentation = "https://hildegarmedina.github.io/brig/"
+Issues = "https://github.com/HildegarMedina/brig/issues"
 
 [tool.uv]
 package = true
@@ -53,4 +59,5 @@ precision = 2
 show_missing = true
 
 [tool.setuptools.package-data]
+"brig" = ["release/*.txt"]
 "brig.i18n" = ["catalogs/*.json"]
