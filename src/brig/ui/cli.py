@@ -393,7 +393,10 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             )
             return projects[index]
 
-        project = curses.wrapper(pick)
+        from brig.ui.tui.terminal import tui_protocols
+
+        with tui_protocols():
+            project = curses.wrapper(pick)
     if args.command == "auth":
         if args.action == "login":
             return app.authenticate_agent(project.name, args.agent)

@@ -316,15 +316,22 @@ through the storage layer described in [storage](storage.md).
 
 Arrow keys navigate; Enter selects; Space toggles multiple selections; Esc goes
 back; Ctrl+C exits. Version selectors support searching with `/`. Ctrl+U clears
-an input field. The terminal needs at least 45 columns and 12 rows; 90 × 28 or
-larger makes details easier to read. Long views scroll with arrow keys.
+an input field. Text pasted with the terminal's own shortcut lands as a single
+line: line breaks and tabs become single spaces, long values keep their end
+visible, and a pasted line break never submits a field. The terminal needs at
+least 45 columns and 12 rows; 90 × 28 or larger makes details easier to read.
+Long views scroll with arrow keys.
 
 The interface uses the terminal's default background, highlights the current
 selection, and shows the visible range in long menus. Keyboard help wraps onto
 two lines on narrow terminals. Set `NO_COLOR=1` to disable colors; basic emphasis
 and selection remain available. Non-Unicode locales use ASCII navigation symbols.
 Esc waits 100 ms to distinguish it from arrow-key sequences. Set `ESCDELAY` to
-another delay in milliseconds if your terminal connection needs more time.
+another delay in milliseconds if your terminal connection needs more time. Brig
+enables the terminal's bracketed paste protocol while its interface is open and
+re-enables it after every embedded session, because readline and agents reset it
+on exit; it also clears keyboard enhancements left by a session that died without
+restoring the terminal.
 
 Validation errors are highlighted in red. **Shell** prepares the project and opens
 its terminal; leaving it returns to the menu. **View Dockerfile** displays the

@@ -640,12 +640,21 @@ class FakeScreen:
         self.written = []
         self.drawn = []
         self.positions = []
+        self.wait = -1
+
+    def timeout(self, milliseconds):
+        self.wait = milliseconds
 
     def getmaxyx(self):
         return self.size
 
     def get_wch(self):
-        return next(self.keys)
+        try:
+            return next(self.keys)
+        except StopIteration:
+            if self.wait >= 0:
+                raise curses.error from None
+            raise
 
     def erase(self):
         pass

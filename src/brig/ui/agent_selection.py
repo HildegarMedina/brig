@@ -34,4 +34,7 @@ def choose_agent(project, requested=None, *, terminal=None):
 
         return choose(Terminal(screen))
 
-    return curses.wrapper(pick)
+    from brig.ui.tui.terminal import tui_protocols
+
+    with tui_protocols():
+        return curses.wrapper(pick)

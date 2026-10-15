@@ -9,7 +9,7 @@ from brig.i18n import tr
 from brig.ui.tui.dashboard import Dashboard
 from brig.ui.tui.profiles import ProfileViews
 from brig.ui.tui.projects import ProjectViews
-from brig.ui.tui.terminal import Terminal
+from brig.ui.tui.terminal import Terminal, tui_protocols
 
 
 class InteractiveApp:
@@ -93,4 +93,5 @@ def launch(
             return False
         return True
 
-    return curses.wrapper(run)
+    with tui_protocols():
+        return curses.wrapper(run)

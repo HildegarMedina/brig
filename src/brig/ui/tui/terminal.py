@@ -3,17 +3,94 @@
 import curses
 import locale
 import os
+import sys
 import textwrap
 from collections.abc import Callable
-from contextlib import suppress
+from contextlib import contextmanager, suppress
 
 from brig.errors import BrigError, Cancelled
 from brig.i18n import tr
+
+# Paste and keyboard protocols are terminal state, not curses state: every
+# embedded session (readline, agents) resets them on exit, so Brig re-asserts
+# them after each suspension; the kitty pop repairs a terminal left in
+# enhanced-keyboard mode by a session that died without restoring it.
+ENABLE_PROTOCOLS = "\x1b[?2004h\x1b[<u"
+RESTORE_PROTOCOLS = "\x1b[?2004l"
+
+
+class Paste:
+    """Text delivered through the terminal's bracketed paste protocol."""
+
+    def __init__(self, text):
+        self.text = text
+
+
+def _send(sequence: str) -> None:
+    stream = sys.stdout
+    if stream.isatty():
+        stream.write(sequence)
+        stream.flush()
+
+
+@contextmanager
+def tui_protocols():
+    """Hold paste and keyboard protocols while a curses interface is open."""
+    _send(ENABLE_PROTOCOLS)
+    try:
+        yield
+    finally:
+        _send(RESTORE_PROTOCOLS)
+
+
+def _read_paste(read) -> str | None:
+    """Decode a bracketed paste after Esc; None when it is not one."""
+    if read(0) != "[":
+        return None
+    if _take(read, 4) != "200~":
+        return None
+    text = ""
+    while True:
+        char = read(100)
+        if char is None:
+            return text
+        if char == "\x1b":
+            closing = _take(read, 5)
+            if closing == "[201~":
+                return text
+            text += "\x1b" + closing
+        elif isinstance(char, str):
+            text += char
+
+
+def _take(read, count: int) -> str:
+    chars = []
+    for _ in range(count):
+        char = read(10)
+        if char is None:
+            break
+        chars.append(char if isinstance(char, str) else "")
+    return "".join(chars)
+
+
+def _flatten_paste(text: str) -> str:
+    """Keep a pasted block on one editable line."""
+    return "".join(
+        char if char.isprintable() else " " for char in " ".join(text.split())
+    )
+
+
+def _visible(value: str, width: int) -> str:
+    """Show the end of long values so pasted text stays reviewable."""
+    limit = max(1, width - 6)
+    return value if len(value) <= limit else "…" + value[1 - limit :]
 
 
 class Terminal:
     def __init__(self, screen):
         self.screen = screen
+        # Interfaces launch under tui_protocols(), so markers can arrive.
+        self.protocols = True
         screen.keypad(True)
         if "ESCDELAY" not in os.environ:
             # Distinguish Esc from arrow-key sequences without a one-second pause.
@@ -57,6 +134,7 @@ class Terminal:
                         "→": "->",
                         "←": "<-",
                         "●": "*",
+                        "…": "...",
                     }
                 )
             )
@@ -139,17 +217,33 @@ class Terminal:
         """Give Docker progress and interactive shells a normal terminal."""
         curses.def_prog_mode()
         curses.endwin()
+        _send(RESTORE_PROTOCOLS)
         try:
             return action()
         finally:
             curses.reset_prog_mode()
+            _send(ENABLE_PROTOCOLS)
             self.screen.refresh()
 
     def key(self):
         key = self.screen.get_wch()
         if key in ("\x03", "\x04"):
             raise KeyboardInterrupt
+        if key == "\x1b" and getattr(self, "protocols", False):
+            paste = _read_paste(lambda wait: self._timed_read(wait))
+            if paste is not None:
+                return Paste(paste)
         return key
+
+    def _timed_read(self, wait: int):
+        """Read a buffered character, or None once the wait expires."""
+        self.screen.timeout(wait)
+        try:
+            return self.screen.get_wch()
+        except curses.error:
+            return None
+        finally:
+            self.screen.timeout(-1)
 
     def choose(
         self,
@@ -251,11 +345,16 @@ class Terminal:
         while True:
             self.render(
                 title,
-                [value + "▏"],
+                [_visible(value, self.screen.getmaxyx()[1]) + "▏"],
                 tr("type to edit · ctrl+u clear · enter continue · esc cancel"),
                 error_message=error,
             )
             key = self.key()
+            if isinstance(key, Paste):
+                value += _flatten_paste(key.text)
+                if value.strip():
+                    error = None
+                continue
             if key == "\x1b":
                 raise Cancelled
             if key in ("\n", "\r", curses.KEY_ENTER):
