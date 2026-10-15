@@ -136,8 +136,12 @@ These commands do not require Docker or interrupt existing sessions.
 Changes apply on the next start of a stopped environment. When it is already
 running, close its sessions and use `apply` to recreate only the work container
 without restarting database services. `apply` ends sessions inside that container
-and requires a running environment. `up` and `run` refuse pending mount changes
-on a running container so they cannot silently interrupt other sessions.
+and requires a running environment. Interactive `run` offers to apply pending
+references and enter, warning that other work-container sessions will close.
+The default is No; declining or cancelling leaves the environment intact and
+ends the invocation. Bash, shell, and agent entry use the same confirmation.
+`up`, `--no-input`, and non-interactive entry report pending mount changes without
+restarting the running container. A failed apply does not launch the agent.
 References persist across `down`. Every agent receives instructions describing
 mounted legacy resources. See [project references](../how-to/projects.md#consult-another-project-without-copying-it).
 

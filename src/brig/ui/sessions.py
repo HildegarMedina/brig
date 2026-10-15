@@ -6,7 +6,7 @@ import sys
 
 from brig.agent_updates import newer, releases
 from brig.auth_proxy.providers import PROVIDERS
-from brig.errors import BrigError
+from brig.errors import BrigError, Cancelled, PendingReferences
 from brig.i18n import tr
 
 
@@ -23,6 +23,26 @@ def confirm(message):
         "sí",
         "sim",
     )
+
+
+def with_reference_prompt(app, project, action, *, no_input=False):
+    try:
+        return action()
+    except PendingReferences:
+        if no_input or not interactive():
+            raise
+        try:
+            accepted = confirm(
+                tr(
+                    "References are pending for {project}. Apply them and enter? This closes all existing sessions in the work container."
+                ).format(project=project.name)
+            )
+        except EOFError:
+            raise Cancelled from None
+        if not accepted:
+            raise Cancelled from None
+        app.apply_references(project.name)
+        return action()
 
 
 def update_agents(app, project, *, force=False, yes=False, no_input=False):
@@ -117,4 +137,9 @@ def run_agent(app, project, agent, *, no_input=False, check_updates=True):
                 print(message, file=sys.stderr)
         ensure_login(app, current, agent, no_input=no_input)
 
-    return app.run_agent(project.name, agent, before_launch=prepare)
+    return with_reference_prompt(
+        app,
+        project,
+        lambda: app.run_agent(project.name, agent, before_launch=prepare),
+        no_input=no_input,
+    )

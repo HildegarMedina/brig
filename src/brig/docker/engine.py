@@ -18,7 +18,7 @@ from brig.docker.isolation import agent_environment, agent_uid
 from brig.docker.volumes import DockerVolumes
 from brig.docker.workspace import DockerWorkspace
 from brig.engine import Environment
-from brig.errors import BrigError
+from brig.errors import BrigError, PendingReferences
 from brig.i18n import tr
 from brig.models import Project
 from brig.references import references_match
@@ -243,7 +243,7 @@ class DockerEngine:
                 ).format(project=project.name)
             )
         if running and not references_only and not references_match(project, container):
-            raise BrigError(
+            raise PendingReferences(
                 tr(
                     "Reference changes are pending for {project}. The running environment was kept. Close its sessions, then use 'brig reference apply --project {project}' to recreate only the work container, or stop and start the environment."
                 ).format(project=project.name)

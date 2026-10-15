@@ -461,5 +461,6 @@
   "apply references by recreating only the work container; closes its sessions": "aplicar referências recriando somente o contêiner de trabalho; fecha suas sessões",
   "name inside /references; defaults to the folder name": "nome dentro de /references; por padrão, o nome da pasta",
   "Mount      project folder → /workspace": "Montagem   pasta do projeto → /workspace",
-  "Reference  {alias} → /references/{alias} (read-only)": "Referência {alias} → /references/{alias} (somente leitura)"
+  "Reference  {alias} → /references/{alias} (read-only)": "Referência {alias} → /references/{alias} (somente leitura)",
+  "References are pending for {project}. Apply them and enter? This closes all existing sessions in the work container.": "Há referências pendentes para {project}. Aplicá-las e entrar? Todas as sessões abertas no contêiner de trabalho serão encerradas."
 }

@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 from brig.agent_updates import newer, releases, version_number
 from brig.auth_proxy.maintenance import configured
 from brig.auth_proxy.storage import write_json
-from brig.errors import BrigError, Cancelled
+from brig.errors import BrigError, Cancelled, PendingReferences
 from brig.ui import sessions
 from brig.ui.cli import main
 from tests import test_docker_engine
@@ -298,6 +298,95 @@ class AgentSessionTests(unittest.TestCase):
                     self.assertRaisesRegex(BrigError, message),
                 ):
                     sessions.ensure_login(self.app, self.project, "opencode")
+
+    def test_pending_references_apply_once_before_retrying_entry(self):
+        action = Mock(side_effect=[PendingReferences("pending"), "entered"])
+        events = []
+        self.app.apply_references.side_effect = lambda name: events.append("apply")
+        with (
+            patch("brig.ui.sessions.interactive", return_value=True),
+            patch(
+                "builtins.input",
+                side_effect=lambda message: events.append(message) or "s",
+            ),
+        ):
+            result = sessions.with_reference_prompt(self.app, self.project, action)
+        self.assertEqual(result, "entered")
+        self.assertEqual(action.call_count, 2)
+        self.app.apply_references.assert_called_once_with("api")
+        self.assertIn("closes all existing sessions", events[0])
+        self.assertIn("api", events[0])
+        self.assertEqual(events[1], "apply")
+
+    def test_pending_references_do_not_prompt_without_terminal_or_with_no_input(self):
+        for no_input, terminal in ((True, True), (False, False)):
+            action = Mock(side_effect=PendingReferences("pending"))
+            with (
+                patch("brig.ui.sessions.interactive", return_value=terminal),
+                patch("builtins.input") as prompt,
+                self.assertRaisesRegex(PendingReferences, "pending"),
+            ):
+                sessions.with_reference_prompt(
+                    self.app, self.project, action, no_input=no_input
+                )
+            prompt.assert_not_called()
+            self.assertEqual(action.call_count, 1)
+        self.app.apply_references.assert_not_called()
+
+    def test_decline_default_eof_and_interrupt_keep_the_running_environment(self):
+        for answer in ("n", "", EOFError(), KeyboardInterrupt()):
+            action = Mock(side_effect=PendingReferences("pending"))
+            expected = (
+                KeyboardInterrupt
+                if isinstance(answer, KeyboardInterrupt)
+                else Cancelled
+            )
+            with (
+                patch("brig.ui.sessions.interactive", return_value=True),
+                patch(
+                    "builtins.input",
+                    side_effect=answer
+                    if isinstance(answer, BaseException)
+                    else lambda message, answer=answer: answer,
+                ),
+                self.assertRaises(expected),
+            ):
+                sessions.with_reference_prompt(self.app, self.project, action)
+            self.assertEqual(action.call_count, 1)
+        self.app.apply_references.assert_not_called()
+
+    def test_apply_errors_and_ordinary_docker_errors_never_retry_or_launch(self):
+        action = Mock(side_effect=PendingReferences("pending"))
+        self.app.apply_references.side_effect = BrigError("apply failed")
+        with (
+            patch("brig.ui.sessions.interactive", return_value=True),
+            patch("builtins.input", return_value="y") as prompt,
+            self.assertRaisesRegex(BrigError, "apply failed"),
+        ):
+            sessions.with_reference_prompt(self.app, self.project, action)
+        self.assertEqual(action.call_count, 1)
+        prompt.assert_called_once()
+        self.app.apply_references.reset_mock()
+        action = Mock(side_effect=BrigError("Docker unavailable"))
+        with (
+            patch("builtins.input") as prompt,
+            self.assertRaisesRegex(BrigError, "Docker unavailable"),
+        ):
+            sessions.with_reference_prompt(self.app, self.project, action)
+        prompt.assert_not_called()
+        self.app.apply_references.assert_not_called()
+
+    def test_a_second_pending_error_after_apply_does_not_prompt_in_a_loop(self):
+        action = Mock(side_effect=PendingReferences("pending again"))
+        with (
+            patch("brig.ui.sessions.interactive", return_value=True),
+            patch("builtins.input", return_value="y") as prompt,
+            self.assertRaisesRegex(PendingReferences, "pending again"),
+        ):
+            sessions.with_reference_prompt(self.app, self.project, action)
+        self.assertEqual(action.call_count, 2)
+        prompt.assert_called_once()
+        self.app.apply_references.assert_called_once_with("api")
 
     def test_prelaunch_checks_can_be_disabled_and_precede_agent_execution(self):
         def invoke(name, agent, *, before_launch):

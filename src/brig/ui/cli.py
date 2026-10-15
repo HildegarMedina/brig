@@ -29,7 +29,12 @@ from brig.progress import output_options
 from brig.ui.agent_selection import choose_agent
 from brig.ui.listings import profile_list, project_list
 from brig.ui.presentation import project_lines
-from brig.ui.sessions import interactive, run_agent, update_agents
+from brig.ui.sessions import (
+    interactive,
+    run_agent,
+    update_agents,
+    with_reference_prompt,
+)
 from brig.ui.tui import launch
 
 
@@ -393,10 +398,11 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             else choose_agent(project, args.agent)
         )
         if args.command_program is not None:
-            return app.run_agent(
-                project.name,
-                chosen,
-                args.command_program,
+            return with_reference_prompt(
+                app,
+                project,
+                lambda: app.run_agent(project.name, chosen, args.command_program),
+                no_input=args.no_input,
             )
         return run_agent(
             app,
@@ -421,7 +427,12 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             no_input=args.no_input,
             check_updates=not args.no_update_check,
         )
-    return app.shell(project.name, args.command_program, agent=chosen)
+    return with_reference_prompt(
+        app,
+        project,
+        lambda: app.shell(project.name, args.command_program, agent=chosen),
+        no_input=args.no_input,
+    )
 
 
 def _main(argv: list[str] | None = None) -> int:

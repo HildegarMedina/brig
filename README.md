@@ -155,7 +155,8 @@ See [project management](docs/how-to/projects.md) and the
 
 Reference projects are available under `/references/ALIAS` without copying them.
 Brig tells the agent which legacy resources are mounted and keeps them read-only.
-Changes made while running remain pending until you explicitly apply them.
+Changes made while running remain pending; interactive `brig run` offers to apply
+them and enter, warning that existing work-container sessions will close.
 [Reference guide](docs/how-to/projects.md#consult-another-project-without-copying-it).
 
 Brig prepares the development environment. You install your application's

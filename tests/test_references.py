@@ -287,6 +287,123 @@ class ReferenceTests(unittest.TestCase):
             )
             self.assertNotIn("not-a-project.txt", notes)
 
+    def run_cli(self, arguments, *, answer="s", terminal=True):
+        output, errors = io.StringIO(), io.StringIO()
+        with (
+            patch("brig.ui.cli.DockerEngine", return_value=self.engine),
+            redirect_stdout(output),
+            redirect_stderr(errors),
+            patch("sys.stdin.isatty", return_value=terminal),
+            patch("sys.stdout.isatty", return_value=terminal),
+            patch(
+                "builtins.input",
+                return_value=answer,
+                side_effect=answer if isinstance(answer, BaseException) else None,
+            ) as prompt,
+            patch("brig.ui.sessions.ensure_login") as login,
+        ):
+            code = main(
+                ["--data-dir", str(self.root / "data"), "--lang", "es", *arguments]
+            )
+        return code, output.getvalue(), errors.getvalue(), prompt, login
+
+    def test_entry_confirmation_applies_references_then_enters_the_selected_session(
+        self,
+    ):
+        self.start()
+        for index, arguments in enumerate(
+            (
+                ["run", "api", "--no-update-check"],
+                ["run", "api", "--command", "true"],
+                ["agent", "claude", "--project", "api", "--command", "true"],
+                ["bash", "api"],
+                ["shell", "api"],
+            )
+        ):
+            with self.subTest(arguments=arguments):
+                folder = self.root / f"legacy-{index}"
+                folder.mkdir()
+                self.app.add_reference("api", folder)
+                JsonStateStore(self.root / "data").save(self.app.state)
+                self.runner.calls.clear()
+                code, _, errors, prompt, login = self.run_cli(arguments)
+                self.assertEqual(code, 0, errors)
+                prompt.assert_called_once()
+                question = prompt.call_args.args[0]
+                self.assertIn("Hay referencias pendientes para api", question)
+                self.assertIn("Se cerrarán todas las sesiones", question)
+                self.assertIn("[s/N]", question)
+                commands = [args for args, _ in self.runner.calls]
+                forced = [args for args in commands if "--force-recreate" in args]
+                self.assertEqual(len(forced), 1)
+                self.assertEqual(
+                    forced[0][-3:], ["--no-deps", "--force-recreate", "dev"]
+                )
+                entered = [args for args in commands if args[:2] == ["docker", "exec"]]
+                self.assertEqual(len(entered), 1)
+                self.assertLess(commands.index(forced[0]), commands.index(entered[0]))
+                self.assertTrue(
+                    references_match(self.project, {"Mounts": self.runner.mounts})
+                )
+                if arguments[0] == "run" and "--command" not in arguments:
+                    login.assert_called_once()
+
+    def test_declining_or_noninteractive_run_never_recreates_or_enters(self):
+        self.start()
+        self.app.add_reference("api", self.legacy)
+        JsonStateStore(self.root / "data").save(self.app.state)
+        for answer, terminal, extra, status in (
+            ("n", True, [], 130),
+            ("", True, [], 130),
+            (EOFError(), True, [], 130),
+            (KeyboardInterrupt(), True, [], 130),
+            ("s", True, ["--no-input"], 1),
+            ("s", False, [], 1),
+        ):
+            with self.subTest(answer=answer, terminal=terminal, extra=extra):
+                self.runner.calls.clear()
+                code, _, _, prompt, login = self.run_cli(
+                    ["run", "api", "--no-update-check", *extra],
+                    answer=answer,
+                    terminal=terminal,
+                )
+                self.assertEqual(code, status)
+                if not terminal or extra:
+                    prompt.assert_not_called()
+                login.assert_not_called()
+                commands = [args for args, _ in self.runner.calls]
+                self.assertFalse(
+                    any(
+                        "up" in args or args[:2] == ["docker", "exec"]
+                        for args in commands
+                    )
+                )
+                self.assertTrue(self.runner.running)
+                self.assertFalse(
+                    references_match(self.project, {"Mounts": self.runner.mounts})
+                )
+                self.assertEqual(
+                    JsonStateStore(self.root / "data").load().projects[0].references,
+                    self.project.references,
+                )
+
+    def test_confirmed_run_does_not_enter_when_reference_apply_fails(self):
+        self.start()
+        self.app.add_reference("api", self.legacy)
+        JsonStateStore(self.root / "data").save(self.app.state)
+        self.runner.calls.clear()
+        self.runner.failure = "up"
+        code, _, errors, prompt, login = self.run_cli(
+            ["run", "api", "--no-update-check"]
+        )
+        self.assertEqual(code, 1)
+        self.assertIn("expected Docker failure", errors)
+        prompt.assert_called_once()
+        login.assert_not_called()
+        self.assertFalse(
+            any(args[:2] == ["docker", "exec"] for args, _ in self.runner.calls)
+        )
+
     def test_reference_cli_supports_explicit_project_auto_detection_list_remove_apply(
         self,
     ):

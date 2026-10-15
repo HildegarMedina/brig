@@ -112,9 +112,16 @@ active project requirements. For example: "Compare our login with legacy."
 
 Adding or removing a reference only saves configuration. If the environment is
 stopped, the next `brig up` or `brig run` applies it. If it is running, the current
-mounts and sessions stay intact; `up` and `run` report pending reference changes
-rather than replacing the running container automatically. After closing your
-work sessions, explicitly apply the configuration:
+mounts and sessions stay intact. Interactive `brig run` detects the pending
+changes and asks whether to apply them and enter. The prompt warns that all
+existing work-container sessions will close; the default is No. Accepting applies
+the references and then opens the selected agent. Declining or cancelling leaves
+the running environment and pending configuration intact without entering.
+`--no-input` and non-interactive invocations report the pending changes without
+prompting or restarting anything. The same confirmation is available when entering
+Bash, a shell, an agent, or an explicit command from an interactive terminal.
+
+You can also close your work sessions and explicitly apply the configuration:
 
 ```bash
 brig reference apply --project my-api
