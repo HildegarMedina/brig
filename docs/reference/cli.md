@@ -121,71 +121,80 @@ Removing a copy does not erase content already read or saved by an agent.
 ## Run a project
 
 ```text
-brig run [NAME] [--project NAME] [--agent AGENT] [--command PROGRAM ARGUMENTS...]
-brig up [--project NAME]
-brig shell [--project NAME] [--agent AGENT] [--command PROGRAM ARGUMENTS...]
-brig down [--project NAME]
+brig run [PROJECT|claude|codex|opencode] [--project NAME] [--agent AGENT]
+brig bash [PROJECT] [--agent AGENT]
+brig up [PROJECT]
+brig down [PROJECT]
+brig update [PROJECT] [--yes]
 ```
 
-| Command | Preparation | Result |
-| --- | --- | --- |
-| `run` | Build if missing and start | Open Bash or execute `--command` |
-| `up` | Build if missing and start | Leave the environment running in the background |
-| `shell` | Build if missing and start | Open Bash or execute `--command` |
-| `down` | Use the existing managed configuration | Remove containers and network; preserve volumes |
+All these commands also accept `--project NAME` and `--no-input`.
 
-`run NAME` and `--project NAME` select one project. Supplying different names
-with both is an error. Without a selection, the current folder must be inside a
-registered project.
+| Command | Result |
+| --- | --- |
+| `run` | Build if missing, start, and open the default agent |
+| `run --agent AGENT` | Open the requested agent selected in the profile |
+| `bash` | Build if missing, start, and open Bash |
+| `up` | Start the environment in the background |
+| `down` | Remove containers and networks, preserving persistent volumes |
+| `update` | Check agent releases and offer to rebuild their installations |
 
-After `--command`, every option belongs to the program, for example:
+Without a project name, Brig detects the project containing the current folder.
+Outside registered folders, an interactive selector asks which project to open.
+Without a terminal, or with `--no-input`, supply a project if folder detection is
+not possible. Conflicting positional and `--project` names are rejected.
+
+`brig run codex` selects Codex in the detected or interactively chosen project.
+The names `claude`, `codex`, and `opencode` are agent shortcuts for `run`;
+use `brig run --project codex` to open a project literally named `codex`.
+An agent must be selected in the project's profile. Otherwise `run` uses the
+saved default, including profiles with multiple agents.
+
+Before opening a chat, Brig checks whether protected credentials exist. If none
+exist, an interactive prompt offers native login or an API key. OpenCode API-key
+setup also asks for a provider. Existing logins are reused across projects.
+Without interactive input, missing credentials produce an actionable error.
+`bash`, `up`, and `down` do not require agent login.
+
+Interactive agent launches check available releases using a host-side cache valid
+for one day. Claude follows its stable channel; Codex and OpenCode follow their
+stable releases. Newer versions show the installed and available versions and
+ask before applying changes. A failed background check does not block launch.
+Use `--no-update-check` on `run`, or set `BRIG_NO_UPDATE_CHECK=1`, to skip automatic
+checks. `--no-input` also skips automatic checks and authentication prompts.
+
+`brig update` explicitly refreshes the release information. It prepares the project,
+compares installed versions, and asks before applying available updates. Use
+`--yes` to apply updates without a question. Without a TTY, omit `--yes` to only
+report available updates. An update builds a separate image, invalidating the
+agent installation stages while reusing unaffected build layers, and verifies
+installed versions before selecting the image. Build failures keep the previous
+image selected. Successful updates recreate the work container; leave other
+active sessions first. Project files, login stores, histories, and database
+volumes are retained. Other projects keep their existing image selection.
+
+For compatibility, `brig shell` still opens Bash and `brig agent [AGENT]` still
+opens an agent. The latter retains its interactive agent picker when omitted.
+Prefer `brig run` and `brig bash` for new commands.
+
+`run`, `bash`, `shell`, and `agent` also retain `--command PROGRAM ARGUMENTS...`
+to execute a program instead of opening a chat or Bash. Everything after
+`--command` belongs to that program, without shell interpretation. These program
+executions do not perform automatic login or update prompts and need no TTY.
+Opening an interactive agent or Bash requires a terminal.
 
 ```bash
-brig run my-api --command python -m unittest -v
-```
-
-Before entering, a project with multiple agents requires a selection or
-`--agent AGENT`. Single-agent projects enter directly. The selected identity
-controls the session's private home and proxy. The shell and agent chat use the
-same work container.
-
-Opening Bash requires stdin and stdout connected to a terminal. Executing a
-program with `--command` does not require a TTY. Brig does not interpret arguments
-with a shell; specify one as the program if needed.
-
-## Agents
-
-```text
-brig agent [AGENT] [--project NAME] [--command PROGRAM ARGUMENTS...]
-```
-
-Builds a missing image, starts the project, and launches the chosen agent in
-the same work container used by `brig run`, at `/workspace`. All selected agents
-are installed. Each agent has a distinct user and private project-specific home,
-configuration, and histories; real credentials stay in its external proxy.
-
-With one agent, omitting `AGENT` uses it directly. With several, Brig requires an
-interactive choice before startup; the saved default does not bypass the picker.
-An explicit agent skips selection. Noninteractive multi-agent sessions must
-specify the agent. An explicitly requested agent must be selected in the profile.
-
-```bash
-brig agent codex --project my-api
+brig run my-api
 brig run my-api --agent codex
-# Inside that agent's project terminal:
-codex
+brig run claude
+brig bash my-api
+brig bash my-api --command python -m unittest -v
+brig update my-api
 ```
 
-To run a program in the same environment without a TTY:
+## Authentication
 
-```bash
-brig agent codex --project my-api --command codex --version
-brig run my-api --agent codex --command codex --version
-```
-
-Use the interactive agent command for normal chat. Arguments following
-`--command` belong to the program and are forwarded without shell interpretation.
-Authenticate from the host before normal chat:
+Authentication can also be managed explicitly:
 
 ```text
 brig auth login AGENT [--project NAME]

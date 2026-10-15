@@ -17,6 +17,7 @@ def fetch_text(url: str) -> str:
     accept = (
         "application/vnd.npm.install-v1+json"
         if url.startswith("https://registry.npmjs.org/")
+        and not url.endswith(("/latest", "/stable"))
         else "application/json, text/plain"
     )
     request = Request(url, headers={"User-Agent": "brig/0.1", "Accept": accept})

@@ -33,6 +33,14 @@ class BoundaryTests(unittest.TestCase):
     def test_http_request_uses_provider_headers_timeout_and_size_limit(self):
         for url, accept in (
             ("https://registry.npmjs.org/npm", "application/vnd.npm.install-v1+json"),
+            (
+                "https://registry.npmjs.org/@openai%2fcodex/latest",
+                "application/json, text/plain",
+            ),
+            (
+                "https://registry.npmjs.org/@anthropic-ai%2fclaude-code/stable",
+                "application/json, text/plain",
+            ),
             ("https://pypi.org/pypi/pip/json", "application/json, text/plain"),
         ):
             response = Mock()

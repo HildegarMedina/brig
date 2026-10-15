@@ -8,31 +8,16 @@ clients in one project work container.
 
 ```bash
 brig run my-api
-brig agent --project my-api
-```
-
-With one selected agent, Brig uses it directly. With several, Brig shows their
-names and requires a choice before starting Docker or opening the session.
-Canceling the picker does not start the project. The saved default does not skip
-the choice when several agents are selected.
-
-Choose explicitly to skip the picker:
-
-```bash
 brig run my-api --agent codex
-brig agent claude --project my-api
-brig shell --project my-api --agent opencode
-brig run my-api --agent codex --command codex --version
+brig run codex  # Detect the project from the current folder, or choose one.
+brig bash my-api
 ```
 
-Noninteractive commands must name an agent when the profile selects several.
-Only selected agents can be launched or authenticated. `brig up` starts the
-background environment without opening an agent session and needs no choice.
-
-`run` opens Bash for the chosen agent; `agent` opens its chat. Both use the same
-container and `/workspace`, so application processes, localhost, installed system
-tools, and project dependencies are shared. To switch agent identities, open a
-new session through Brig from the host. A launcher rejects another agent's user.
+`run` opens the saved default agent, even when several agents are installed.
+Use `--agent` or an agent-name shortcut to choose another selected agent.
+`bash` opens Bash under the default agent identity; `--agent` selects another.
+The legacy `brig agent` command retains its agent picker when no name is given.
+The selected identity controls the private home and credential proxy.
 
 ## Users, history, and shared code
 

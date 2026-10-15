@@ -85,24 +85,19 @@ brig run my-api
 
 In the wizard, name the project `my-api` and select `python-dev`. You can use an
 existing project folder instead. The first run builds the environment and opens
-Bash at `/workspace`, where edits also change your local files.
+its default agent at `/workspace`, where edits also change your local files.
+If credentials are missing, Brig offers login or an API key before opening chat.
+Login is reused across projects for the same agent, host user, and Brig data
+directory. [Authentication guide](docs/how-to/credentials.md).
 
-Use `exit` to return to your host; the environment stays running. Inside a
-registered project folder, you can use `brig run` without a project name.
+Exit the agent to return to your host; the environment stays running. Inside a
+registered project folder, `brig run` opens the default agent and `brig run codex`
+opens Codex if selected in the profile. Outside project folders, Brig offers a
+project selector. Use `brig bash my-api` to open Bash instead.
 
-### 4. Sign in and launch your agent
-
-Run these commands from your host:
-
-```bash
-brig auth login codex --project my-api
-brig agent codex --project my-api
-```
-
-Use `claude` or `opencode` for another agent selected in your profile. API keys
-are also supported through `brig auth set-key`. Login is reused across projects
-for the same agent, host user, and Brig data directory.
-[Authentication guide](docs/how-to/credentials.md).
+Brig checks agent releases periodically and asks before updating. You can also
+run `brig update my-api` explicitly. Updates rebuild installations and recreate
+the environment while retaining project files, login, and persistent volumes.
 
 ## Everyday use
 
@@ -112,10 +107,12 @@ Run `brig` to open the dashboard, or use commands directly:
 | --- | --- |
 | List projects | `brig project list` |
 | Inspect a project's configuration | `brig project show my-api` |
-| Start without opening a terminal | `brig up --project my-api` |
+| Start without opening a terminal | `brig up my-api` |
+| Open Bash | `brig bash my-api` |
+| Update agents | `brig update my-api` |
 | Enter with a specific agent | `brig run my-api --agent codex` |
 | Share an image or document with an agent | `brig project attach my-api ./design.png` |
-| Stop and remove containers, keeping persistent data | `brig down --project my-api` |
+| Stop and remove containers, keeping persistent data | `brig down my-api` |
 | Remove unused images from older configurations | `brig project clean my-api` |
 
 Attachments are copied into the project. Brig prints the path you can give to

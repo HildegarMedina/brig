@@ -1,5 +1,6 @@
 """Coordinate the per-project Docker lifecycle and terminal execution."""
 
+import json
 import os
 import re
 import shutil
@@ -43,8 +44,10 @@ class DockerEngine:
     def has_running_resources(self, project: Project) -> bool:
         return self.client.has_running_resources(project)
 
-    def prepare(self, project):
-        directory, image, dockerfile = self.workspace.plan(project, self.uid, self.gid)
+    def prepare(self, project, *, releases=None):
+        directory, image, dockerfile = self.workspace.plan(
+            project, self.uid, self.gid, releases=releases
+        )
         compose = render_compose(
             project,
             image,
@@ -63,6 +66,108 @@ class DockerEngine:
             directory, project, credentials, dockerfile, compose, gitconfig
         )
         return directory, image
+
+    def has_credentials(self, project, agent):
+        _, image, _ = self.workspace.plan(project, self.uid, self.gid)
+        result = self.client.run(
+            [
+                "run",
+                "--rm",
+                "--network",
+                "none",
+                "--read-only",
+                "--user",
+                f"{self.uid}:{self.gid}",
+                "--cap-drop",
+                "ALL",
+                "--security-opt",
+                "no-new-privileges:true",
+                "--mount",
+                f"type=volume,source={self.agent_volume_name(agent)},target=/secrets,readonly",
+                f"{image}-credential-proxy",
+                "python",
+                "-c",
+                "from pathlib import Path; from brig.auth_proxy.maintenance import configured; "
+                f"raise SystemExit(0 if configured(Path('/secrets'), {agent!r}) else 3)",
+            ],
+            check=False,
+        )
+        if result.returncode not in (0, 3):
+            raise BrigError(
+                tr("Cannot inspect agent authentication. Use brig auth from the host.")
+            )
+        return result.returncode == 0
+
+    def agent_versions(self, project, *, releases=None):
+        _, image, _ = self.workspace.plan(
+            project, self.uid, self.gid, releases=releases
+        )
+        binaries = {
+            "claude": "/opt/brig-claude/claude",
+            "codex": "/opt/brig-codex/packages/standalone/current/bin/codex",
+            "opencode": "/opt/brig-opencode/opencode",
+        }
+        from brig.agent_updates import version_number
+
+        versions = {}
+        for agent in project.configuration.selected_agents:
+            result = self.client.run(
+                [
+                    "run",
+                    "--rm",
+                    "--network",
+                    "none",
+                    "--read-only",
+                    "--user",
+                    f"{self.uid}:{self.gid}",
+                    "--cap-drop",
+                    "ALL",
+                    "--entrypoint",
+                    binaries[agent],
+                    image,
+                    "--version",
+                ]
+            )
+            try:
+                versions[agent] = version_number(result.stdout)
+            except ValueError as error:
+                raise BrigError(
+                    tr("Cannot read installed agent version: {agent}.").format(
+                        agent=agent
+                    )
+                ) from error
+        return versions
+
+    def update_agents(self, project, releases):
+        with self.workspace.lock(project):
+            self.client.inspect(project)
+            selected = self.workspace.agent_releases(project)
+            selected.update(releases)
+            directory, _ = self.prepare(project, releases=selected)
+            self.client.run(
+                [
+                    *self._compose(project, directory),
+                    "build",
+                    "dev",
+                    f"credential_{project.configuration.selected_agents[0]}",
+                ],
+                capture=False,
+            )
+            from brig.agent_updates import newer
+
+            installed = self.agent_versions(project, releases=selected)
+            if any(
+                newer(version, installed[agent]) for agent, version in releases.items()
+            ):
+                raise BrigError(
+                    tr(
+                        "The rebuilt image did not install the requested agent updates. The previous image was kept."
+                    )
+                )
+            self.workspace.write(
+                self.workspace.project_directory(project) / "agent-releases.json",
+                json.dumps(selected),
+            )
 
     def describe(self, project: Project) -> Environment:
         prefix = project_prefix(project)

@@ -116,14 +116,18 @@ filtered according to their declared requirements for the selected runtime. See
 
 ## An agent does not start
 
-Agents are installed in their own images. `claude`, `codex`, and `opencode` are
-not installed in the development shell opened by `brig run`. Exit that shell and
-launch from the host:
+`brig run my-api` opens the saved default agent. Use `brig run my-api --agent codex`
+for another selected agent, and `brig bash my-api` for Bash. To inspect an installed
+version without starting chat:
 
 ```bash
-brig agent --project my-api
-brig agent codex --project my-api --command codex --version
+brig bash my-api --agent codex --command codex --version
 ```
+
+`brig run` offers authentication when credentials are missing. A revoked session
+still needs an explicit login. Use `brig update my-api` to check and apply new agent
+releases. Startup checks are optional; an unavailable release source does not
+block chat. `--no-update-check` or `BRIG_NO_UPDATE_CHECK=1` disables those checks.
 
 After updating Brig, run `brig down --project my-api` before starting the project
 again. Brig rebuilds the required images and recreates containers while retaining

@@ -8,6 +8,7 @@ from brig.i18n import tr
 from brig.ui.agent_selection import choose_agent
 from brig.ui.listings import list_rows
 from brig.ui.presentation import configuration_lines, project_lines
+from brig.ui.sessions import run_agent
 from brig.ui.tui.browser import choose_list
 from brig.ui.tui.terminal import Terminal
 
@@ -150,7 +151,9 @@ class ProjectViews:
                 elif choice == 3:
                     agent = choose_agent(project, terminal=self.ui)
                     message = getattr(self.ui, "external", lambda action: action())(
-                        lambda agent=agent: self.app.run_agent(name, agent)
+                        lambda agent=agent, project=project: run_agent(
+                            self.app, project, agent
+                        )
                     )
                 elif choice == 4:
                     agent = choose_agent(project, terminal=self.ui)

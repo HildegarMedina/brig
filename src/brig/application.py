@@ -360,14 +360,24 @@ class Application:
     def detach(self, name: str) -> str:
         return detach_files(self.project(name))
 
-    def run_agent(self, name: str, agent: str, command=None) -> str:
+    def run_agent(
+        self, name: str, agent: str, command=None, *, before_launch=None
+    ) -> str:
         project = self.project(name)
         validate_project_agent(project.configuration, agent)
         self.engine.validate_shell(command) if command else self.engine.validate_shell()
         self.start(name)
+        if before_launch is not None:
+            before_launch(self.project(name))
         if command is not None:
             return self.engine.run_agent(self.project(name), agent, command)
         return self.engine.run_agent(self.project(name), agent)
+
+    def update_agents(self, name: str, releases: dict[str, str]) -> str:
+        project = self.project(name)
+        self.engine.update_agents(project, releases)
+        self.start(name)
+        return tr("Agent updates applied to {project}.").format(project=name)
 
     def authenticate_agent(
         self, name: str, agent: str, *, provider=None, key=None

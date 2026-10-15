@@ -278,6 +278,7 @@ class I18nTests(unittest.TestCase):
         fake.shell.return_value = ""
         fake.resolve_project.return_value.name = "api"
         fake.resolve_project.return_value.configuration.selected_agents = ["claude"]
+        fake.resolve_project.return_value.configuration.agent = "claude"
         with (
             patch("brig.ui.cli.Application", return_value=fake),
             patch("brig.ui.cli.DockerEngine"),

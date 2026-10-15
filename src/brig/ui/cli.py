@@ -11,6 +11,7 @@ from pathlib import Path
 from brig import __version__
 from brig.application import Application
 from brig.auth_proxy.providers import PROVIDERS
+from brig.components.agents import AGENTS, resolve_project_agent
 from brig.docker.engine import DockerEngine
 from brig.errors import BrigError, Cancelled
 from brig.i18n import (
@@ -27,6 +28,7 @@ from brig.persistence.store import JsonStateStore, default_data_directory
 from brig.ui.agent_selection import choose_agent
 from brig.ui.listings import profile_list, project_list
 from brig.ui.presentation import project_lines
+from brig.ui.sessions import interactive, run_agent, update_agents
 from brig.ui.tui import launch
 
 
@@ -163,7 +165,9 @@ def parser() -> argparse.ArgumentParser:
     for name, description in (
         ("up", tr("build if needed and start one project's Docker environment")),
         ("down", tr("stop a project's environment, keeping its data")),
-        ("run", tr("prepare one project and enter its isolated terminal")),
+        ("run", tr("prepare a project and open its default or requested agent")),
+        ("bash", tr("prepare a project and open Bash")),
+        ("update", tr("check and update project agents")),
         ("shell", tr("prepare the current project and enter its isolated terminal")),
         ("agent", tr("prepare a project and launch its agent")),
     ):
@@ -173,20 +177,41 @@ def parser() -> argparse.ArgumentParser:
             metavar="NAME",
             help=tr("select a project instead of detecting its folder"),
         )
-        if name == "run":
+        command.add_argument(
+            "--no-input", action="store_true", help=tr("disable interactive prompts")
+        )
+        if name != "agent":
             command.add_argument(
                 "name",
                 nargs="?",
-                help=tr("project name; defaults to this folder's project"),
+                help=(
+                    tr(
+                        "project name or agent shortcut; defaults to this folder's project"
+                    )
+                    if name == "run"
+                    else tr("project name; defaults to this folder's project")
+                ),
             )
-        if name in ("run", "shell", "agent"):
+        if name in ("run", "agent"):
+            command.add_argument(
+                "--no-update-check",
+                action="store_true",
+                help=tr("skip the automatic agent update check"),
+            )
+        if name == "update":
+            command.add_argument(
+                "--yes",
+                action="store_true",
+                help=tr("apply available agent updates without prompting"),
+            )
+        if name in ("run", "shell", "bash", "agent"):
             command.add_argument(
                 "--command",
                 dest="command_program",
                 nargs=argparse.REMAINDER,
                 help=tr("execute a program instead of opening an interactive terminal"),
             )
-        if name in ("run", "shell"):
+        if name in ("run", "shell", "bash"):
             command.add_argument(
                 "--agent", help=tr("select an installed agent before entering")
             )
@@ -248,13 +273,42 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             return "\n".join(project_lines(app, app.project(args.name)))
         return app.update_project(args.name)
     name = getattr(args, "name", None)
+    if args.command == "run" and name in AGENTS:
+        if args.agent is not None and args.agent != name:
+            raise BrigError(
+                tr(
+                    "Choose one agent: use its name or --agent, not different values for both."
+                )
+            )
+        args.agent, name = name, None
     if name and args.project and name != args.project:
         raise BrigError(
             tr(
                 "Choose one project: use its name or --project, not different values for both."
             )
         )
-    project = app.resolve_project(name or args.project, Path.cwd())
+    selected = name or args.project
+    try:
+        project = app.resolve_project(selected, Path.cwd())
+    except BrigError:
+        if (
+            selected
+            or getattr(args, "no_input", False)
+            or not interactive()
+            or not app.state.projects
+        ):
+            raise
+
+        def pick(screen):
+            from brig.ui.tui.terminal import Terminal
+
+            projects = app.state.projects
+            index = Terminal(screen).choose(
+                tr("Choose a project"), [p.name for p in projects]
+            )
+            return projects[index]
+
+        project = curses.wrapper(pick)
     if args.command == "auth":
         if args.action == "login":
             return app.authenticate_agent(project.name, args.agent)
@@ -266,6 +320,15 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
         return app.authenticate_agent(
             project.name, args.agent, provider=args.provider, key=key
         )
+    if args.command == "update":
+        app.start(project.name)
+        return update_agents(
+            app,
+            app.project(project.name),
+            force=True,
+            yes=args.yes,
+            no_input=args.no_input,
+        )
     if args.command == "up":
         return app.start(project.name)
     if args.command == "down":
@@ -275,21 +338,43 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             raise BrigError(
                 tr("--command needs a program, e.g. --command python --version.")
             )
-        chosen = choose_agent(project, args.agent)
+        chosen = (
+            resolve_project_agent(
+                project.configuration, args.agent or project.configuration.agent
+            )
+            if args.no_input
+            else choose_agent(project, args.agent)
+        )
         if args.command_program is not None:
             return app.run_agent(
                 project.name,
                 chosen,
                 args.command_program,
             )
-        return app.run_agent(project.name, chosen)
-    if args.command in ("run", "shell") and args.command_program == []:
+        return run_agent(
+            app,
+            project,
+            chosen,
+            no_input=args.no_input,
+            check_updates=not args.no_update_check,
+        )
+    if args.command in ("run", "shell", "bash") and args.command_program == []:
         raise BrigError(
             tr("--command needs a program, e.g. --command python --version.")
         )
-    return app.shell(
-        project.name, args.command_program, agent=choose_agent(project, args.agent)
+    chosen = resolve_project_agent(
+        project.configuration,
+        args.agent if args.agent is not None else project.configuration.agent,
     )
+    if args.command == "run" and args.command_program is None:
+        return run_agent(
+            app,
+            project,
+            chosen,
+            no_input=args.no_input,
+            check_updates=not args.no_update_check,
+        )
+    return app.shell(project.name, args.command_program, agent=chosen)
 
 
 def _main(argv: list[str] | None = None) -> int:

@@ -56,7 +56,7 @@ class AgentSelectionTests(unittest.TestCase):
             patch("brig.ui.cli.Application", return_value=self.case.app),
             redirect_stderr(io.StringIO()),
         ):
-            for arguments in (["run", "api"], ["agent", "--project", "api"]):
+            for arguments in (["agent", "--project", "api"],):
                 with patch("brig.ui.cli.choose_agent", side_effect=Cancelled):
                     self.assertEqual(main(arguments), 130)
                 with patch("sys.stdin.isatty", return_value=False):

@@ -2,7 +2,9 @@
 
 import fcntl
 import hashlib
+import json
 import os
+import re
 import tempfile
 from contextlib import contextmanager
 from pathlib import Path
@@ -69,7 +71,24 @@ class DockerWorkspace:
     def env(values):
         return "".join(f"{key}={value}\n" for key, value in sorted(values.items()))
 
-    def plan(self, project, uid, gid):
+    def agent_releases(self, project):
+        path = self.project_directory(project) / "agent-releases.json"
+        try:
+            values = json.loads(path.read_text()) if path.exists() else {}
+            if not isinstance(values, dict) or any(
+                name not in ("claude", "codex", "opencode")
+                or not isinstance(value, str)
+                or not re.fullmatch(r"\d+\.\d+\.\d+", value)
+                for name, value in values.items()
+            ):
+                raise ValueError("Invalid release selection")
+            return values
+        except (OSError, ValueError) as error:
+            raise BrigError(
+                tr("Cannot read project agent release selection.")
+            ) from error
+
+    def plan(self, project, uid, gid, *, releases=None):
         if uid == 0 or gid == 0:
             raise BrigError(
                 tr(
@@ -77,6 +96,12 @@ class DockerWorkspace:
                 )
             )
         dockerfile = render_dockerfile(project)
+        releases = self.agent_releases(project) if releases is None else releases
+        for agent, version in releases.items():
+            marker = f"AS {agent}_binary\n"
+            dockerfile = dockerfile.replace(
+                marker, marker + f"ARG BRIG_AGENT_RELEASE={version}\n"
+            )
         # Only image-affecting configuration contributes to the build cache key.
         digest = hashlib.sha256(
             (

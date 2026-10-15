@@ -1,6 +1,7 @@
 # Protect agent provider credentials
 
-Sign in from the host, using any agent selected in the project's saved profile:
+`brig run` offers authentication when the selected agent has no credentials.
+You can also sign in explicitly from the host, using any agent selected in the project's saved profile:
 
 ```bash
 brig auth login codex --project my-api
@@ -32,7 +33,7 @@ Leave active chats before changing authentication. After saving authentication, 
 Open the agent normally:
 
 ```bash
-brig agent codex --project my-api
+brig run my-api --agent codex
 ```
 
 Logins are reused across projects for the same agent, host user, and Brig data
@@ -68,7 +69,7 @@ Update Brig, exit open chats, then recreate the environment:
 
 ```bash
 brig down --project my-api
-brig agent codex --project my-api
+brig run my-api --agent codex
 ```
 
 Existing login stores and nested conversation-directory volumes retain their
