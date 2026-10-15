@@ -1,6 +1,6 @@
 # Development and maintenance
 
-Start with the [contribution guide](../CONTRIBUTING.md) for the pull request
+Start with the [contribution guide](https://github.com/HildegarMedina/brig/blob/develop/CONTRIBUTING.md) for the pull request
 workflow and suggested tasks. This page covers implementation details.
 
 ## Prepare the repository
@@ -158,9 +158,9 @@ versions; fixtures do not feed the production catalog.
 ### A tool
 
 Declare the component and its runtime in
-[`catalog.py`](../src/brig/components/catalog.py). Add or reuse its version provider and
-requirement evaluation in [`providers.py`](../src/brig/components/providers.py) and
-[`compatibility.py`](../src/brig/components/compatibility.py).
+[`catalog.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/components/catalog.py). Add or reuse its version provider and
+requirement evaluation in [`providers.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/components/providers.py) and
+[`compatibility.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/components/compatibility.py).
 
 Also add installation to the Dockerfile generator. Being selectable in the catalog
 does not automatically install a new tool. Test selection, compatibility, exact
@@ -170,7 +170,7 @@ version, absence when unselected, and real execution.
 
 Register it in the catalog, implement image generation, and define how it coexists
 with other runtimes. `RUNTIME_IMAGES` in
-[`dockerfile.py`](../src/brig/docker/dockerfile.py) groups current templates, but runtime
+[`dockerfile.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/docker/dockerfile.py) groups current templates, but runtime
 placement and libraries also require builder logic.
 
 Keep versions out of the static catalog. Include profiles using that runtime alone
@@ -180,9 +180,9 @@ an actual build.
 ### A service
 
 Declare it in the catalog and configure its image, data, healthcheck, and
-`service_environment` in [`services.py`](../src/brig/docker/services.py). Compose
+`service_environment` in [`services.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/docker/services.py). Compose
 assembly and version-specific mount conventions live in
-[`compose.py`](../src/brig/docker/compose.py). If it needs a PHP driver, update `DATABASE_DRIVERS` in
+[`compose.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/docker/compose.py). If it needs a PHP driver, update `DATABASE_DRIVERS` in
 the generator.
 
 Check the image's mount point and differences between releases. Data must stay in
@@ -192,7 +192,7 @@ in profiles.
 
 ### An agent
 
-Add an `AgentIntegration` in [`agents.py`](../src/brig/components/agents.py) with its command,
+Add an `AgentIntegration` in [`agents.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/components/agents.py) with its command,
 build stage, final-image instructions, runtime packages, and configuration path
 and environment variable, and optional history subdirectory. An adapter without installation instructions stays
 unavailable. The wizard, profile validation, image generator, and launcher use
@@ -205,8 +205,8 @@ projects and container recreation before making a new integration selectable.
 
 ## Change the engine
 
-The contract lives in [`engine.py`](../src/brig/engine.py). The real engine lives
-in [`docker/engine.py`](../src/brig/docker/engine.py). Separate file generation,
+The contract lives in [`engine.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/engine.py). The real engine lives
+in [`docker/engine.py`](https://github.com/HildegarMedina/brig/blob/develop/src/brig/docker/engine.py). Separate file generation,
 command execution, and coordination in `Application`.
 
 Keep Docker arguments as lists; do not build host shell commands from user names
@@ -246,3 +246,38 @@ project history before and after recreation. It also starts a second project
 and checks that the history is absent there. Cleanup removes only the test
 projects' resources; the shared real login is preserved. It does not perform a
 new interactive browser/device login.
+
+## Documentation website
+
+The Markdown files in `docs/` are also the source of the GitHub Pages website.
+MkDocs and Material are pinned in the optional `docs` dependency group and
+`uv.lock`; they are not installed with Brig.
+
+Preview the site locally:
+
+```bash
+uv run --locked --only-group docs mkdocs serve
+```
+
+Build the same output as CI, including checks for broken links and anchors:
+
+```bash
+uv run --locked --only-group docs mkdocs build --strict
+```
+
+Generated HTML is written to `site/`, which is git-ignored. Edit the existing
+Markdown pages and add new ones to `nav` in `mkdocs.yml`. The site uses the two
+Brig logos for light/dark mode, keeps code copy buttons, and renders Mermaid
+architecture diagrams. Keep the README focused on installation and the first
+project; link to the website for the full guides and references.
+
+The `Documentation` workflow builds changes on pull requests and pushes to
+`master`, `main`, or `develop`. It deploys only the repository's default branch,
+or a manually requested run, to:
+
+<https://hildegarmedina.github.io/brig/>
+
+For the first deployment, a repository administrator must select **Settings →
+Pages → Build and deployment → Source: GitHub Actions**. Then push the docs
+changes to the default branch or run the workflow manually. Pull requests can
+build the site without permission to publish it.

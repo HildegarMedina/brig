@@ -1,8 +1,8 @@
 # Brig documentation
 
 Brig creates a development environment for each project from a profile with
-pinned versions. `brig run my-project` prepares that environment and opens a Bash
-terminal inside its development container.
+pinned versions. `brig run my-project` prepares that environment and opens its
+selected coding agent; `brig bash my-project` opens a Bash terminal.
 
 ## Where to start
 
@@ -19,7 +19,7 @@ terminal inside its development container.
 | Look up commands and options | [Command reference](reference/cli.md) |
 | Find definitions, credentials, and data | [Storage and persistence](reference/storage.md) |
 | Look up components, versions, and compatibility | [Components and versions](reference/components.md) |
-| Find contribution guidelines and suggested tasks | [Contributing](../CONTRIBUTING.md) |
+| Find contribution guidelines and suggested tasks | [Contributing](https://github.com/HildegarMedina/brig/blob/develop/CONTRIBUTING.md) |
 | Change the code and run tests | [Development and maintenance](development.md) |
 
 ## Current scope

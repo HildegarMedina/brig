@@ -13,6 +13,9 @@ dependencies = [
     "semantic-version>=2.10,<3",
 ]
 
+[project.urls]
+Documentation = "https://hildegarmedina.github.io/brig/"
+
 [project.scripts]
 brig = "brig.ui.cli:main"
 
@@ -23,6 +26,10 @@ where = ["src"]
 package = true
 
 [dependency-groups]
+docs = [
+    "mkdocs==1.6.1",
+    "mkdocs-material==9.7.7",
+]
 dev = [
     "coverage>=7.16,<8",
     "mitmproxy==12.2.3",

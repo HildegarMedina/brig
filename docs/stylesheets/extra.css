@@ -1,0 +1,32 @@
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #ffffff;
+  --md-primary-bg-color: #172736;
+  --md-accent-fg-color: #008bb5;
+  --md-typeset-a-color: #007d9f;
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #10202c;
+  --md-primary-bg-color: #f1f6fa;
+  --md-accent-fg-color: #00b5e2;
+  --md-typeset-a-color: #38c6eb;
+}
+
+.md-header__button.md-logo img {
+  width: auto;
+  height: 1.8rem;
+}
+
+/* The wordmark already names Brig; retain the page title shown on scroll. */
+.md-header__topic:first-child {
+  display: none;
+}
+
+[data-md-color-scheme] .md-logo img.brig-logo-dark,
+[data-md-color-scheme="slate"] .md-logo img.brig-logo-light {
+  display: none;
+}
+
+[data-md-color-scheme="slate"] .md-logo img.brig-logo-dark {
+  display: block;
+}

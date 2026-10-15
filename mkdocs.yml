@@ -1,0 +1,89 @@
+site_name: Brig
+site_description: A development environment for every project, managed from your terminal.
+site_url: https://hildegarmedina.github.io/brig/
+repo_url: https://github.com/HildegarMedina/brig
+repo_name: HildegarMedina/brig
+edit_uri: edit/develop/docs/
+strict: true
+validation:
+  links:
+    anchors: warn
+
+theme:
+  name: material
+  custom_dir: overrides
+  language: en
+  font: false
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: '(prefers-color-scheme: light)'
+      scheme: default
+      primary: custom
+      accent: cyan
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: '(prefers-color-scheme: dark)'
+      scheme: slate
+      primary: custom
+      accent: cyan
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.instant
+    - navigation.tracking
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - content.code.copy
+    - content.action.edit
+    - search.highlight
+    - search.suggest
+
+plugins:
+  - search
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+
+extra_css:
+  - stylesheets/extra.css
+
+nav:
+  - Get started:
+      - Overview: README.md
+      - Your first project: tutorials/first-project.md
+  - Guides:
+      - Manage projects: how-to/projects.md
+      - Agent credentials: how-to/credentials.md
+      - Agent isolation: how-to/agent-isolation.md
+      - Language settings: how-to/languages.md
+      - Import profiles: how-to/import-profiles.md
+      - Troubleshooting: how-to/troubleshooting.md
+  - Reference:
+      - Commands: reference/cli.md
+      - Components and versions: reference/components.md
+      - Storage and persistence: reference/storage.md
+  - Understand Brig:
+      - Architecture: explanation/architecture.md
+  - Contribute:
+      - Development: development.md
+      - Contributing: https://github.com/HildegarMedina/brig/blob/develop/CONTRIBUTING.md

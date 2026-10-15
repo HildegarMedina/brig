@@ -7,6 +7,8 @@
 
 A development environment for every project, managed from your terminal.
 
+[Read the documentation](https://hildegarmedina.github.io/brig/)
+
 Working across projects often means switching runtime versions, setting up
 local databases again, and configuring coding agents. Brig turns that setup
 into a reusable, versioned profile and gives each project its own Docker
