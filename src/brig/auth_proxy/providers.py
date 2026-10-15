@@ -36,6 +36,14 @@ def provider_for(host: str, path: str = "") -> str | None:
 
 def permitted(method: str, path: str, *, host: str | None = None) -> bool:
     path = path.split("?", 1)[0]
+    # Codex account limits and the explicit action that redeems an available
+    # reset credit. Keep these account operations on their exact ChatGPT origin.
+    if host == "chatgpt.com" and (method, path) in (
+        ("GET", "/backend-api/wham/usage"),
+        ("GET", "/backend-api/wham/rate-limit-reset-credits"),
+        ("POST", "/backend-api/wham/rate-limit-reset-credits/consume"),
+    ):
+        return True
     if host == "opencode.ai":
         # Native v1 uses /zen; current OpenCode endpoints use /inference.
         for prefix in ("/zen/v1", "/zen/go/v1", "/inference/v1", "/inference/go/v1"):

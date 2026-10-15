@@ -40,6 +40,26 @@ brig run my-api --command python --version
 Passing `--command` without a program is an error. A program that exits with a
 nonzero status produces a Brig error; the environment remains running.
 
+## Codex cannot load usage limit resets
+
+If Codex reports `couldn't load usage limit resets`, an older Brig credential
+proxy may be rejecting the account requests. The proxy must allow the exact
+ChatGPT routes for loading current usage, listing reset credits, and redeeming
+one. Codex must be signed in with a ChatGPT account; an OpenAI API key does not
+provide that account's usage or reset credits.
+
+Update the Brig checkout, reinstall it, leave open chats, and reopen the project:
+
+```bash
+./scripts/install.sh
+brig run my-api --agent codex
+```
+
+Brig detects the changed proxy sources and rebuilds/recreates the environment as
+needed. Retry the reset action in the reopened session. Reset availability and
+eligibility still come from your account; Brig does not generate additional
+resets or redeem them automatically.
+
 ## Copy and paste inside Claude Code, Codex, or OpenCode
 
 Interactive agent sessions and native login screens share a host clipboard

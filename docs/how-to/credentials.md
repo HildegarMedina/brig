@@ -74,7 +74,11 @@ Usage analytics requires a ChatGPT login; API-key authentication does not provid
 a ChatGPT account identity. The proxy inserts the real
 credential into approved HTTPS model requests and read-only Codex account/config
 bootstrap, profile statistics, and usage analytics requests (including the
-read-only POST queries for personal and workspace per-chat usage), verifies
+read-only POST queries for personal and workspace per-chat usage). It also allows
+Codex to load usage limits and available reset credits and redeem an available
+reset through its native confirmation flow. These operations are restricted to
+the exact ChatGPT usage/reset endpoints and HTTP methods; purchase and unrelated
+account-management routes remain blocked. The proxy verifies
 upstream certificates, rejects credentialed redirects, and filters known credentials from returned streams. Its CA private
 key is never mounted in the agent. Native login inside the agent cannot update
 the protected login; use `brig auth` from the host.
@@ -82,7 +86,9 @@ the protected login; use `brig auth` from the host.
 The agent can still make authorized model requests and consume your account's
 quota. It can modify or delete shared project files, read workspace secrets and
 project database passwords, and access the internet. The proxy does not impose
-spending limits or protect tokens you paste into chats or source files. Docker
+spending limits or protect tokens you paste into chats or source files. Native
+Codex reset actions can consume reset credits available to your account; Brig
+does not create reset credits or change account eligibility. Docker
 administrators on the host can access the protected volumes.
 
 ## Upgrade existing projects

@@ -225,6 +225,97 @@ class AuthProtocolTests(unittest.TestCase):
                 self.injector.request(flow)
                 self.assertEqual(flow.response.status_code, 403)
 
+    def test_codex_can_load_usage_and_redeem_available_limit_resets(self):
+        (self.root / "brig-auth.json").unlink()
+        token = (
+            placeholder_jwt("fixture-account").rsplit(".", 1)[0] + ".fixture-signature"
+        )
+        write_json(
+            self.root / "auth.json",
+            {"tokens": {"access_token": token, "account_id": "fixture-account"}},
+        )
+        injector = CredentialInjector(CredentialStore(self.root, "codex"))
+        for method, path, body in (
+            ("GET", "/usage", b""),
+            ("GET", "/rate-limit-reset-credits", b""),
+            ("GET", "/rate-limit-reset-credits?source=codex", b""),
+            (
+                "POST",
+                "/rate-limit-reset-credits/consume",
+                b'{"redeem_request_id":"fixture-request"}',
+            ),
+            (
+                "POST",
+                "/rate-limit-reset-credits/consume",
+                b'{"redeem_request_id":"fixture-request","credit_id":"fixture-credit"}',
+            ),
+        ):
+            with self.subTest(method=method, path=path, body=body):
+                flow = self.flow(
+                    "https://chatgpt.com/backend-api/wham" + path, method, body
+                )
+                flow.request.headers["chatgpt-account-id"] = "untrusted-account"
+                flow.request.headers["content-type"] = "application/json"
+                injector.request(flow)
+                self.assertIsNone(flow.response)
+                self.assertEqual(
+                    flow.request.headers["authorization"], "Bearer " + token
+                )
+                self.assertEqual(
+                    flow.request.headers["chatgpt-account-id"], "fixture-account"
+                )
+                self.assertNotIn("cookie", flow.request.headers)
+                self.assertEqual(flow.request.content, body)
+                payload = b'{"windows_reset":["primary"],"remaining":1}'
+                flow.response = http.Response.make(200, payload)
+                injector.responseheaders(flow)
+                self.assertEqual(
+                    flow.response.stream(payload) + flow.response.stream(b""), payload
+                )
+                injector.response(flow)
+                self.assertNotIn("authorization", flow.request.headers)
+                self.assertNotIn("chatgpt-account-id", flow.request.headers)
+
+    def test_codex_limit_reset_permissions_are_bound_to_exact_chatgpt_routes(self):
+        for method, path in (
+            ("POST", "/usage"),
+            ("POST", "/rate-limit-reset-credits"),
+            ("DELETE", "/rate-limit-reset-credits"),
+            ("GET", "/rate-limit-reset-credits/consume"),
+            ("DELETE", "/rate-limit-reset-credits/consume"),
+            ("GET", "/rate-limit-reset-credits/extra"),
+            ("POST", "/rate-limit-reset-credits/consume/extra"),
+            ("POST", "/rate-limit-reset-credits/../consume"),
+            ("POST", "/rate-limit-reset-credits/%63onsume"),
+            ("POST", "/rate-limit-reset-credits/purchase"),
+            ("POST", "/accounts/send_add_credits_nudge_email"),
+        ):
+            with (
+                self.subTest(method=method, path=path),
+                patch.object(self.injector.store, "headers") as headers,
+            ):
+                flow = self.flow("https://chatgpt.com/backend-api/wham" + path, method)
+                self.injector.request(flow)
+                self.assertEqual(flow.response.status_code, 403)
+                headers.assert_not_called()
+        for origin in (
+            "http://chatgpt.com",
+            "https://chatgpt.com:444",
+            "https://api.openai.com",
+            "https://api.anthropic.com",
+            "https://opencode.ai",
+        ):
+            with (
+                self.subTest(origin=origin),
+                patch.object(self.injector.store, "headers") as headers,
+            ):
+                flow = self.flow(
+                    origin + "/backend-api/wham/rate-limit-reset-credits", "GET"
+                )
+                self.injector.request(flow)
+                self.assertEqual(flow.response.status_code, 403)
+                headers.assert_not_called()
+
     def test_websocket_handshakes_ask_clients_to_use_https(self):
         for url in (
             "https://chatgpt.com/backend-api/codex/responses",
