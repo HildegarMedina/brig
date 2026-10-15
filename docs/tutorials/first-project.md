@@ -16,6 +16,11 @@ From the Brig repository folder:
 brig --help
 ```
 
+The installer welcomes you with a brig and shows two brief stages: preparing
+Docker and installing Brig. Detailed output appears on failure, or live with
+`./scripts/install.sh --verbose`. It respects `BRIG_LANG` (en, es, pt), `NO_COLOR`,
+and `BRIG_NO_ANIMATION`; redirected output and CI stay plain.
+
 If `brig` is not on your PATH, run `uv tool update-shell` and open another terminal.
 After updating the code, reinstall the tool:
 

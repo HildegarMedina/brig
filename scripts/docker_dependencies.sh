@@ -91,6 +91,9 @@ ensure_docker_access() {
     if [[ " $(id -nG) " != *" docker "* ]]; then
         as_root groupadd -f docker
         as_root usermod -aG docker "$(id -un)"
+        # Read by install.sh after the quiet setup step.
+        # shellcheck disable=SC2034
+        docker_login_required=1
         echo "Docker access configured for $(id -un). Log out and back in before running Brig environments."
         return
     fi

@@ -55,8 +55,10 @@ Clone or download this repository and run from its folder as your regular user:
 brig --help
 ```
 
-The installer checks Docker Engine, Compose, and daemon access. On supported
-Debian and Ubuntu hosts, it installs missing Docker dependencies. Other Linux
+The installer opens with a brig and shows brief Docker/Brig status messages.
+Technical output appears on failure; use `./scripts/install.sh --verbose` for
+live details. On supported Debian and Ubuntu hosts, it installs missing Docker
+dependencies. Other Linux
 distributions require Docker and Compose to be installed manually. If your user
 is added to the Docker group, log out and back in before continuing.
 

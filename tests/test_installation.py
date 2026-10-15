@@ -214,29 +214,187 @@ class InstallationTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("must be available after installation", result.stderr)
 
-    def test_main_installer_installs_brig_after_validating_dependencies(self):
+    def installer(self, *arguments, commands=None, environment=None, terminal=False):
         binary = self.root / "bin"
-        binary.mkdir()
-        commands = {
+        binary.mkdir(exist_ok=True)
+        programs = {
             "id": "echo 1000",
             "uname": "echo Linux",
-            "docker": "exit 0",
-            "uv": 'printf \'%s\\n\' "$*" >> "$INSTALL_LOG"',
+            "docker": 'if [[ "$1" == compose ]]; then echo 2.0.0; fi',
+            "uv": (
+                'printf \'%s\\n\' "$*" >> "$INSTALL_LOG"\n'
+                "echo 'package build detail'\n"
+                "echo 'resolver detail' >&2"
+            ),
             "sudo": "echo 'Unexpected privilege escalation' >&2; exit 99",
+            "brig": "exit 0",
+            **(commands or {}),
         }
-        for name, contents in commands.items():
+        for name, contents in programs.items():
             path = binary / name
             path.write_text("#!/usr/bin/env bash\n" + contents + "\n")
             path.chmod(0o755)
-        # Compose must return a version; other Docker checks can return success.
-        (binary / "docker").write_text(
-            '#!/usr/bin/env bash\nif [[ "$1" == compose ]]; then echo 2.0.0; fi\n'
-        )
-        result = self.shell(
-            f'export PATH={shlex.quote(str(binary))}:"$PATH"\n'
-            f"bash {shlex.quote(str(self.repo / 'scripts/install.sh'))}"
-        )
+        command = ["bash", str(self.repo / "scripts/install.sh"), *arguments]
+        env = {
+            **os.environ,
+            "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+            "INSTALL_LOG": str(self.log),
+            "TMPDIR": str(self.root),
+            "DOCKER_HOST": "",
+            "DOCKER_CONTEXT": "",
+            "BRIG_LANG": "en",
+            **(environment or {}),
+        }
+        if not terminal:
+            return subprocess.run(
+                command, capture_output=True, text=True, env=env, check=False
+            )
+        master, slave = os.openpty()
+        output = bytearray()
+        try:
+            with subprocess.Popen(
+                command, stdout=subprocess.PIPE, stderr=slave, env=env, text=True
+            ) as process:
+                os.close(slave)
+                stdout, _ = process.communicate(timeout=5)
+                while True:
+                    try:
+                        chunk = os.read(master, 4096)
+                    except OSError:
+                        break  # Linux PTYs report EIO when the slave closes.
+                    if not chunk:
+                        break
+                    output.extend(chunk)
+            return subprocess.CompletedProcess(
+                command, process.returncode, stdout, output.decode()
+            )
+        finally:
+            os.close(master)
+
+    def test_main_installer_installs_brig_after_validating_dependencies(self):
+        result = self.installer()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
             self.log.read_text().strip(), f"tool install --reinstall {self.repo}"
         )
+        self.assertIn("BRIG / Installer", result.stderr)
+        self.assertIn("Preparing Docker...", result.stderr)
+        self.assertIn("Installing Brig...", result.stderr)
+        self.assertIn("Run: brig", result.stderr)
+        self.assertIn(r"|\|\__/", result.stderr)
+        self.assertNotIn("package build detail", result.stdout + result.stderr)
+        self.assertNotIn("resolver detail", result.stdout + result.stderr)
+        self.assertNotIn("daemon is accessible", result.stderr)
+        self.assertNotIn("\033", result.stderr)
+        self.assertEqual(list(self.root.glob("tmp.*")), [])
+
+    def test_verbose_installer_shows_live_details(self):
+        result = self.installer("--verbose")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("package build detail", result.stdout)
+        self.assertIn("resolver detail", result.stderr)
+        self.assertIn("daemon is accessible", result.stdout)
+
+    def test_terminal_presentation_and_animation_preferences(self):
+        for preferences, animated in (
+            ({}, True),
+            ({"BRIG_NO_ANIMATION": "1"}, False),
+            ({"CI": "1"}, False),
+            ({"TERM": "dumb"}, False),
+        ):
+            with self.subTest(preferences=preferences):
+                result = self.installer(
+                    terminal=True,
+                    commands={"uv": "sleep 0.25", "tput": "echo 80"},
+                    environment={
+                        "TERM": "xterm",
+                        "NO_COLOR": "",
+                        "CI": "",
+                        "BRIG_NO_ANIMATION": "",
+                        **preferences,
+                    },
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn(r"/_|_\/_|_", result.stderr)
+                self.assertIn("Brig installed.", result.stderr)
+                self.assertEqual("\033[2K" in result.stderr, animated)
+                self.assertNotIn("\033[36m", result.stderr)
+                self.assertEqual(list(self.root.glob("tmp.*")), [])
+
+    def test_small_terminal_uses_compact_boat_without_animation(self):
+        result = self.installer(
+            terminal=True,
+            commands={"tput": "echo 20"},
+            environment={"TERM": "xterm", "NO_COLOR": ""},
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(r"|\|\__/", result.stderr)
+        self.assertNotIn("\033", result.stderr)
+
+    def test_failed_installer_limits_technical_output(self):
+        result = self.installer(
+            commands={
+                "uv": 'for ((i=1; i<=50; i++)); do echo "line $i"; done; exit 9',
+            }
+        )
+        self.assertEqual(result.returncode, 9)
+        self.assertNotIn("\nline 20\n", result.stderr)
+        self.assertIn("\nline 21\n", result.stderr)
+        self.assertIn("\nline 50\n", result.stderr)
+
+    def test_failed_installation_reveals_diagnostics_preserves_exit_and_cleans_log(
+        self,
+    ):
+        result = self.installer(commands={"uv": "echo 'expected failure' >&2; exit 42"})
+        self.assertEqual(result.returncode, 42)
+        self.assertIn("Could not complete: Installing Brig", result.stderr)
+        self.assertIn("expected failure", result.stderr)
+        self.assertNotIn("Brig installed.", result.stderr)
+        self.assertEqual(list(self.root.glob("tmp.*")), [])
+
+    def test_nested_docker_failure_is_visible_and_never_installs_brig(self):
+        result = self.installer(
+            commands={
+                "docker": 'case "$1" in compose) echo 2.0.0 ;; version) exit 1 ;; context) echo ssh://server ;; esac',
+            }
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("Could not complete: Preparing Docker", result.stderr)
+        self.assertIn("keeps your Docker context", result.stderr)
+        self.assertNotIn("Installing Brig...", result.stderr)
+        self.assertEqual(self.log.read_text(), "")
+        self.assertEqual(list(self.root.glob("tmp.*")), [])
+
+    def test_installer_preserves_the_required_login_notice(self):
+        result = self.installer(
+            commands={
+                "docker": 'case "$1" in compose) echo 2.0.0 ;; version) exit 1 ;; context) echo unix:///var/run/docker.sock ;; esac',
+                "id": 'case "$1" in -u) echo 1000 ;; -nG) echo developer ;; -un) echo developer ;; esac',
+                "sudo": "exit 0",
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Log out and back in before using environments.", result.stderr)
+        self.assertNotIn("usermod", result.stderr)
+
+    def test_installer_languages_use_brief_localized_labels(self):
+        for language, ready in (("es", "Brig instalado."), ("pt", "Brig instalado.")):
+            with self.subTest(language=language):
+                result = self.installer(environment={"BRIG_LANG": language})
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertIn("BRIG / Instalador", result.stderr)
+                self.assertIn("Preparando Docker...", result.stderr)
+                self.assertIn("Instalando Brig...", result.stderr)
+                self.assertIn(ready, result.stderr)
+
+    def test_help_and_invalid_options_do_not_install_anything(self):
+        for options, expected in (
+            (("--help",), 0),
+            (("--unknown",), 2),
+            (("--verbose", "extra"), 2),
+        ):
+            with self.subTest(options=options):
+                result = self.installer(*options)
+                self.assertEqual(result.returncode, expected)
+                self.assertIn("Usage:", result.stdout + result.stderr)
+                self.assertEqual(self.log.read_text(), "")
