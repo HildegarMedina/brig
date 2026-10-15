@@ -242,7 +242,9 @@ brig run my-api
 
 Editing a profile creates another version. The project keeps its previous
 version until you run `project update`, which adopts the latest version of its
-profile. The next execution generates the corresponding configuration.
+profile. Inside the project folder or its subfolders, `brig project update`
+detects the project and the name can be omitted. The next execution generates
+the corresponding configuration.
 
 Changing a service's major version when it has persistent data requires a data
 migration. Brig detects this through volume labels and rejects automatic reuse.

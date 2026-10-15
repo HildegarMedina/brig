@@ -81,7 +81,7 @@ See [import profiles](../how-to/import-profiles.md) for examples and file limits
 | `brig project list` | List projects and query their Docker status |
 | `brig project show NAME` | Show snapshot, folder, and environment resources |
 | `brig project clean NAME` | Remove unused old project image tags; keep current images and data |
-| `brig project update NAME` | Adopt the latest profile version when the environment is stopped |
+| `brig project update [NAME]` | Adopt the latest profile version when the environment is stopped |
 | `brig project rename NAME NEW_NAME` | Rename a project; its Docker environment is kept |
 | `brig project delete NAME [--yes]` | Stop the project and remove its containers, legacy project images, volumes, and registration; keep its folder and profile |
 | `brig project dockerfile [NAME] [--output FILE]` | Display or export its Dockerfile |

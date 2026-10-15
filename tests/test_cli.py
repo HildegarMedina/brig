@@ -143,6 +143,21 @@ class CliTests(unittest.TestCase):
         self.assertIn("FROM php:8.3.15-cli-bookworm", output)
         self.assertEqual(errors, "")
 
+    def test_project_update_can_resolve_project_from_its_folder(self):
+        app = Application(JsonStateStore(self.data), DemoEngine(), FakeVersionCatalog)
+        app.save_profile("laravel", {"php": "8.3.15"}, {}, {})
+        folder = Path(self.directory.name) / "source"
+        folder.mkdir()
+        app.create_project("laravel-project", folder, "laravel")
+        app.save_profile("laravel", {"php": "8.2.27"}, {}, {}, editing=True)
+        with patch("brig.ui.cli.Path.cwd", return_value=folder):
+            status, output, errors = self.command("project", "update")
+        self.assertEqual(status, 0)
+        self.assertIn("laravel-project", output)
+        self.assertEqual(errors, "")
+        store = JsonStateStore(self.data)
+        self.assertEqual(store.load().projects[0].configuration.number, 2)
+
     def test_project_resolution_error_is_actionable(self):
         with patch("brig.ui.cli.Path.cwd", return_value=Path(self.directory.name)):
             status, _, errors = self.command("up")

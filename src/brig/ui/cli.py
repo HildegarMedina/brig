@@ -196,9 +196,14 @@ def parser() -> argparse.ArgumentParser:
         metavar="FILE",
         help=tr("export to a new file instead of printing; existing files are kept"),
     )
-    projects.add_parser(
+    updating = projects.add_parser(
         "update", help=tr("apply the latest profile version")
-    ).add_argument("name")
+    )
+    updating.add_argument(
+        "name",
+        nargs="?",
+        help=tr("project name; defaults to the registered project for this folder"),
+    )
     projects.add_parser(
         "clean",
         help=tr("remove unused old project images, keeping current images and data"),
@@ -340,7 +345,9 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
             return project_list(app)
         if args.action == "show":
             return "\n".join(project_lines(app, app.project(args.name)))
-        return app.update_project(args.name)
+        if args.action == "update":
+            project = app.resolve_project(args.name, Path.cwd())
+            return app.update_project(project.name)
     if args.command == "reference":
         project = app.resolve_project(args.project, Path.cwd())
         if args.action == "add":
