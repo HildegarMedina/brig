@@ -100,9 +100,12 @@ run `brig update my-api` explicitly. Updates rebuild installations and recreate
 the environment while retaining project files, login, and persistent volumes.
 
 Environment operations show compact status messages instead of raw Docker output.
-Supported interactive terminals display a spinner; redirected output, CI, and
-`TERM=dumb` use plain text. Colors respect `NO_COLOR`, and non-Unicode terminals
-use ASCII indicators. Set `BRIG_NO_ANIMATION=1` to disable animation.
+Supported interactive terminals display a two-masted brig sailing over moving
+waves while preparing and starting an environment. During `brig down`, the ship
+sinks below the waves. Small terminals use a compact ship; redirected output, CI,
+and `TERM=dumb` use plain text. The ship uses ASCII, and colors respect `NO_COLOR`.
+Set `BRIG_NO_ANIMATION=1` to disable animation. Animations stop as soon as the
+operation finishes and clear before opening a terminal or showing errors.
 Use `brig up my-api --verbose`, `brig run my-api --verbose`, or the global
 `brig --verbose …` option to see live Docker output. Failures automatically
 include the final diagnostic output (up to 64 KiB).

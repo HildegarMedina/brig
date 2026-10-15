@@ -407,6 +407,7 @@ class DockerEngine:
             [*self._compose(project, compose_dir), "down", "--remove-orphans"],
             capture=False,
             status=tr("Stopping {value0}…").format(value0=project.name),
+            animation="sinking",
         )
         return tr(
             "Stopped {value0}. Source files and Docker volumes were kept."

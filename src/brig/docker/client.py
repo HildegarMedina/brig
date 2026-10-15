@@ -19,7 +19,7 @@ class DockerClient:
         self.runner = runner or subprocess.run
         self._checked = False
 
-    def run(self, args, *, capture=True, check=True, status=None):
+    def run(self, args, *, capture=True, check=True, status=None, animation="sailing"):
         try:
             with ExitStack() as stack:
                 options = {"text": True, "check": False}
@@ -32,7 +32,9 @@ class DockerClient:
                 else:
                     log = stack.enter_context(tempfile.TemporaryFile())
                     stack.enter_context(
-                        progress(status or tr("Preparing environment…"))
+                        progress(
+                            status or tr("Preparing environment…"), animation=animation
+                        )
                     )
                     options["stdout"] = log
                     options["stderr"] = subprocess.STDOUT
