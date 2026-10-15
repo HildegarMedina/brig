@@ -50,7 +50,8 @@ account and user identifiers needed for workspace discovery and Codex `/usage`.
 Usage analytics requires a ChatGPT login; API-key authentication does not provide
 a ChatGPT account identity. The proxy inserts the real
 credential into approved HTTPS model requests and read-only Codex account/config
-bootstrap and usage analytics requests, verifies upstream certificates, rejects credentialed
+bootstrap, profile statistics, and usage analytics requests (including the
+read-only POST query for per-chat usage), verifies upstream certificates, rejects credentialed
 redirects, and filters known credentials from returned streams. Its CA private
 key is never mounted in the agent. Native login inside the agent cannot update
 the protected login; use `brig auth` from the host.
