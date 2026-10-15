@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/logo-brig.png" alt="Brig logo" width="480">
+</p>
+
 # Brig
 
 A development environment for every project, managed from your terminal.
