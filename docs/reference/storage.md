@@ -157,8 +157,13 @@ Names use the `brig-PROJECT_ID` prefix:
 | Claude conversation files | `brig-ID-claude-history` → `/opt/brig-agent-home/claude/.config/claude/projects` |
 | Data volume | `brig-ID-SERVICE-data` |
 | MongoDB configuration volume | `brig-ID-mongodb-config` |
-| Development image | `brig-dev-brig-ID:HASH` |
-| Credential proxy image | `brig-dev-brig-ID:HASH-credential-proxy` |
+| Development image | `brig-dev:HASH` |
+| Credential proxy image | `brig-dev:HASH-credential-proxy` |
+
+Development and credential proxy images are shared across projects with the same
+generated build configuration and host UID/GID. Profile names, version numbers,
+and project names do not affect image identity. Containers, networks, and project
+volumes remain separate. Deleting a project keeps these shared images.
 
 Source files live in the registered host folder, mounted at `/workspace`. Named
 volumes are managed by Docker and are not inside Brig's data directory. They have

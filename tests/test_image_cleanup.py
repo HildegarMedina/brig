@@ -86,6 +86,17 @@ class ImageCleanupTests(unittest.TestCase):
             any("volume" in args or "--force" in args for args in self.calls)
         )
 
+    def test_cleanup_includes_legacy_project_tags_but_keeps_other_projects(self):
+        from brig.docker.compose import project_prefix
+
+        legacy = f"brig-dev-{project_prefix(self.project)}:{'a' * 24}"
+        self.listing = f"old {legacy}\nother brig-dev-brig-other:{'a' * 24}"
+        self.engine.clean(self.project)
+        self.assertEqual(
+            [args for args in self.calls if args[1:3] == ["image", "rm"]],
+            [["docker", "image", "rm", legacy]],
+        )
+
     def test_empty_cleanup(self):
         self.assertIn("removed 0", self.engine.clean(self.project))
 

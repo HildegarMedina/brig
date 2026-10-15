@@ -83,7 +83,7 @@ class DockerWorkspace:
                 f"{uid}:{gid}\n{dockerfile}" + str(sorted(proxy_sources().items()))
             ).encode()
         ).hexdigest()[:24]
-        image = f"brig-dev-{project_prefix(project)}:{digest}"
+        image = f"brig-dev:{digest}"
         directory = self.project_directory(project) / digest
         return directory, image, dockerfile
 

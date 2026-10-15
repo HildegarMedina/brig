@@ -179,8 +179,10 @@ brig project clean my-api
 ```
 
 Brig keeps images for the current configuration and any image used by a running
-or stopped container. It removes old development, credential proxy, and legacy
-agent image tags for this project without forcing deletion. You can run cleanup
+or stopped container from any project. It removes unused shared development and
+credential proxy image tags, plus legacy image tags belonging to this project,
+without forcing deletion. Shared images with no containers can be rebuilt when
+another project next needs them. You can run cleanup
 while the project is running.
 
 Source files, volumes, database images, and build cache remain intact. Cleanup

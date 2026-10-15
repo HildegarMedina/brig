@@ -83,7 +83,7 @@ See [import profiles](../how-to/import-profiles.md) for examples and file limits
 | `brig project clean NAME` | Remove unused old project image tags; keep current images and data |
 | `brig project update NAME` | Adopt the latest profile version when the environment is stopped |
 | `brig project rename NAME NEW_NAME` | Rename a project; its Docker environment is kept |
-| `brig project delete NAME [--yes]` | Stop the project and remove its containers, images, volumes, and registration; keep its folder and profile |
+| `brig project delete NAME [--yes]` | Stop the project and remove its containers, legacy project images, volumes, and registration; keep its folder and profile |
 | `brig project dockerfile [NAME] [--output FILE]` | Display or export its Dockerfile |
 | `brig project attach NAME FILE [FILE ...]` | Copy local files into project context and print their container paths |
 | `brig project detach NAME` | Remove all attachment copies for the project; preserve originals |
@@ -91,8 +91,8 @@ See [import profiles](../how-to/import-profiles.md) for examples and file limits
 `project clean` requires Docker and works with running or stopped projects. It
 keeps the development and credential proxy images for the current configuration,
 and any image used by a running or stopped container. It removes only old image
-tags belonging to that project, including legacy agent images, without forcing
-deletion. Volumes, source files, database images, generated configuration files,
+tags from the shared Brig image repository and legacy tags belonging to that
+project, without forcing deletion. Deleting a project keeps shared images. Volumes, source files, database images, generated configuration files,
 and build cache are preserved. The result reports removed tags rather than
 reclaimed bytes because image layers can be shared.
 

@@ -1,6 +1,5 @@
 """Render development Dockerfiles from pinned project configurations."""
 
-import json
 import shlex
 
 from brig.components.agents import AGENTS, validate_agents
@@ -126,9 +125,6 @@ def render_dockerfile(project: Project) -> str:
     lines.extend(user_lines(configuration.tools.get("composer")))
     lines.extend(
         [
-            f"LABEL org.brig.project={json.dumps(project.name)} \\",
-            f"      org.brig.profile={json.dumps(project.profile)} \\",
-            f"      org.brig.profile.version={json.dumps(str(configuration.number))}",
             "",
             "WORKDIR /workspace",
             "USER brig",

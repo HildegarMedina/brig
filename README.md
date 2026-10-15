@@ -121,7 +121,10 @@ Run `brig` to open the dashboard, or use commands directly:
 Attachments are copied into the project. Brig prints the path you can give to
 your agent; `brig project detach` or `brig down` removes the copies and keeps
 the originals. Image cleanup keeps current images and images used by any
-container, along with all volumes and data.
+container, along with all volumes and data. Projects with identical build
+configurations share development and credential proxy images while keeping
+separate containers, networks, and project volumes. Project deletion keeps shared
+images; cleanup can remove them when unused.
 
 To change an environment and apply it to an existing project:
 

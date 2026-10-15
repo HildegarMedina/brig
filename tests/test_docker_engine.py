@@ -5,6 +5,7 @@ import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr
+from copy import deepcopy
 from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
@@ -195,6 +196,52 @@ class DockerEngineTests(unittest.TestCase):
         self.assertNotIn("-v", down)
         self.assertFalse(self.app.project("api").running)
         self.assertTrue(Path(self.project.path).is_dir())
+
+    def test_gitconfig_permission_failure_reports_configuration_error(self):
+        original = Path.chmod
+
+        def chmod(path, mode):
+            if path.name == "gitconfig":
+                raise OSError("permission denied")
+            return original(path, mode)
+
+        with (
+            patch.object(Path, "chmod", chmod),
+            self.assertRaisesRegex(BrigError, "Cannot write Docker configuration"),
+        ):
+            self.start()
+
+    def test_equivalent_projects_reuse_image_with_separate_environments(self):
+        self.start()
+        first_directory, first_image, first_dockerfile = self.engine.workspace.plan(
+            self.project, 1234, 4321
+        )
+        other = deepcopy(self.project)
+        other.id = "another-project"
+        other.name = "another-name"
+        other.profile = "equivalent-profile"
+        other.configuration.number += 1
+        other.path = str(Path(self.folder.name) / "other")
+        Path(other.path).mkdir()
+        directory, image, dockerfile = self.engine.workspace.plan(other, 1234, 4321)
+        self.assertEqual(image, first_image)
+        self.assertEqual(dockerfile, first_dockerfile)
+        self.assertNotEqual(directory, first_directory)
+        self.assertNotEqual(self.engine.workspace.plan(other, 1235, 4321)[1], image)
+        self.assertNotEqual(self.engine.workspace.plan(other, 1234, 4322)[1], image)
+        self.runner.exists = False
+        self.runner.project_id = other.id
+        self.runner.calls.clear()
+        with redirect_stderr(io.StringIO()):
+            self.engine.start(other)
+        self.assertFalse(any("build" in args for args, _ in self.runner.calls))
+        compose = (directory / "compose.yaml").read_text()
+        self.assertIn(image, compose)
+        self.assertIn(other.path, compose)
+        self.assertNotEqual(
+            self.engine.describe(other).development,
+            self.engine.describe(self.project).development,
+        )
 
     def test_run_prepares_and_executes_program_without_shell_interpolation(self):
         with redirect_stderr(io.StringIO()):

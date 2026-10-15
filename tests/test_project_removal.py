@@ -55,7 +55,8 @@ class ProjectRemovalTests(unittest.TestCase):
                 return CompletedProcess(
                     args,
                     0,
-                    f"{repository}:{'a' * 24}\n{repository}:{'a' * 24}-credential-proxy",
+                    f"{repository}:{'a' * 24}\n{repository}:{'a' * 24}-credential-proxy"
+                    f"\nbrig-dev:{'b' * 24}\nbrig-dev:{'b' * 24}-credential-proxy",
                     "",
                 )
             return CompletedProcess(args, 0, "", "")

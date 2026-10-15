@@ -204,7 +204,11 @@ class DockerEngine:
                 image_id for image_id, reference in images if reference in keep
             }
             pattern = re.compile(
-                re.escape(repository)
+                "(?:"
+                + re.escape(repository)
+                + "|"
+                + re.escape(f"brig-dev-{project_prefix(project)}")
+                + ")"
                 + r":[0-9a-f]{24}(?:-credential-proxy|-agent-(?:claude|codex|opencode))?"
             )
             removed = 0
@@ -224,7 +228,7 @@ class DockerEngine:
                 )
                 if containers.stdout.strip():
                     continue
-                # Remove only the project's tag, without forcing deletion of shared images.
+                # Check all projects, including stopped containers; never force removal.
                 self.client.run(["image", "rm", reference])
                 removed += 1
             return tr(
@@ -235,7 +239,7 @@ class DockerEngine:
         """Delete the project's containers, networks, volumes, images and files.
 
         Only resources labelled with the project ID or named with its unique
-        prefix are removed; shared agent logins are kept.
+        prefix are removed; shared images and agent logins are kept.
         """
         prefix = project_prefix(project)
         label = f"label=org.brig.project-id={project.id}"
