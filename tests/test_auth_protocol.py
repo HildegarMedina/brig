@@ -88,6 +88,29 @@ class AuthProtocolTests(unittest.TestCase):
             self.assertEqual(flow.response.status_code, 403)
             self.assertNotIn(self.secret, str(flow.response.content))
 
+    def test_codex_analytics_reports_allow_only_exact_read_routes(self):
+        for route in (
+            "usage/daily-token-usage-breakdown",
+            "usage/credit-usage-events",
+            "usage/plan_limit_history",
+            "usage/daily-workspace-user-token-usage-breakdown",
+            "usage/daily-workspace-user-credit-usage",
+            "analytics/daily-workspace-usage-counts",
+            "analytics/daily-plugin-usage-metrics",
+            "analytics/daily-skill-usage-metrics",
+        ):
+            url = "https://chatgpt.com/backend-api/wham/" + route
+            flow = self.flow(url + "?start_date=2026-10-01", "GET")
+            self.injector.request(flow)
+            self.assertIsNone(flow.response)
+            self.assertEqual(
+                flow.request.headers["authorization"], "Bearer " + self.secret
+            )
+            for suffix, method in (("", "POST"), ("/extra", "GET")):
+                flow = self.flow(url + suffix, method)
+                self.injector.request(flow)
+                self.assertEqual(flow.response.status_code, 403)
+
     def test_websocket_handshakes_ask_clients_to_use_https(self):
         for url in (
             "https://chatgpt.com/backend-api/codex/responses",

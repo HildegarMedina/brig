@@ -12,7 +12,7 @@ PLACEHOLDER = "sk-brig-proxy-managed-not-a-real-credential"
 EXPIRES = 4102444800000
 
 
-def placeholder_jwt(account_id: str = "brig-proxy") -> str:
+def placeholder_jwt(account_id: str = "brig-proxy", user_id: str | None = None) -> str:
     def encode(value):
         return base64.urlsafe_b64encode(json.dumps(value).encode()).decode().rstrip("=")
 
@@ -24,6 +24,7 @@ def placeholder_jwt(account_id: str = "brig-proxy") -> str:
                 "exp": EXPIRES // 1000,
                 "https://api.openai.com/auth": {
                     "chatgpt_account_id": account_id,
+                    "chatgpt_user_id": user_id,
                     "chatgpt_plan_type": "plus",
                 },
             }
@@ -35,7 +36,7 @@ def placeholder_jwt(account_id: str = "brig-proxy") -> str:
 def login_view(store: CredentialStore) -> dict:
     if store.agent == "codex":
         try:
-            _, _, record, _ = store.record("openai")
+            _, raw, record, _ = store.record("openai")
         except CredentialError:
             record = {"type": "api"}
         if record.get("type") == "oauth":
@@ -50,11 +51,21 @@ def login_view(store: CredentialStore) -> dict:
                 ord(char) < 33 or ord(char) > 126 for char in account_id
             ):
                 raise CredentialError("Invalid account identifier")
+            user_claims = claims(
+                raw.get("tokens", {}).get("id_token") or record.get("access") or ""
+            ).get("https://api.openai.com/auth", {})
+            user_id = user_claims.get("chatgpt_user_id") or user_claims.get("user_id")
+            if user_id is not None and (
+                not isinstance(user_id, str)
+                or not user_id
+                or any(ord(char) < 33 or ord(char) > 126 for char in user_id)
+            ):
+                raise CredentialError("Invalid user identifier")
             return {
                 "auth_mode": "chatgpt",
                 "tokens": {
-                    "id_token": placeholder_jwt(account_id),
-                    "access_token": placeholder_jwt(account_id),
+                    "id_token": placeholder_jwt(account_id, user_id),
+                    "access_token": placeholder_jwt(account_id, user_id),
                     "refresh_token": PLACEHOLDER,
                     "account_id": account_id,
                 },

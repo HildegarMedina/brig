@@ -46,9 +46,11 @@ a revoked or invalid login may require signing in again from the host.
 The real credential store is mounted only in its separate credential proxy and
 trusted authentication helper. The agent receives inert login placeholders and
 public CA certificates. Codex's public login view also retains the non-secret
-account identifier needed for workspace discovery. The proxy inserts the real
+account and user identifiers needed for workspace discovery and Codex `/usage`.
+Usage analytics requires a ChatGPT login; API-key authentication does not provide
+a ChatGPT account identity. The proxy inserts the real
 credential into approved HTTPS model requests and read-only Codex account/config
-bootstrap requests, verifies upstream certificates, rejects credentialed
+bootstrap and usage analytics requests, verifies upstream certificates, rejects credentialed
 redirects, and filters known credentials from returned streams. Its CA private
 key is never mounted in the agent. Native login inside the agent cannot update
 the protected login; use `brig auth` from the host.

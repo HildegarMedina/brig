@@ -170,6 +170,33 @@ class AuthCredentialTests(unittest.TestCase):
                 with self.assertRaises(CredentialError):
                     login_view(store)
 
+    def test_codex_analytics_identity_is_public_and_tokens_stay_inert(self):
+        store = CredentialStore(self.root, "codex")
+        for user_id in ("user-fixture", None, "", 7, "bad\nuser"):
+            self.write(
+                "auth.json",
+                {
+                    "tokens": {
+                        "id_token": placeholder_jwt("account-fixture", user_id),
+                        "access_token": self.token,
+                        "refresh_token": self.token,
+                        "account_id": "account-fixture",
+                    }
+                },
+            )
+            if user_id in ("user-fixture", None, ""):
+                view = login_view(store)
+                self.assertEqual(
+                    claims(view["tokens"]["id_token"])["https://api.openai.com/auth"][
+                        "chatgpt_user_id"
+                    ],
+                    user_id or None,
+                )
+                self.assertNotIn(self.token, json.dumps(view))
+            else:
+                with self.assertRaises(CredentialError):
+                    login_view(store)
+
     def test_claude_and_opencode_legacy_and_v2_logins(self):
         self.write(
             ".credentials.json",
