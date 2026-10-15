@@ -109,7 +109,8 @@ class PasteTests(unittest.TestCase):
         stream = TtyStream()
         with (
             patch("sys.stdout", stream),
-            self.assertRaises(ValueError),tui_protocols()
+            self.assertRaises(ValueError),
+            tui_protocols(),
         ):
             raise ValueError
         self.assertEqual(stream.getvalue(), ENABLE_PROTOCOLS + RESTORE_PROTOCOLS)

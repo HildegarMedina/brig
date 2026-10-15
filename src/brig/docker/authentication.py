@@ -5,6 +5,7 @@ import json
 from brig.components.agents import AGENTS
 from brig.errors import BrigError
 from brig.i18n import tr
+from brig.terminal_session import run_agent_terminal
 
 
 def authenticate(engine, project, agent, *, provider=None, key=None):
@@ -148,7 +149,11 @@ def login_maintenance(engine, image, mount, agent, operation):
 
 def run_helper(engine, command, options):
     try:
-        result = engine.client.runner(command, check=False, **options)
+        result = (
+            run_agent_terminal(command, runner=engine.client.runner)
+            if "-it" in command
+            else engine.client.runner(command, check=False, **options)
+        )
     except OSError as error:
         raise BrigError(tr("Cannot authenticate agent from the host.")) from error
     if result.returncode:

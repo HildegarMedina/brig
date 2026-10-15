@@ -292,7 +292,13 @@ class DockerEngineTests(unittest.TestCase):
             patch("brig.docker.engine.sys.stdout.isatty", return_value=True),
             patch.dict(
                 "brig.docker.engine.os.environ",
-                {"TERM": "xterm-kitty", "COLORTERM": "truecolor", "LANG": "C"},
+                {
+                    "TERM": "xterm-kitty",
+                    "COLORTERM": "truecolor",
+                    "LANG": "C",
+                    "TERM_PROGRAM": "vscode",
+                    "TERM_PROGRAM_VERSION": "1.100.0",
+                },
                 clear=True,
             ),
             redirect_stderr(io.StringIO()),
@@ -301,10 +307,33 @@ class DockerEngineTests(unittest.TestCase):
         command = self.runner.calls[-1][0]
         self.assertIn("TERM=xterm-kitty", command)
         self.assertIn("COLORTERM=truecolor", command)
+        self.assertIn("TERM_PROGRAM=vscode", command)
+        self.assertIn("TERM_PROGRAM_VERSION=1.100.0", command)
         # A non-interactive command never allocates a TTY, so it needs no TERM.
         with redirect_stderr(io.StringIO()):
             self.app.shell("api", ["true"])
         self.assertNotIn("TERM=xterm-kitty", self.runner.calls[-1][0])
+        self.assertNotIn("TERM_PROGRAM=vscode", self.runner.calls[-1][0])
+
+    def test_all_interactive_agents_share_the_host_clipboard_bridge(self):
+        self.project.configuration.agents = ["claude", "codex", "opencode"]
+        for agent in self.project.configuration.agents:
+            with (
+                self.subTest(agent=agent),
+                patch("brig.docker.engine.sys.stdin.isatty", return_value=True),
+                patch("brig.docker.engine.sys.stdout.isatty", return_value=True),
+                patch(
+                    "brig.docker.engine.run_agent_terminal",
+                    wraps=lambda args, runner: runner(args, check=False),
+                ) as bridge,
+                redirect_stderr(io.StringIO()),
+            ):
+                self.app.run_agent("api", agent)
+                bridge.assert_called_once()
+                self.assertEqual(bridge.call_args.args[0][-1], agent)
+                bridge.reset_mock()
+                self.app.run_agent("api", agent, [agent, "--version"])
+                bridge.assert_not_called()
 
     def test_interactive_terminal_drops_malformed_terminal_values(self):
         with (

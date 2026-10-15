@@ -22,6 +22,7 @@ from brig.errors import BrigError, PendingReferences
 from brig.i18n import tr
 from brig.models import Project
 from brig.references import references_match
+from brig.terminal_session import run_agent_terminal
 
 
 class DockerEngine:
@@ -469,7 +470,7 @@ class DockerEngine:
             # and negotiate the richer keyboard protocol (needed to tell
             # Ctrl/Shift+Enter from a plain Enter) instead of a degraded mode.
             # docker exec does not relay COLORTERM on its own.
-            for name in ("TERM", "COLORTERM"):
+            for name in ("TERM", "COLORTERM", "TERM_PROGRAM", "TERM_PROGRAM_VERSION"):
                 value = os.environ.get(name, "")
                 if re.fullmatch(r"[A-Za-z0-9._-]+", value):
                     args.extend(["--env", f"{name}={value}"])
@@ -488,7 +489,11 @@ class DockerEngine:
             ]
         )
         try:
-            result = self.client.runner(args, check=False)
+            result = (
+                run_agent_terminal(args, runner=self.client.runner)
+                if interactive and command[0] in AGENTS
+                else self.client.runner(args, check=False)
+            )
         except OSError as error:
             raise BrigError(
                 tr("Cannot enter project terminal: {value0}").format(value0=error)

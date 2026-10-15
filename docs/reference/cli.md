@@ -333,6 +333,12 @@ re-enables it after every embedded session, because readline and agents reset it
 on exit; it also clears keyboard enhancements left by a session that died without
 restoring the terminal.
 
+Interactive Claude Code, Codex, and OpenCode sessions use a shared host clipboard
+bridge for text. With host clipboard tools available, `Ctrl+V` delivers a
+bracketed paste and the agent's OSC 52 copy action updates the host clipboard.
+Terminal-native paste shortcuts remain available. See
+[clipboard requirements and limitations](../how-to/troubleshooting.md#copy-and-paste-inside-claude-code-codex-or-opencode).
+
 Validation errors are highlighted in red. **Shell** prepares the project and opens
 its terminal; leaving it returns to the menu. **View Dockerfile** displays the
 definition without starting Docker.

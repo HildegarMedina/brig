@@ -40,6 +40,40 @@ brig run my-api --command python --version
 Passing `--command` without a program is an error. A program that exits with a
 nonzero status produces a Brig error; the environment remains running.
 
+## Copy and paste inside Claude Code, Codex, or OpenCode
+
+Interactive agent sessions and native login screens share a host clipboard
+bridge. `Ctrl+V` reads text from the host clipboard and sends a bracketed paste
+to the agent, preserving Unicode and line breaks without submitting the prompt.
+The agent's copy action emits OSC 52; Brig also delivers that text to the host
+clipboard. Use the agent's copy action or your terminal's selection shortcut;
+`Ctrl+C` keeps its usual interrupt/cancel behavior.
+
+The bridge detects these **host** clipboard tools automatically:
+
+| Host | Clipboard tools |
+| --- | --- |
+| macOS | Built-in `pbpaste` and `pbcopy` |
+| Linux / Wayland | `wl-paste` and `wl-copy` (`wl-clipboard` package) |
+| Linux / X11 | `xclip` or `xsel` |
+| WSL | Windows `powershell.exe`, when WSL interoperability is enabled |
+
+For example, on Debian/Ubuntu install `wl-clipboard` for a Wayland desktop or
+`xclip` for X11. Install these on the machine running Brig, outside its containers.
+Brig does not mount display sockets or expose a clipboard API to agents.
+
+The terminal's own paste shortcut (often `Ctrl+Shift+V` on Linux or `Cmd+V` on
+macOS) continues to work. If a host helper is missing or fails, Brig leaves
+`Ctrl+V` to the agent; copying still depends on the terminal's OSC 52 support.
+Over SSH, helpers access the remote host's clipboard, so use your local terminal's
+paste shortcut and enable its OSC 52 copy support instead. Image pasting is not
+provided by this text bridge.
+
+After updating Brig with `./scripts/install.sh`, leave and reopen agent sessions
+to activate the bridge. This change does not require rebuilding or recreating
+project containers. Noninteractive `--command` executions keep their original
+streams and do not access the clipboard.
+
 ## New line in an agent prompt sends the message instead
 
 Inside the project terminal the agent runs through `docker exec`, and some key
@@ -56,8 +90,9 @@ agent. In editors such as VS Code, Cursor, or Zed, run the agent's own terminal
 setup (in Claude Code, `/terminal-setup`) once inside the project terminal.
 
 If colors or the agent interface look reduced, confirm the host terminal sets
-`TERM` (for example `xterm-256color`) and `COLORTERM=truecolor`; Brig passes both
-through, but only when they are present on the host.
+`TERM` (for example `xterm-256color`) and `COLORTERM=truecolor`; Brig passes these
+through along with `TERM_PROGRAM` and `TERM_PROGRAM_VERSION` when present and
+valid on the host, so agents can identify the terminal's capabilities.
 
 ## Brig cannot find the project
 
