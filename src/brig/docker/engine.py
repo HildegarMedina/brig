@@ -152,6 +152,9 @@ class DockerEngine:
                     f"credential_{project.configuration.selected_agents[0]}",
                 ],
                 capture=False,
+                status=tr("Building environment for {value0}…").format(
+                    value0=project.name
+                ),
             )
             from brig.agent_updates import newer
 
@@ -247,11 +250,6 @@ class DockerEngine:
                     )
                 missing = True
         if missing:
-            print(
-                tr("Building image for {value0}…").format(value0=project.name),
-                file=sys.stderr,
-                flush=True,
-            )
             self.client.run(
                 [
                     *command,
@@ -260,12 +258,10 @@ class DockerEngine:
                     f"credential_{project.configuration.selected_agents[0]}",
                 ],
                 capture=False,
+                status=tr("Building environment for {value0}…").format(
+                    value0=project.name
+                ),
             )
-        print(
-            tr("Starting {value0}…").format(value0=project.name),
-            file=sys.stderr,
-            flush=True,
-        )
         self.client.run(
             [
                 *command,
@@ -278,6 +274,7 @@ class DockerEngine:
                 "--remove-orphans",
             ],
             capture=False,
+            status=tr("Starting {value0}…").format(value0=project.name),
         )
         if not self.is_running(project):
             raise BrigError(
@@ -409,6 +406,7 @@ class DockerEngine:
         self.client.run(
             [*self._compose(project, compose_dir), "down", "--remove-orphans"],
             capture=False,
+            status=tr("Stopping {value0}…").format(value0=project.name),
         )
         return tr(
             "Stopped {value0}. Source files and Docker volumes were kept."

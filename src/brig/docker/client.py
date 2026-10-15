@@ -4,11 +4,14 @@ import json
 import shutil
 import subprocess
 import sys
+import tempfile
+from contextlib import ExitStack
 
 from brig.docker.compose import project_prefix
 from brig.errors import BrigError
 from brig.i18n import tr
 from brig.models import Project
+from brig.progress import progress, verbose_output
 
 
 class DockerClient:
@@ -16,15 +19,42 @@ class DockerClient:
         self.runner = runner or subprocess.run
         self._checked = False
 
-    def run(self, args, *, capture=True, check=True):
+    def run(self, args, *, capture=True, check=True, status=None):
         try:
-            options = {"text": True, "check": False}
-            if capture:
-                options["capture_output"] = True
-            else:
-                options["stdout"] = sys.stderr
-                options["stderr"] = sys.stderr
-            result = self.runner(["docker", *args], **options)
+            with ExitStack() as stack:
+                options = {"text": True, "check": False}
+                log = None
+                if capture:
+                    options["capture_output"] = True
+                elif verbose_output():
+                    options["stdout"] = sys.stderr
+                    options["stderr"] = sys.stderr
+                else:
+                    log = stack.enter_context(tempfile.TemporaryFile())
+                    stack.enter_context(
+                        progress(status or tr("Preparing environment…"))
+                    )
+                    options["stdout"] = log
+                    options["stderr"] = subprocess.STDOUT
+                result = self.runner(["docker", *args], **options)
+                if log is not None and result.returncode:
+                    # Keep build output off the terminal and out of memory. Only
+                    # load the final 64 KiB when diagnostics are needed.
+                    log.seek(0, 2)
+                    log.seek(max(0, log.tell() - 65536))
+                    result.stderr = result.stderr or log.read().decode(
+                        "utf-8", errors="replace"
+                    )
+                if check and result.returncode:
+                    details = (
+                        result.stderr or result.stdout or "See Docker output above."
+                    ).strip()
+                    raise BrigError(
+                        tr("Docker failed (exit {value0}): {value1}").format(
+                            value0=result.returncode, value1=details
+                        )
+                    )
+                return result
         except FileNotFoundError as error:
             raise BrigError(
                 tr(
@@ -35,16 +65,6 @@ class DockerClient:
             raise BrigError(
                 tr("Cannot execute Docker: {value0}").format(value0=error)
             ) from error
-        if check and result.returncode:
-            details = (
-                result.stderr or result.stdout or "See Docker output above."
-            ).strip()
-            raise BrigError(
-                tr("Docker failed (exit {value0}): {value1}").format(
-                    value0=result.returncode, value1=details
-                )
-            )
-        return result
 
     def check(self):
         if self._checked:

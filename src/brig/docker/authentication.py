@@ -125,6 +125,7 @@ def authenticate(engine, project, agent, *, provider=None, key=None):
             "dev",
         ],
         capture=False,
+        status=tr("Applying credentials…"),
     )
     return tr(
         "Authentication saved for {agent}. Other running projects may need restarting."

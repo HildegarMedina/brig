@@ -433,5 +433,10 @@
   "prepare a project and open Bash": "preparar um projeto e abrir o Bash",
   "prepare a project and open its default or requested agent": "preparar um projeto e abrir seu agente padrão ou indicado",
   "skip the automatic agent update check": "ignorar a verificação automática de atualizações dos agentes",
-  "project name or agent shortcut; defaults to this folder's project": "nome do projeto ou atalho do agente; por padrão, o projeto desta pasta"
+  "project name or agent shortcut; defaults to this folder's project": "nome do projeto ou atalho do agente; por padrão, o projeto desta pasta",
+  "Preparing environment…": "Preparando ambiente…",
+  "Building environment for {value0}…": "Construindo ambiente de {value0}…",
+  "Stopping {value0}…": "Parando {value0}…",
+  "Applying credentials…": "Aplicando credenciais…",
+  "show detailed environment output": "mostrar a saída detalhada do ambiente"
 }

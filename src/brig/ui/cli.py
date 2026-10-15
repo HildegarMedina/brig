@@ -25,6 +25,7 @@ from brig.i18n import (
 )
 from brig.i18n.preferences import load_language, save_language
 from brig.persistence.store import JsonStateStore, default_data_directory
+from brig.progress import output_options
 from brig.ui.agent_selection import choose_agent
 from brig.ui.listings import profile_list, project_list
 from brig.ui.presentation import project_lines
@@ -51,6 +52,9 @@ def parser() -> argparse.ArgumentParser:
         "--lang",
         choices=tuple(LANGUAGES),
         help=tr("language for this invocation: en, es, pt"),
+    )
+    root.add_argument(
+        "--verbose", action="store_true", help=tr("show detailed environment output")
     )
     commands = root.add_subparsers(dest="command")
     language = commands.add_parser(
@@ -172,6 +176,12 @@ def parser() -> argparse.ArgumentParser:
         ("agent", tr("prepare a project and launch its agent")),
     ):
         command = commands.add_parser(name, help=description)
+        command.add_argument(
+            "--verbose",
+            action="store_true",
+            default=argparse.SUPPRESS,
+            help=tr("show detailed environment output"),
+        )
         command.add_argument(
             "--project",
             metavar="NAME",
@@ -379,6 +389,11 @@ def dispatch(app: Application, args: argparse.Namespace) -> str:
 
 def _main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
+    with output_options(verbose=args.verbose):
+        return _execute(args)
+
+
+def _execute(args: argparse.Namespace) -> int:
     action = _interactive_action(args)
     if action and not (sys.stdin.isatty() and sys.stdout.isatty()):
         print(

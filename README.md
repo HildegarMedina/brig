@@ -99,6 +99,14 @@ Brig checks agent releases periodically and asks before updating. You can also
 run `brig update my-api` explicitly. Updates rebuild installations and recreate
 the environment while retaining project files, login, and persistent volumes.
 
+Environment operations show compact status messages instead of raw Docker output.
+Supported interactive terminals display a spinner; redirected output, CI, and
+`TERM=dumb` use plain text. Colors respect `NO_COLOR`, and non-Unicode terminals
+use ASCII indicators. Set `BRIG_NO_ANIMATION=1` to disable animation.
+Use `brig up my-api --verbose`, `brig run my-api --verbose`, or the global
+`brig --verbose …` option to see live Docker output. Failures automatically
+include the final diagnostic output (up to 64 KiB).
+
 ## Everyday use
 
 Run `brig` to open the dashboard, or use commands directly:
