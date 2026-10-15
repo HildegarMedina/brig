@@ -55,6 +55,7 @@ def permitted(method: str, path: str) -> bool:
             "/backend-api/codex/responses",
             "/backend-api/codex/responses/compact",
             "/backend-api/wham/usage/thread_usage/query",
+            "/backend-api/wham/usage/thread_usage/query_v2",
             "/v1/chat/completions",
             "/api/v1/chat/completions",
             "/openai/v1/chat/completions",

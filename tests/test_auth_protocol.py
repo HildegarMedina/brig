@@ -113,24 +113,32 @@ class AuthProtocolTests(unittest.TestCase):
                 self.assertEqual(flow.response.status_code, 403)
 
     def test_codex_chat_usage_query_is_forwarded_with_credentials(self):
-        url = "https://chatgpt.com/backend-api/wham/usage/thread_usage/query"
-        body = b'{"thread_ids":["thread-fixture"]}'
-        flow = self.flow(url, "POST", body)
-        self.injector.request(flow)
-        self.assertIsNone(flow.response)
-        self.assertEqual(flow.request.headers["authorization"], "Bearer " + self.secret)
-        self.assertEqual(flow.request.content, body)
-        self.injector.response(flow)
-        self.assertNotIn("authorization", flow.request.headers)
-        for method, suffix in (
-            ("GET", ""),
-            ("DELETE", ""),
-            ("POST", "/extra"),
-            ("POST", "/../query"),
+        for route, body in (
+            ("query", b'{"thread_ids":["thread-fixture"]}'),
+            (
+                "query_v2",
+                b'{"threads":[{"thread_id":"thread-fixture","descendant_thread_ids":[]}]}',
+            ),
         ):
-            flow = self.flow(url + suffix, method, body)
+            url = "https://chatgpt.com/backend-api/wham/usage/thread_usage/" + route
+            flow = self.flow(url, "POST", body)
             self.injector.request(flow)
-            self.assertEqual(flow.response.status_code, 403)
+            self.assertIsNone(flow.response)
+            self.assertEqual(
+                flow.request.headers["authorization"], "Bearer " + self.secret
+            )
+            self.assertEqual(flow.request.content, body)
+            self.injector.response(flow)
+            self.assertNotIn("authorization", flow.request.headers)
+            for method, suffix in (
+                ("GET", ""),
+                ("DELETE", ""),
+                ("POST", "/extra"),
+                ("POST", "/../query"),
+            ):
+                flow = self.flow(url + suffix, method, body)
+                self.injector.request(flow)
+                self.assertEqual(flow.response.status_code, 403)
 
     def test_websocket_handshakes_ask_clients_to_use_https(self):
         for url in (
