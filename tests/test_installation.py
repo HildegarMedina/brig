@@ -2,6 +2,7 @@
 
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -230,14 +231,35 @@ class InstallationTests(unittest.TestCase):
             "brig": "exit 0",
             **(commands or {}),
         }
+        # A closed PATH prevents a missing-tool test from finding a real uv or
+        # downloader and touching the host. Only harmless utilities are exposed.
+        for name in (
+            "bash",
+            "sh",
+            "dirname",
+            "mktemp",
+            "rm",
+            "tail",
+            "cat",
+            "sleep",
+            "mkdir",
+            "chmod",
+        ):
+            path = binary / name
+            if not path.exists():
+                path.symlink_to(shutil.which(name))
         for name, contents in programs.items():
             path = binary / name
+            if contents is None:
+                path.unlink(missing_ok=True)
+                continue
             path.write_text("#!/usr/bin/env bash\n" + contents + "\n")
             path.chmod(0o755)
         command = ["bash", str(self.repo / "scripts/install.sh"), *arguments]
         env = {
             **os.environ,
-            "PATH": str(binary) + os.pathsep + os.environ["PATH"],
+            "PATH": str(binary),
+            "UV_INSTALL_DIR": str(self.root / "uv bin"),
             "INSTALL_LOG": str(self.log),
             "TMPDIR": str(self.root),
             "DOCKER_HOST": "",
@@ -275,8 +297,13 @@ class InstallationTests(unittest.TestCase):
         result = self.installer()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(
-            self.log.read_text().strip(), f"tool install --reinstall {self.repo}"
+            self.log.read_text().splitlines(),
+            [
+                f"tool install --python >=3.12 --reinstall {self.repo}",
+                "tool update-shell",
+            ],
         )
+        self.assertNotIn("Preparing installer...", result.stderr)
         self.assertIn("BRIG / Installer", result.stderr)
         self.assertIn("Preparing Docker...", result.stderr)
         self.assertIn("Installing Brig...", result.stderr)
@@ -294,6 +321,136 @@ class InstallationTests(unittest.TestCase):
         self.assertIn("package build detail", result.stdout)
         self.assertIn("resolver detail", result.stderr)
         self.assertIn("daemon is accessible", result.stdout)
+
+    def uv_bootstrap(self, script=None):
+        fixture = self.root / "uv-installer-fixture.sh"
+        fixture.write_text(
+            script
+            or """set -eu
+printf 'bootstrap %s modify-path=%s\\n' "$UV_INSTALL_DIR" "$UV_NO_MODIFY_PATH" >> "$INSTALL_LOG"
+mkdir -p "$UV_INSTALL_DIR"
+cat > "$UV_INSTALL_DIR/uv" <<'UV'
+#!/usr/bin/env bash
+printf '%s\\n' "$*" >> "$INSTALL_LOG"
+UV
+chmod 755 "$UV_INSTALL_DIR/uv"
+echo 'bootstrap detail'
+"""
+        )
+        curl = """printf 'curl %s\\n' "$*" >> "$INSTALL_LOG"
+while [[ $# -gt 0 ]]; do
+    if [[ "$1" == --output ]]; then
+        cat "$UV_INSTALLER_FIXTURE" > "$2"
+        exit
+    fi
+    shift
+done
+exit 99
+"""
+        wget = """printf 'wget %s\\n' "$*" >> "$INSTALL_LOG"
+for arg in "$@"; do
+    if [[ "$arg" == --output-document=* ]]; then
+        cat "$UV_INSTALLER_FIXTURE" > "${arg#--output-document=}"
+        exit
+    fi
+done
+exit 99
+"""
+        return {"uv": None, "curl": curl, "wget": wget}, {
+            "UV_INSTALLER_FIXTURE": str(fixture)
+        }
+
+    def test_missing_uv_is_installed_locally_and_available_without_a_shell_restart(
+        self,
+    ):
+        commands, environment = self.uv_bootstrap()
+        result = self.installer(commands=commands, environment=environment)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = self.log.read_text()
+        self.assertIn("curl --fail", log)
+        self.assertIn("https://astral.sh/uv/install.sh", log)
+        self.assertIn(f"bootstrap {self.root / 'uv bin'} modify-path=1", log)
+        self.assertIn(f"tool install --python >=3.12 --reinstall {self.repo}", log)
+        self.assertIn("tool update-shell", log)
+        self.assertNotIn("wget", log)
+        self.assertNotIn("bootstrap detail", result.stdout + result.stderr)
+        self.assertIn("Preparing installer...", result.stderr)
+        self.assertIn("Open a new terminal and run: brig", result.stderr)
+        self.assertNotIn("uv tool update-shell", result.stderr)
+        self.assertEqual(list(self.root.glob("brig-uv.*")), [])
+
+    def test_uv_bootstrap_falls_back_to_wget(self):
+        commands, environment = self.uv_bootstrap()
+        result = self.installer(
+            commands={**commands, "curl": None}, environment=environment
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("wget --quiet", self.log.read_text())
+        self.assertIn("Brig installed.", result.stderr)
+        self.assertEqual(list(self.root.glob("brig-uv.*")), [])
+
+    def test_existing_user_local_uv_outside_path_is_reused_without_downloads(self):
+        directory = self.root / "uv bin"
+        directory.mkdir()
+        uv = directory / "uv"
+        uv.write_text('#!/usr/bin/env bash\nprintf \'%s\\n\' "$*" >> "$INSTALL_LOG"\n')
+        uv.chmod(0o755)
+        for _ in range(2):
+            result = self.installer(commands={"uv": None})
+            self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertNotIn("bootstrap", self.log.read_text())
+        self.assertEqual(self.log.read_text().count("tool install"), 2)
+
+    def test_failed_uv_download_never_executes_a_partial_installer(self):
+        commands, environment = self.uv_bootstrap()
+        commands["curl"] = commands["curl"].replace(
+            "        exit\n", "        echo 'download failed' >&2; exit 22\n"
+        )
+        result = self.installer(commands=commands, environment=environment)
+        self.assertEqual(result.returncode, 22, result.stderr)
+        self.assertIn("download failed", result.stderr)
+        self.assertNotIn("bootstrap", self.log.read_text())
+        self.assertNotIn("Installing Brig...", result.stderr)
+        self.assertEqual(list(self.root.glob("brig-uv.*")), [])
+
+    def test_failed_uv_bootstrap_reports_the_stage_and_cleans_up(self):
+        commands, environment = self.uv_bootstrap(
+            "echo 'bootstrap failed' >&2; exit 42\n"
+        )
+        result = self.installer(commands=commands, environment=environment)
+        self.assertEqual(result.returncode, 42)
+        self.assertIn("Could not complete: Preparing installer", result.stderr)
+        self.assertIn("bootstrap failed", result.stderr)
+        self.assertNotIn("tool install", self.log.read_text())
+        self.assertEqual(list(self.root.glob("brig-uv.*")), [])
+
+    def test_missing_download_tools_or_installed_binary_stop_setup(self):
+        commands, environment = self.uv_bootstrap("exit 0\n")
+        result = self.installer(
+            commands={**commands, "curl": None, "wget": None}, environment=environment
+        )
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("requires curl or wget", result.stderr)
+        self.assertEqual(list(self.root.glob("brig-uv.*")), [])
+        result = self.installer(commands=commands, environment=environment)
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("did not create", result.stderr)
+        self.assertNotIn("tool install", self.log.read_text())
+        self.assertEqual(list(self.root.glob("brig-uv.*")), [])
+
+    def test_root_cannot_bootstrap_uv_and_failed_shell_setup_is_reported(self):
+        result = self.installer(commands={"id": "echo 0", "uv": None})
+        self.assertEqual(result.returncode, 1)
+        self.assertIn("without sudo", result.stderr)
+        self.assertEqual(self.log.read_text(), "")
+        result = self.installer(
+            commands={
+                "uv": 'if [[ "$*" == "tool update-shell" ]]; then echo "shell setup failed" >&2; exit 19; fi'
+            }
+        )
+        self.assertEqual(result.returncode, 19)
+        self.assertIn("shell setup failed", result.stderr)
+        self.assertNotIn("Brig installed.", result.stderr)
 
     def test_terminal_presentation_and_animation_preferences(self):
         for preferences, animated in (

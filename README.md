@@ -52,7 +52,9 @@ persist when you stop and restart the environment.
 
 ### 1. Install
 
-You need Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/).
+You need Linux and `curl` or `wget`. The installer prepares
+[uv](https://docs.astral.sh/uv/) for your user if missing; uv provides a compatible
+Python (3.12 or newer) when needed.
 Clone or download this repository and run from its folder as your regular user:
 
 ```bash
@@ -67,7 +69,8 @@ dependencies. Other Linux
 distributions require Docker and Compose to be installed manually. If your user
 is added to the Docker group, log out and back in before continuing.
 
-If `brig` is not found, run `uv tool update-shell` and open another terminal.
+The installer configures the command path. If prompted, open another terminal
+before running `brig`.
 Re-run the installer after updating this repository.
 [Installation guide](docs/tutorials/first-project.md#1-prepare-your-machine).
 

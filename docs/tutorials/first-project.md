@@ -5,7 +5,11 @@ isolated Python terminal. The folder can contain a real project or be empty.
 
 ## 1. Prepare your machine
 
-You need Linux, Python 3.12 or newer, and [uv](https://docs.astral.sh/uv/). Brig also
+You need Linux and `curl` or `wget`. The installer reuses an existing
+[uv](https://docs.astral.sh/uv/) or installs it for your user using
+[Astral's official installer](https://docs.astral.sh/uv/getting-started/installation/).
+uv selects Python 3.12 or newer and downloads a compatible interpreter when
+needed, so neither uv nor Python needs to be installed manually. Brig also
 requires Docker Engine and the Compose v2 plugin or newer. The repository
 installer checks their availability, the daemon, and access for your regular user.
 
@@ -16,12 +20,14 @@ From the Brig repository folder:
 brig --help
 ```
 
-The installer welcomes you with a brig and shows two brief stages: preparing
-Docker and installing Brig. Detailed output appears on failure, or live with
+The installer welcomes you with a brig and shows brief stages for preparing
+Docker and installing Brig, plus installer preparation when uv is missing.
+Detailed output appears on failure, or live with
 `./scripts/install.sh --verbose`. It respects `BRIG_LANG` (en, es, pt), `NO_COLOR`,
 and `BRIG_NO_ANIMATION`; redirected output and CI stay plain.
 
-If `brig` is not on your PATH, run `uv tool update-shell` and open another terminal.
+The installer configures the command path automatically. Open another terminal
+if prompted before running `brig`.
 After updating the code, reinstall the tool:
 
 ```bash
@@ -47,7 +53,7 @@ before running the installer. Follow [Docker's distribution instructions](https:
 The APT setup follows [Docker's Ubuntu](https://docs.docker.com/engine/install/ubuntu/)
 and [Debian](https://docs.docker.com/engine/install/debian/) documentation.
 
-For an existing managed machine, `uv tool install --reinstall .` remains available
+For an existing managed machine, `uv tool install --python '>=3.12' --reinstall .` remains available
 to install only the Python package; it does not run host dependency setup. The
 development hook installer also remains separate and does not install Docker.
 

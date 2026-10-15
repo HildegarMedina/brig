@@ -40,6 +40,24 @@ brig run my-api --command python --version
 Passing `--command` without a program is an error. A program that exits with a
 nonzero status produces a Brig error; the environment remains running.
 
+## The installer cannot prepare uv or Python
+
+Run `./scripts/install.sh --verbose` to see the download or installation error.
+The installer reuses uv from `PATH`, `UV_INSTALL_DIR`, or the user-local binary
+directory (`XDG_BIN_HOME` or `~/.local/bin`). If missing, it downloads Astral's
+official installer using `curl` or `wget` and installs uv for your regular user.
+Ensure either downloader is available and outbound HTTPS is allowed.
+
+Python 3.12 or newer is selected automatically by uv. If a compatible interpreter
+is missing, uv downloads one unless your uv configuration disables Python
+downloads. On restricted machines, provide a compatible Python and uv before
+running the installer. Installation errors stop setup and show diagnostics;
+rerunning the installer reuses an already installed uv.
+
+The installer updates the shell path for Brig. If it asks you to open a new
+terminal, do that before running `brig`; an installer cannot modify its parent
+shell's environment.
+
 ## Codex cannot load usage limit resets
 
 If Codex reports `couldn't load usage limit resets`, an older Brig credential

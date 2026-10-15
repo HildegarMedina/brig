@@ -16,6 +16,7 @@ installer_ui() {
         es)
             installer_title=Instalador
             installer_docker='Preparando Docker'
+            installer_runtime='Preparando instalador'
             installer_brig='Instalando Brig'
             installer_ready='Brig instalado.'
             installer_next='Ejecuta: brig'
@@ -26,6 +27,7 @@ installer_ui() {
         pt)
             installer_title=Instalador
             installer_docker='Preparando Docker'
+            installer_runtime='Preparando instalador'
             installer_brig='Instalando Brig'
             installer_ready='Brig instalado.'
             installer_next='Execute: brig'
@@ -36,6 +38,7 @@ installer_ui() {
         *)
             installer_title=Installer
             installer_docker='Preparing Docker'
+            installer_runtime='Preparing installer'
             installer_brig='Installing Brig'
             installer_ready='Brig installed.'
             installer_next='Run: brig'
@@ -89,6 +92,7 @@ installer_stop_animation() {
 installer_cleanup() {
     installer_stop_animation
     rm -f -- "${installer_log:-}"
+    rm -f -- "${installer_uv_script:-}"
 }
 
 installer_fail() {
