@@ -125,10 +125,12 @@ Run `brig` to open the dashboard, or use commands directly:
 | Open Bash | `brig bash my-api` |
 | Update agents | `brig update my-api` |
 | Enter with a specific agent | `brig run my-api --agent codex` |
-| Share an image or document with an agent | `brig project attach my-api ./design.png` |
+| Share an image or document with an agent | `brig attach ./design.png --project my-api` |
 | Stop and remove containers, keeping persistent data | `brig down my-api` |
 | Remove unused images from older configurations | `brig project clean my-api` |
 
+Inside a registered project folder or its subfolders, `brig attach ./design.png`
+detects the project automatically; elsewhere, use `--project NAME`.
 Attachments are copied into the project. Brig prints the path you can give to
 your agent; `brig project detach` or `brig down` removes the copies and keeps
 the originals. Image cleanup keeps current images and images used by any

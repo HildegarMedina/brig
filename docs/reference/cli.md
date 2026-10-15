@@ -105,9 +105,21 @@ automatically. Existing profiles can still be edited without renaming them.
 Dockerfile export does not query Docker or version providers and never overwrites
 an existing file. Without a name, it resolves the current folder.
 
-`attach` accepts regular files, including images and documents. Run it from the
-host with a registered project name; relative file paths refer to your current
-directory. It works before startup and while an agent is running, without Docker,
+Attach files from the host:
+
+```text
+brig attach FILE [FILE ...] [--project NAME]
+brig project attach NAME FILE [FILE ...]
+```
+
+`brig attach` detects the project containing the current folder, including
+subfolders; nested registrations select the nearest project. `--project NAME`
+overrides detection and works outside registered folders. Without either a
+containing project or `--project`, the command reports an error. All positional
+arguments are file paths; the existing `project attach NAME` form remains valid.
+
+`attach` accepts regular files, including images and documents. Relative paths
+refer to your current directory. It works before startup and while an agent is running, without Docker,
 internet, or a container restart. Each file receives a unique directory, so
 repeated filenames do not overwrite earlier attachments. Output is one container
 path per file. Give that path to the agent; Brig does not inject a chat message.

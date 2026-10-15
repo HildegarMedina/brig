@@ -46,11 +46,22 @@ program keeps the environment running.
 
 ## Share images and context with an agent
 
-From a host terminal, attach one or more local files:
+From a host terminal inside a registered project folder or one of its subfolders,
+attach one or more local files without specifying the project:
 
 ```bash
-brig project attach my-api ~/Downloads/design.png ~/Documents/requirements.txt
+brig attach ~/Downloads/design.png ~/Documents/requirements.txt
 ```
+
+From another folder, or to choose a different project, use `--project`:
+
+```bash
+brig attach ~/Downloads/design.png --project my-api
+```
+
+Relative file paths are resolved from your current folder. Nested registered
+projects select the nearest containing project. The existing
+`brig project attach my-api FILE...` command remains supported.
 
 Brig keeps the originals and prints the paths to independent copies, for example:
 

@@ -113,6 +113,15 @@ def parser() -> argparse.ArgumentParser:
             )
         if action == "remove":
             reference.add_argument("alias", metavar="ALIAS")
+    attach = commands.add_parser(
+        "attach", help=tr("copy local context files and print their container paths")
+    )
+    attach.add_argument("files", type=Path, nargs="+", metavar="FILE")
+    attach.add_argument(
+        "--project",
+        metavar="NAME",
+        help=tr("select a project instead of detecting its folder"),
+    )
     profiles = commands.add_parser(
         "profile", help=tr("manage reusable environment profiles")
     ).add_subparsers(dest="action", required=True)
@@ -289,6 +298,9 @@ def _interactive_action(args: argparse.Namespace) -> str | None:
 
 
 def dispatch(app: Application, args: argparse.Namespace) -> str:
+    if args.command == "attach":
+        project = app.resolve_project(args.project, Path.cwd())
+        return app.attach(project.name, args.files)
     if args.command == "profile":
         if args.action == "import":
             return app.import_profiles(args.paths)

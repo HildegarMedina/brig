@@ -5,7 +5,7 @@ import os
 import subprocess
 import tempfile
 import unittest
-from contextlib import redirect_stderr, redirect_stdout
+from contextlib import chdir, redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -187,3 +187,78 @@ class AttachmentTests(unittest.TestCase):
             self.assertEqual(main(["project", "attach", "api", str(self.root)]), 1)
             start.assert_not_called()
         self.assertIn("regular file", errors.getvalue())
+
+    def attach_command(self, directory, *arguments):
+        output, errors = io.StringIO(), io.StringIO()
+        with (
+            chdir(directory),
+            patch("brig.ui.cli.Application", return_value=self.app),
+            redirect_stdout(output),
+            redirect_stderr(errors),
+            patch.object(self.app.engine, "start") as start,
+        ):
+            code = main(["attach", *arguments])
+        start.assert_not_called()
+        return code, output.getvalue(), errors.getvalue()
+
+    def test_attach_detects_project_from_subfolder_and_resolves_relative_files(self):
+        folder = self.folder / "src"
+        folder.mkdir()
+        second = self.root / "requirements.txt"
+        second.write_text("project context")
+        code, output, errors = self.attach_command(
+            folder, "../../design reference.png", "../../requirements.txt"
+        )
+        self.assertEqual(code, 0, errors)
+        paths = output.splitlines()
+        self.assertEqual(len(paths), 2)
+        self.assertEqual(
+            self.host_path(paths[0]).read_bytes(), self.source.read_bytes()
+        )
+        self.assertEqual(self.host_path(paths[1]).read_text(), "project context")
+        self.assertEqual(errors, "")
+
+    def test_attach_treats_all_positionals_as_files_even_when_named_after_project(self):
+        source = self.folder / "api"
+        source.write_text("a file, not a project selector")
+        code, output, errors = self.attach_command(self.folder, "api")
+        self.assertEqual(code, 0, errors)
+        self.assertEqual(self.host_path(output.strip()).read_text(), source.read_text())
+
+    def test_attach_project_flag_overrides_current_folder_and_works_outside_projects(
+        self,
+    ):
+        other = self.root / "other"
+        other.mkdir()
+        self.app.create_project("other", other, "python-dev")
+        for directory in (self.folder, self.root):
+            with self.subTest(directory=directory):
+                code, output, errors = self.attach_command(
+                    directory, str(self.source), "--project", "other"
+                )
+                self.assertEqual(code, 0, errors)
+                target = other / Path(output.strip()).relative_to("/workspace")
+                self.assertEqual(target.read_bytes(), self.source.read_bytes())
+        self.assertFalse((self.folder / ".brig").exists())
+
+    def test_attach_selects_the_nearest_registered_project(self):
+        nested = self.folder / "nested"
+        nested.mkdir()
+        self.app.create_project("inner", nested, "python-dev")
+        code, output, errors = self.attach_command(nested, str(self.source))
+        self.assertEqual(code, 0, errors)
+        target = nested / Path(output.strip()).relative_to("/workspace")
+        self.assertEqual(target.read_bytes(), self.source.read_bytes())
+        self.assertFalse((self.folder / ".brig").exists())
+
+    def test_attach_outside_projects_requires_project_and_unknown_project_fails(self):
+        for arguments, message in (
+            ((str(self.source),), "No project found"),
+            (("--project", "missing", str(self.source)), "Unknown project"),
+        ):
+            with self.subTest(arguments=arguments):
+                code, output, errors = self.attach_command(self.root, *arguments)
+                self.assertEqual(code, 1)
+                self.assertEqual(output, "")
+                self.assertIn(message, errors)
+        self.assertFalse((self.folder / ".brig").exists())
