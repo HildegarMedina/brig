@@ -127,10 +127,11 @@ class DockerEngine:
                     # Agents create their home directories even for --version
                     # (OpenCode needs ~/.local/share/opencode), so give them a
                     # throwaway writable home on top of the read-only image.
+                    # A bare tmpfs belongs to root; the agent runs as the user.
                     "--tmpfs",
-                    "/home/brig",
+                    "/home/brig:mode=1777",
                     "--tmpfs",
-                    "/tmp",
+                    "/tmp:mode=1777",
                     "--env",
                     "HOME=/home/brig",
                     "--env",

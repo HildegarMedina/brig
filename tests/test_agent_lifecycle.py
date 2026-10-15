@@ -133,7 +133,7 @@ class AgentDockerLifecycleTests(unittest.TestCase):
         self.assertNotIn("--mount", args)
         self.assertIn("--read-only", args)
         # OpenCode creates ~/.local/share/opencode even for --version.
-        self.assertEqual(args[args.index("--tmpfs") + 1], "/home/brig")
+        self.assertEqual(args[args.index("--tmpfs") + 1], "/home/brig:mode=1777")
         self.assertIn("HOME=/home/brig", args)
         with (
             patch.object(
