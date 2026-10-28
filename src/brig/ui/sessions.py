@@ -45,12 +45,14 @@ def with_reference_prompt(app, project, action, *, no_input=False):
         return action()
 
 
-def update_agents(app, project, *, force=False, yes=False, no_input=False):
+def update_agents(app, project, *, agent=None, force=False, yes=False, no_input=False):
     if app.engine.simulated:
         return tr("Agent updates are unavailable in simulation mode.")
     try:
         available = releases(
-            app.engine.directory, project.configuration.selected_agents, force=force
+            app.engine.directory,
+            [agent] if agent is not None else project.configuration.selected_agents,
+            force=force,
         )
         installed = app.engine.agent_versions(project)
     except BrigError as error:
@@ -132,7 +134,7 @@ def run_agent(app, project, agent, *, no_input=False, check_updates=True):
             and not no_input
             and interactive()
         ):
-            message = update_agents(app, current)
+            message = update_agents(app, current, agent=agent)
             if message:
                 print(message, file=sys.stderr)
         ensure_login(app, current, agent, no_input=no_input)

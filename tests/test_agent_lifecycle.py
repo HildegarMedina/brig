@@ -268,6 +268,69 @@ class AgentSessionTests(unittest.TestCase):
             self.app.engine.has_credentials.side_effect = [False, True]
             sessions.ensure_login(self.app, self.project, "claude")
         self.app.authenticate_agent.assert_called_with("api", "claude")
+
+    def test_launch_only_checks_and_offers_updates_for_the_agent_being_started(self):
+        agents = ["claude", "codex", "opencode"]
+        self.project.configuration.selected_agents = agents
+        self.app.engine.agent_versions.return_value = dict.fromkeys(agents, "1.0.0")
+
+        def invoke(name, agent, *, before_launch):
+            before_launch(self.project)
+            return "launched"
+
+        self.app.run_agent.side_effect = invoke
+        for agent in agents:
+            for has_update in (False, True):
+                with self.subTest(agent=agent, has_update=has_update):
+                    self.app.update_agents.reset_mock()
+                    output = io.StringIO()
+                    available = dict.fromkeys(agents, "2.0.0")
+                    if not has_update:
+                        available[agent] = "1.0.0"
+                    with (
+                        patch(
+                            "brig.ui.sessions.releases",
+                            side_effect=lambda directory, selected, versions=available, **kwargs: {
+                                name: versions[name] for name in selected
+                            },
+                        ) as releases,
+                        patch("brig.ui.sessions.interactive", return_value=True),
+                        patch("brig.ui.sessions.confirm", return_value=True) as confirm,
+                        patch.dict("os.environ", {}, clear=True),
+                        redirect_stderr(output),
+                    ):
+                        self.assertEqual(
+                            sessions.run_agent(self.app, self.project, agent),
+                            "launched",
+                        )
+                    releases.assert_called_once_with(
+                        self.app.engine.directory, [agent], force=False
+                    )
+                    if has_update:
+                        confirm.assert_called_once()
+                        self.app.update_agents.assert_called_once_with(
+                            "api", {agent: "2.0.0"}
+                        )
+                        self.assertIn(f"{agent}: 1.0.0 → 2.0.0", output.getvalue())
+                    else:
+                        confirm.assert_not_called()
+                        self.app.update_agents.assert_not_called()
+                        self.assertEqual(output.getvalue(), "")
+                    for other in set(agents) - {agent}:
+                        self.assertNotIn(other, output.getvalue())
+
+    def test_explicit_update_checks_all_configured_agents(self):
+        agents = ["claude", "codex", "opencode"]
+        self.project.configuration.selected_agents = agents
+        self.app.engine.agent_versions.return_value = dict.fromkeys(agents, "1.0.0")
+        available = dict.fromkeys(agents, "2.0.0")
+        with (
+            patch("brig.ui.sessions.releases", return_value=available) as releases,
+            redirect_stderr(io.StringIO()),
+        ):
+            sessions.update_agents(self.app, self.project, force=True, yes=True)
+        releases.assert_called_once_with(self.app.engine.directory, agents, force=True)
+        self.app.update_agents.assert_called_once_with("api", available)
         with (
             patch("brig.ui.sessions.interactive", return_value=True),
             patch("builtins.input", return_value="1"),
@@ -409,7 +472,7 @@ class AgentSessionTests(unittest.TestCase):
             self.assertEqual(
                 sessions.run_agent(self.app, self.project, "claude"), "launched"
             )
-            update.assert_called_once()
+            update.assert_called_once_with(self.app, self.project, agent="claude")
             login.assert_called_with(self.app, self.project, "claude", no_input=False)
             update.reset_mock()
             sessions.run_agent(self.app, self.project, "claude", check_updates=False)

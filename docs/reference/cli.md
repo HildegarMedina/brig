@@ -231,14 +231,16 @@ setup also asks for a provider. Existing logins are reused across projects.
 Without interactive input, missing credentials produce an actionable error.
 `bash`, `up`, and `down` do not require agent login.
 
-Interactive agent launches check available releases using a host-side cache valid
-for one day. Claude follows its stable channel; Codex and OpenCode follow their
+Interactive agent launches check available releases only for the agent being
+started, using a host-side cache valid for one day. Claude follows its stable
+channel; Codex and OpenCode follow their
 stable releases. Newer versions show the installed and available versions and
 ask before applying changes. A failed background check does not block launch.
 Use `--no-update-check` on `run`, or set `BRIG_NO_UPDATE_CHECK=1`, to skip automatic
 checks. `--no-input` also skips automatic checks and authentication prompts.
 
-`brig update` explicitly refreshes the release information. It prepares the project,
+`brig update` explicitly refreshes the release information for all agents configured
+in the project. It prepares the project,
 compares installed versions, and asks before applying available updates. Use
 `--yes` to apply updates without a question. Without a TTY, omit `--yes` to only
 report available updates. An update builds a separate image, invalidating the
