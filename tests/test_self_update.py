@@ -159,6 +159,14 @@ class ReleaseTests(unittest.TestCase):
 
 class SelfUpdateTests(unittest.TestCase):
     def setUp(self):
+        # Exercise upgrades from a fixed installed version across Brig releases.
+        self.enterContext(patch("brig.self_update.__version__", "1.0.0"))
+        self.enterContext(
+            patch(
+                "brig.self_update.newer",
+                side_effect=lambda available: newer(available, "1.0.0"),
+            )
+        )
         self.temporary = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "data"

@@ -46,11 +46,11 @@ class ReleaseBuildTests(unittest.TestCase):
         with patch(
             "scripts.build_release.subprocess.run", side_effect=self.build_command
         ):
-            assets = build_release.build(self.root, "v1.0.0")
+            assets = build_release.build(self.root, f"v{__version__}")
         self.assertEqual(
             {path.name for path in assets},
             {
-                "brig-1.0.0-py3-none-any.whl",
+                f"brig-{__version__}-py3-none-any.whl",
                 REQUIREMENTS,
                 "install.sh",
                 "VERSION",
@@ -63,7 +63,7 @@ class ReleaseBuildTests(unittest.TestCase):
                 digest, hashlib.sha256((self.root / name).read_bytes()).hexdigest()
             )
         script = (self.root / "install.sh").read_text()
-        self.assertIn("release_version='1.0.0'", script)
+        self.assertIn(f"release_version='{__version__}'", script)
         self.assertNotIn("@BRIG_", script)
         self.assertNotIn(str(build_release.ROOT), script)
         result = subprocess.run(
@@ -73,7 +73,7 @@ class ReleaseBuildTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         with self.assertRaisesRegex(ValueError, "tag"):
-            build_release.build(self.root, "v1.0.1")
+            build_release.build(self.root, f"v{__version__}0")
 
     def test_stale_constraints_stop_the_release_before_building_a_package(self):
         def export(args, **kwargs):
@@ -99,7 +99,7 @@ class RemoteInstallationTests(unittest.TestCase):
         self.assets.mkdir()
         self.release_assets()
 
-    def release_assets(self, version="1.0.0"):
+    def release_assets(self, version=__version__):
         assets = {
             f"brig-{version}-py3-none-any.whl": b"fixture-wheel",
             REQUIREMENTS: b"packaging==26.3\n",
@@ -148,8 +148,11 @@ cat "$RELEASE_FIXTURE/${source_url##*/}" > "$destination"
         result = self.installer()
         self.assertEqual(result.returncode, 0, result.stderr)
         log = self.case.log.read_text()
-        self.assertIn("/releases/download/v1.0.0/brig-1.0.0-py3-none-any.whl", log)
-        self.assertIn("/releases/download/v1.0.0/brig-requirements.txt", log)
+        self.assertIn(
+            f"/releases/download/v{__version__}/brig-{__version__}-py3-none-any.whl",
+            log,
+        )
+        self.assertIn(f"/releases/download/v{__version__}/brig-requirements.txt", log)
         self.assertIn("--constraints", log)
         self.assertIn("tool update-shell", log)
         self.assertNotIn("git clone", log)
@@ -170,7 +173,7 @@ cat "$RELEASE_FIXTURE/${source_url##*/}" > "$destination"
                 self.case.log.write_text("")
                 if mutation in ("wheel", "constraints"):
                     name = (
-                        "brig-1.0.0-py3-none-any.whl"
+                        f"brig-{__version__}-py3-none-any.whl"
                         if mutation == "wheel"
                         else REQUIREMENTS
                     )
