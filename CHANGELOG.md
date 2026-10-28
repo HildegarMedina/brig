@@ -15,3 +15,15 @@ First stable Brig release.
   explicitly, select an exact release, or pin the installed version.
 - Provide English, Spanish, and Portuguese interfaces with terminal-friendly
   sailing and shutdown animations.
+
+## 1.0.1
+
+Bug fix release.
+
+- Fix update checks incorrectly prompting to update agents that are not being used.
+
+## 1.0.2
+
+Bug fix release
+
+- Fixed issues with the CLI update command.
